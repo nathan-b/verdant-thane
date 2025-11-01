@@ -15,30 +15,40 @@ const (
 	screenWidth  = 1024
 	screenHeight = 768
 
-	gameWidth = 5040
+	gameWidth  = 5040
 	gameHeight = 5040
 
 	// Rotation speed in radians per tick (60 ticks per second)
 	rotationSpeed = 3.0 * math.Pi / 180.0 // 3 degrees per tick
 
 	// Movement constants (for Fighter class)
-	maxSpeed     = 6.0           // pixels per tick
-	acceleration = 4.0 / 60.0    // pixels per second per tick
+	maxSpeed     = 6.0        // pixels per tick
+	acceleration = 4.0 / 60.0 // pixels per second per tick
+
+	// Firing constants
+	capacitorChargeTime = 600.0 / 1000.0                     // 600ms in seconds
+	capacitorChargeRate = 1.0 / (capacitorChargeTime * 60.0) // charge per tick (60 ticks/sec)
+	firingConeAngle     = 30.0 * math.Pi / 180.0             // 30 degrees in radians
+	projectileSpeed     = maxSpeed * 2.0                     // twice max ship speed
+	projectileLifetime  = 180                                // ticks (3 seconds at 60 TPS)
 
 	// Starfield constants
-	starDensity = 0.0003 // stars per pixel
-	starGridSize = 200   // grid size for deterministic star generation
+	starDensity  = 0.0003 // stars per pixel
+	starGridSize = 200    // grid size for deterministic star generation
 )
 
 // Game represents the main game state
 type Game struct {
-	ships    []*Ship
-	player   *Player
-	cameraX  float64 // Camera position (follows player)
-	cameraY  float64
+	ships       []*Ship
+	player      *Player
+	projectiles []*Projectile
+	laserSprite *ebiten.Image // Shared sprite for all projectiles
+	cameraX     float64       // Camera position (follows player)
+	cameraY     float64
 }
 
 type ShipClass int
+
 const (
 	Fighter ShipClass = iota
 	Destroyer
@@ -47,17 +57,29 @@ const (
 )
 
 type Ship struct {
-	sprite   *ebiten.Image
-	class    ShipClass
-	faction  int
-	x        float64
-	y        float64
-	angle    float64
-	speed    float64
+	sprite    *ebiten.Image
+	class     ShipClass
+	faction   int
+	x         float64
+	y         float64
+	angle     float64
+	speed     float64
+	capacitor float64 // 0.0 to 1.0, controls firing ability
+	hull      int     // hit points
 }
 
 type Player struct {
-	ship *Ship
+	ship  *Ship
+	score int
+}
+
+type Projectile struct {
+	x        float64
+	y        float64
+	vx       float64 // velocity X
+	vy       float64 // velocity Y
+	faction  int     // which team fired it
+	lifetime int     // ticks remaining
 }
 
 // modulo performs proper modulo operation (handles negatives correctly)
@@ -122,15 +144,20 @@ func generateStarsForGrid(gridX, gridY int) []struct{ x, y float64 } {
 func NewShip(class ShipClass, faction int, x, y, angle float64) (*Ship, error) {
 	// Get the sprite path based on class
 	var spritePath string
+	var hull int
 	switch class {
 	case Fighter:
 		spritePath = "assets/fighter.png"
+		hull = 8
 	case Destroyer:
 		spritePath = "assets/destroyer.png"
+		hull = 32
 	case Testudon:
 		spritePath = "assets/testudon.png"
+		hull = 50
 	case Mothership:
 		spritePath = "assets/mothership.png"
+		hull = 200
 	default:
 		return nil, fmt.Errorf("unknown ship class: %v", class)
 	}
@@ -143,14 +170,70 @@ func NewShip(class ShipClass, faction int, x, y, angle float64) (*Ship, error) {
 	}
 
 	return &Ship{
-		sprite:  sprite,
-		class:   class,
-		faction: faction,
-		x:       x,
-		y:       y,
-		angle:   angle,
-		speed:   0,  // TODO Handle acceleration too
+		sprite:    sprite,
+		class:     class,
+		faction:   faction,
+		x:         x,
+		y:         y,
+		angle:     angle,
+		speed:     0,
+		capacitor: 1.0, // Start fully charged,
+		hull:      hull,
 	}, nil
+}
+
+// fireWeapon attempts to fire a projectile from the given ship toward the target coordinates
+// Returns true if the weapon was fired, false otherwise (e.g., capacitor not charged)
+func (g *Game) fireWeapon(ship *Ship, targetX, targetY float64) bool {
+	// Check if capacitor is charged
+	if ship.capacitor < 1.0 {
+		return false
+	}
+
+	// Calculate angle to target
+	dx := targetX - ship.x
+	dy := targetY - ship.y
+	// Adjust for sprite orientation (sprite faces up at angle 0)
+	targetAngle := math.Atan2(dx, -dy)
+
+	// Calculate angle difference from ship's facing direction
+	angleDiff := targetAngle - ship.angle
+	// Normalize to [-π, π]
+	for angleDiff > math.Pi {
+		angleDiff -= 2 * math.Pi
+	}
+	for angleDiff < -math.Pi {
+		angleDiff += 2 * math.Pi
+	}
+
+	// Constrain to firing cone
+	firingAngle := ship.angle
+	halfCone := firingConeAngle / 2
+	if angleDiff > halfCone {
+		firingAngle += halfCone
+	} else if angleDiff < -halfCone {
+		firingAngle -= halfCone
+	} else {
+		firingAngle = targetAngle
+	}
+
+	// Create projectile
+	vx := math.Sin(firingAngle) * projectileSpeed
+	vy := -math.Cos(firingAngle) * projectileSpeed
+
+	g.projectiles = append(g.projectiles, &Projectile{
+		x:        ship.x,
+		y:        ship.y,
+		vx:       vx,
+		vy:       vy,
+		faction:  ship.faction,
+		lifetime: projectileLifetime,
+	})
+
+	// Drain capacitor
+	ship.capacitor = 0.0
+
+	return true
 }
 
 // NewGame creates and initializes a new game
@@ -158,17 +241,24 @@ func NewGame() (*Game, error) {
 	// Build the player ship at the center of the game world
 	startX := float64(gameWidth) / 2
 	startY := float64(gameHeight) / 2
-	pship , err := NewShip(Fighter, 0, startX, startY, 0)
+	pship, err := NewShip(Fighter, 0, startX, startY, 0)
 
 	if err != nil {
 		return nil, err
 	}
 
+	// Load laser sprite (shared by all projectiles)
+	laserSprite, _, err := ebitenutil.NewImageFromFile("assets/laser.png")
+	if err != nil {
+		return nil, err
+	}
+
 	return &Game{
-		ships: []*Ship{pship},
-		player: &Player{ship: pship},
-		cameraX: startX - float64(screenWidth)/2,
-		cameraY: startY - float64(screenHeight)/2,
+		ships:       []*Ship{pship},
+		player:      &Player{ship: pship},
+		laserSprite: laserSprite,
+		cameraX:     startX - float64(screenWidth)/2,
+		cameraY:     startY - float64(screenHeight)/2,
 	}, nil
 }
 
@@ -221,6 +311,51 @@ func (g *Game) Update() error {
 	} else if ship.y >= float64(gameHeight) {
 		ship.y -= float64(gameHeight)
 	}
+
+	// Charge capacitor
+	if ship.capacitor < 1.0 {
+		ship.capacitor += capacitorChargeRate
+	}
+
+	// Handle firing
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		// Get mouse position in world coordinates
+		mouseX, mouseY := ebiten.CursorPosition()
+		worldMouseX := float64(mouseX) + g.cameraX
+		worldMouseY := float64(mouseY) + g.cameraY
+
+		// Attempt to fire at mouse position
+		g.fireWeapon(ship, worldMouseX, worldMouseY)
+	}
+
+	// Update projectiles
+	activeProjectiles := []*Projectile{}
+	for _, p := range g.projectiles {
+		// Update position
+		p.x += p.vx
+		p.y += p.vy
+
+		// Wrap around world boundaries
+		if p.x < 0 {
+			p.x += float64(gameWidth)
+		} else if p.x >= float64(gameWidth) {
+			p.x -= float64(gameWidth)
+		}
+		if p.y < 0 {
+			p.y += float64(gameHeight)
+		} else if p.y >= float64(gameHeight) {
+			p.y -= float64(gameHeight)
+		}
+
+		// Decrease lifetime
+		p.lifetime--
+
+		// Keep if still alive
+		if p.lifetime > 0 {
+			activeProjectiles = append(activeProjectiles, p)
+		}
+	}
+	g.projectiles = activeProjectiles
 
 	// Update camera to follow player (centered on player)
 	g.cameraX = ship.x - float64(screenWidth)/2
@@ -303,6 +438,24 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		op.GeoM.Translate(-g.cameraX, -g.cameraY)
 
 		screen.DrawImage(ship.sprite, op)
+	}
+
+	// Draw projectiles
+	for _, p := range g.projectiles {
+		op := &ebiten.DrawImageOptions{}
+
+		// Get sprite dimensions for centering
+		bounds := g.laserSprite.Bounds()
+		spriteWidth := float64(bounds.Dx())
+		spriteHeight := float64(bounds.Dy())
+
+		// Apply transformations (no rotation needed for square sprite):
+		// 1. Translate to projectile position (centered)
+		op.GeoM.Translate(p.x-spriteWidth/2, p.y-spriteHeight/2)
+		// 2. Apply camera offset
+		op.GeoM.Translate(-g.cameraX, -g.cameraY)
+
+		screen.DrawImage(g.laserSprite, op)
 	}
 }
 
