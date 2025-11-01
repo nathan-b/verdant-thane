@@ -8,6 +8,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 const (
@@ -23,12 +24,18 @@ const (
 	// Movement constants (for Fighter class)
 	maxSpeed     = 6.0           // pixels per tick
 	acceleration = 4.0 / 60.0    // pixels per second per tick
+
+	// Starfield constants
+	starDensity = 0.0003 // stars per pixel
+	starGridSize = 200   // grid size for deterministic star generation
 )
 
 // Game represents the main game state
 type Game struct {
 	ships    []*Ship
 	player   *Player
+	cameraX  float64 // Camera position (follows player)
+	cameraY  float64
 }
 
 type ShipClass int
@@ -51,6 +58,64 @@ type Ship struct {
 
 type Player struct {
 	ship *Ship
+}
+
+// modulo performs proper modulo operation (handles negatives correctly)
+func modulo(a, b int) int {
+	return ((a % b) + b) % b
+}
+
+// hashPosition creates a deterministic hash for a grid position
+// Wraps grid coordinates to ensure consistent stars across world boundaries
+func hashPosition(gridX, gridY int) int {
+	// Calculate number of grid cells in the game world
+	gridCountX := gameWidth / starGridSize
+	gridCountY := gameHeight / starGridSize
+
+	// Wrap grid coordinates to ensure tiling
+	wrappedX := modulo(gridX, gridCountX)
+	wrappedY := modulo(gridY, gridCountY)
+
+	// Simple hash function for deterministic random generation
+	h := wrappedX*73856093 ^ wrappedY*19349663
+	if h < 0 {
+		h = -h
+	}
+	return h
+}
+
+// generateStarsForGrid generates stars for a specific grid cell
+func generateStarsForGrid(gridX, gridY int) []struct{ x, y float64 } {
+	stars := []struct{ x, y float64 }{}
+
+	// Use hash as seed for this grid cell (hash handles wrapping internally)
+	seed := hashPosition(gridX, gridY)
+
+	// Determine number of stars in this grid cell
+	area := float64(starGridSize * starGridSize)
+	numStars := int(area * starDensity)
+
+	// Generate deterministic "random" positions within this grid
+	for i := 0; i < numStars; i++ {
+		// Simple LCG (Linear Congruential Generator) for deterministic randomness
+		seed = (seed*1103515245 + 12345) & 0x7fffffff
+		offsetX := float64(seed % starGridSize)
+
+		seed = (seed*1103515245 + 12345) & 0x7fffffff
+		offsetY := float64(seed % starGridSize)
+
+		// Calculate base position for this grid cell
+		baseX := float64(gridX * starGridSize)
+		baseY := float64(gridY * starGridSize)
+
+		// Star position in world coordinates
+		x := baseX + offsetX
+		y := baseY + offsetY
+
+		stars = append(stars, struct{ x, y float64 }{x, y})
+	}
+
+	return stars
 }
 
 // Build a ship
@@ -90,8 +155,10 @@ func NewShip(class ShipClass, faction int, x, y, angle float64) (*Ship, error) {
 
 // NewGame creates and initializes a new game
 func NewGame() (*Game, error) {
-	// Build the player ship
-	pship , err := NewShip(Fighter, 0, float64(screenWidth)/2, float64(screenHeight)/2, 0)
+	// Build the player ship at the center of the game world
+	startX := float64(gameWidth) / 2
+	startY := float64(gameHeight) / 2
+	pship , err := NewShip(Fighter, 0, startX, startY, 0)
 
 	if err != nil {
 		return nil, err
@@ -100,6 +167,8 @@ func NewGame() (*Game, error) {
 	return &Game{
 		ships: []*Ship{pship},
 		player: &Player{ship: pship},
+		cameraX: startX - float64(screenWidth)/2,
+		cameraY: startY - float64(screenHeight)/2,
 	}, nil
 }
 
@@ -153,6 +222,10 @@ func (g *Game) Update() error {
 		ship.y -= float64(gameHeight)
 	}
 
+	// Update camera to follow player (centered on player)
+	g.cameraX = ship.x - float64(screenWidth)/2
+	g.cameraY = ship.y - float64(screenHeight)/2
+
 	return nil
 }
 
@@ -160,6 +233,55 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	// Fill the screen with black
 	screen.Fill(color.RGBA{0, 0, 0, 255})
+
+	// Draw stars
+	// Determine which grid cells are visible
+	minGridX := int(g.cameraX) / starGridSize
+	maxGridX := int(g.cameraX+float64(screenWidth)) / starGridSize
+	minGridY := int(g.cameraY) / starGridSize
+	maxGridY := int(g.cameraY+float64(screenHeight)) / starGridSize
+
+	// Draw stars for visible grid cells
+	for gridX := minGridX; gridX <= maxGridX; gridX++ {
+		for gridY := minGridY; gridY <= maxGridY; gridY++ {
+			stars := generateStarsForGrid(gridX, gridY)
+			for _, star := range stars {
+				// Convert star position to screen coordinates
+				// We need to handle wrapping: stars might need to be drawn at wrapped positions
+				drawStarAtPosition := func(worldX, worldY float64) {
+					screenX := worldX - g.cameraX
+					screenY := worldY - g.cameraY
+
+					// Only draw if on screen
+					if screenX >= 0 && screenX < float64(screenWidth) && screenY >= 0 && screenY < float64(screenHeight) {
+						vector.DrawFilledRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
+					}
+				}
+
+				// Draw star at its primary position
+				drawStarAtPosition(star.x, star.y)
+
+				// Also check if we should draw the star at wrapped positions
+				// This handles the case where the camera is near world boundaries
+				if star.x < g.cameraX {
+					// Star is to the left of camera, try drawing wrapped to the right
+					drawStarAtPosition(star.x+float64(gameWidth), star.y)
+				}
+				if star.x > g.cameraX+float64(screenWidth) {
+					// Star is to the right of camera, try drawing wrapped to the left
+					drawStarAtPosition(star.x-float64(gameWidth), star.y)
+				}
+				if star.y < g.cameraY {
+					// Star is above camera, try drawing wrapped below
+					drawStarAtPosition(star.x, star.y+float64(gameHeight))
+				}
+				if star.y > g.cameraY+float64(screenHeight) {
+					// Star is below camera, try drawing wrapped above
+					drawStarAtPosition(star.x, star.y-float64(gameHeight))
+				}
+			}
+		}
+	}
 
 	// Draw each ship
 	for _, ship := range g.ships {
@@ -175,8 +297,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		op.GeoM.Translate(-shipWidth/2, -shipHeight/2)
 		// 2. Rotate around origin
 		op.GeoM.Rotate(ship.angle)
-		// 3. Translate to ship position
+		// 3. Translate to ship position in world
 		op.GeoM.Translate(ship.x, ship.y)
+		// 4. Translate by camera offset to convert to screen coordinates
+		op.GeoM.Translate(-g.cameraX, -g.cameraY)
 
 		screen.DrawImage(ship.sprite, op)
 	}
