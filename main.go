@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"image/color"
 	"log"
 	"math"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -42,8 +45,9 @@ type Game struct {
 	ships       []*Ship
 	player      *Player
 	projectiles []*Projectile
-	laserSprite *ebiten.Image // Shared sprite for all projectiles
-	cameraX     float64       // Camera position (follows player)
+	laserSprite *ebiten.Image    // Shared sprite for all projectiles
+	hudFont     *text.GoTextFace // Font for HUD rendering
+	cameraX     float64          // Camera position (follows player)
 	cameraY     float64
 }
 
@@ -71,6 +75,7 @@ type Ship struct {
 type Player struct {
 	ship  *Ship
 	score int
+	kills int
 }
 
 type Projectile struct {
@@ -253,10 +258,27 @@ func NewGame() (*Game, error) {
 		return nil, err
 	}
 
+	// Load font for HUD
+	fontBytes, err := os.ReadFile("assets/orbitron.ttf")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load font: %w", err)
+	}
+
+	fontSource, err := text.NewGoTextFaceSource(bytes.NewReader(fontBytes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse font: %w", err)
+	}
+
+	hudFont := &text.GoTextFace{
+		Source: fontSource,
+		Size:   14,
+	}
+
 	return &Game{
 		ships:       []*Ship{pship},
-		player:      &Player{ship: pship},
+		player:      &Player{ship: pship, score: 0, kills: 0},
 		laserSprite: laserSprite,
+		hudFont:     hudFont,
 		cameraX:     startX - float64(screenWidth)/2,
 		cameraY:     startY - float64(screenHeight)/2,
 	}, nil
@@ -457,6 +479,32 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		screen.DrawImage(g.laserSprite, op)
 	}
+
+	// Draw HUD
+	textColor := color.White
+
+	// Upper left: Score
+	scoreText := fmt.Sprintf("Score: %d", g.player.score)
+	scoreOp := &text.DrawOptions{}
+	scoreOp.GeoM.Translate(10, 10)
+	scoreOp.ColorScale.ScaleWithColor(textColor)
+	text.Draw(screen, scoreText, g.hudFont, scoreOp)
+
+	// Upper right: Shield
+	shieldText := fmt.Sprintf("Shield: %d", g.player.ship.hull)
+	shieldWidth, _ := text.Measure(shieldText, g.hudFont, 0)
+	shieldOp := &text.DrawOptions{}
+	shieldOp.GeoM.Translate(float64(screenWidth)-shieldWidth-10, 10)
+	shieldOp.ColorScale.ScaleWithColor(textColor)
+	text.Draw(screen, shieldText, g.hudFont, shieldOp)
+
+	// Upper right: Kills
+	killsText := fmt.Sprintf("Kills: %d", g.player.kills)
+	killsWidth, _ := text.Measure(killsText, g.hudFont, 0)
+	killsOp := &text.DrawOptions{}
+	killsOp.GeoM.Translate(float64(screenWidth)-killsWidth-10, 27)
+	killsOp.ColorScale.ScaleWithColor(textColor)
+	text.Draw(screen, killsText, g.hudFont, killsOp)
 }
 
 // Layout returns the game's screen dimensions
