@@ -14,8 +14,15 @@ const (
 	screenWidth  = 1024
 	screenHeight = 768
 
+	gameWidth = 5040
+	gameHeight = 5040
+
 	// Rotation speed in radians per tick (60 ticks per second)
 	rotationSpeed = 3.0 * math.Pi / 180.0 // 3 degrees per tick
+
+	// Movement constants (for Fighter class)
+	maxSpeed     = 6.0           // pixels per tick
+	acceleration = 4.0 / 60.0    // pixels per second per tick
 )
 
 // Game represents the main game state
@@ -39,7 +46,7 @@ type Ship struct {
 	x        float64
 	y        float64
 	angle    float64
-	speed    int
+	speed    float64
 }
 
 type Player struct {
@@ -99,14 +106,51 @@ func NewGame() (*Game, error) {
 // Update updates the game logic
 // This is called 60 times per second
 func (g *Game) Update() error {
+	ship := g.player.ship
+
 	// Handle rotation
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
 		// Rotate left (counter-clockwise)
-		g.player.ship.angle -= rotationSpeed
+		ship.angle -= rotationSpeed
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
 		// Rotate right (clockwise)
-		g.player.ship.angle += rotationSpeed
+		ship.angle += rotationSpeed
+	}
+
+	// Handle acceleration/deceleration
+	if ebiten.IsKeyPressed(ebiten.KeyW) {
+		// Accelerate
+		ship.speed += acceleration
+		if ship.speed > maxSpeed {
+			ship.speed = maxSpeed
+		}
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyS) {
+		// Decelerate
+		ship.speed -= acceleration
+		if ship.speed < 0 {
+			ship.speed = 0
+		}
+	}
+
+	// Apply velocity to position
+	// Sprite faces upward at angle 0, so we adjust the standard math:
+	// - Upward (angle 0) means negative Y in screen coordinates
+	// - Use sin() for X and -cos() for Y
+	ship.x += math.Sin(ship.angle) * ship.speed
+	ship.y += -math.Cos(ship.angle) * ship.speed
+
+	// Keep ship within game bounds (wrap around if necessary)
+	if ship.x < 0 {
+		ship.x += float64(gameWidth)
+	} else if ship.x >= float64(gameWidth) {
+		ship.x -= float64(gameWidth)
+	}
+	if ship.y < 0 {
+		ship.y += float64(gameHeight)
+	} else if ship.y >= float64(gameHeight) {
+		ship.y -= float64(gameHeight)
 	}
 
 	return nil
