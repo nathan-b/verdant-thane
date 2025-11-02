@@ -12,6 +12,10 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/yohamta/donburi"
+
+	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/systems"
 )
 
 const (
@@ -21,19 +25,13 @@ const (
 	gameWidth  = 5040
 	gameHeight = 5040
 
-	// Rotation speed in radians per tick (60 ticks per second)
-	rotationSpeed = 3.0 * math.Pi / 180.0 // 3 degrees per tick
-
 	// Movement constants (for Fighter class)
 	maxSpeed     = 6.0        // pixels per tick
 	acceleration = 4.0 / 60.0 // pixels per second per tick
 
-	// Firing constants
-	capacitorChargeTime = 600.0 / 1000.0                     // 600ms in seconds
-	capacitorChargeRate = 1.0 / (capacitorChargeTime * 60.0) // charge per tick (60 ticks/sec)
-	firingConeAngle     = 30.0 * math.Pi / 180.0             // 30 degrees in radians
-	projectileSpeed     = maxSpeed * 2.0                     // twice max ship speed
-	projectileLifetime  = 180                                // ticks (3 seconds at 60 TPS)
+	// Firing constants (used for entity initialization)
+	capacitorChargeRate = 1.0 / ((600.0 / 1000.0) * 60.0) // charge per tick (600ms charge time)
+	firingConeAngle     = 30.0 * math.Pi / 180.0          // 30 degrees in radians
 
 	// Starfield constants
 	starDensity  = 0.0003 // stars per pixel
@@ -42,49 +40,18 @@ const (
 
 // Game represents the main game state
 type Game struct {
-	ships       []*Ship
-	player      *Player
-	projectiles []*Projectile
+	// ECS World (interface, not pointer)
+	world              donburi.World
+	playerEntity       donburi.Entity
+	playerStateEntity  donburi.Entity
+
+	// Shared resources
 	laserSprite *ebiten.Image    // Shared sprite for all projectiles
 	hudFont     *text.GoTextFace // Font for HUD rendering
+
+	// Camera (could be moved to ECS later)
 	cameraX     float64          // Camera position (follows player)
 	cameraY     float64
-}
-
-type ShipClass int
-
-const (
-	Fighter ShipClass = iota
-	Destroyer
-	Testudon
-	Mothership
-)
-
-type Ship struct {
-	sprite    *ebiten.Image
-	class     ShipClass
-	faction   int
-	x         float64
-	y         float64
-	angle     float64
-	speed     float64
-	capacitor float64 // 0.0 to 1.0, controls firing ability
-	hull      int     // hit points
-}
-
-type Player struct {
-	ship  *Ship
-	score int
-	kills int
-}
-
-type Projectile struct {
-	x        float64
-	y        float64
-	vx       float64 // velocity X
-	vy       float64 // velocity Y
-	faction  int     // which team fired it
-	lifetime int     // ticks remaining
 }
 
 // modulo performs proper modulo operation (handles negatives correctly)
@@ -145,114 +112,12 @@ func generateStarsForGrid(gridX, gridY int) []struct{ x, y float64 } {
 	return stars
 }
 
-// Build a ship
-func NewShip(class ShipClass, faction int, x, y, angle float64) (*Ship, error) {
-	// Get the sprite path based on class
-	var spritePath string
-	var hull int
-	switch class {
-	case Fighter:
-		spritePath = "assets/fighter.png"
-		hull = 8
-	case Destroyer:
-		spritePath = "assets/destroyer.png"
-		hull = 32
-	case Testudon:
-		spritePath = "assets/testudon.png"
-		hull = 50
-	case Mothership:
-		spritePath = "assets/mothership.png"
-		hull = 200
-	default:
-		return nil, fmt.Errorf("unknown ship class: %v", class)
-	}
-
-	// Load the sprite
-	// TODO: Cache loaded sprites to avoid reloading
-	sprite, _, err := ebitenutil.NewImageFromFile(spritePath)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Ship{
-		sprite:    sprite,
-		class:     class,
-		faction:   faction,
-		x:         x,
-		y:         y,
-		angle:     angle,
-		speed:     0,
-		capacitor: 1.0, // Start fully charged,
-		hull:      hull,
-	}, nil
-}
-
-// fireWeapon attempts to fire a projectile from the given ship toward the target coordinates
-// Returns true if the weapon was fired, false otherwise (e.g., capacitor not charged)
-func (g *Game) fireWeapon(ship *Ship, targetX, targetY float64) bool {
-	// Check if capacitor is charged
-	if ship.capacitor < 1.0 {
-		return false
-	}
-
-	// Calculate angle to target
-	dx := targetX - ship.x
-	dy := targetY - ship.y
-	// Adjust for sprite orientation (sprite faces up at angle 0)
-	targetAngle := math.Atan2(dx, -dy)
-
-	// Calculate angle difference from ship's facing direction
-	angleDiff := targetAngle - ship.angle
-	// Normalize to [-π, π]
-	for angleDiff > math.Pi {
-		angleDiff -= 2 * math.Pi
-	}
-	for angleDiff < -math.Pi {
-		angleDiff += 2 * math.Pi
-	}
-
-	// Constrain to firing cone
-	firingAngle := ship.angle
-	halfCone := firingConeAngle / 2
-	if angleDiff > halfCone {
-		firingAngle += halfCone
-	} else if angleDiff < -halfCone {
-		firingAngle -= halfCone
-	} else {
-		firingAngle = targetAngle
-	}
-
-	// Create projectile
-	vx := math.Sin(firingAngle) * projectileSpeed
-	vy := -math.Cos(firingAngle) * projectileSpeed
-
-	g.projectiles = append(g.projectiles, &Projectile{
-		x:        ship.x,
-		y:        ship.y,
-		vx:       vx,
-		vy:       vy,
-		faction:  ship.faction,
-		lifetime: projectileLifetime,
-	})
-
-	// Drain capacitor
-	ship.capacitor = 0.0
-
-	return true
-}
-
-// NewGame creates and initializes a new game
+// NewGame creates and initializes a new game with ECS
 func NewGame() (*Game, error) {
-	// Build the player ship at the center of the game world
-	startX := float64(gameWidth) / 2
-	startY := float64(gameHeight) / 2
-	pship, err := NewShip(Fighter, 0, startX, startY, 0)
+	// Create ECS world
+	world := donburi.NewWorld()
 
-	if err != nil {
-		return nil, err
-	}
-
-	// Load laser sprite (shared by all projectiles)
+	// Load shared assets
 	laserSprite, _, err := ebitenutil.NewImageFromFile("assets/laser.png")
 	if err != nil {
 		return nil, err
@@ -274,114 +139,99 @@ func NewGame() (*Game, error) {
 		Size:   14,
 	}
 
+	// Create player ship entity at center of world
+	startX := float64(gameWidth) / 2
+	startY := float64(gameHeight) / 2
+
+	// Load fighter sprite
+	fighterSprite, _, err := ebitenutil.NewImageFromFile("assets/fighter.png")
+	if err != nil {
+		return nil, err
+	}
+
+	// Create player ship entity
+	playerShip := world.Create(
+		components.IsShip,
+		components.PlayerControlled,
+		components.Position,
+		components.Velocity,
+		components.Rotation,
+		components.Ship,
+		components.Faction,
+		components.Health,
+		components.Weapon,
+		components.Sprite,
+	)
+
+	playerEntry := world.Entry(playerShip)
+	components.Position.SetValue(playerEntry, components.PositionData{X: startX, Y: startY})
+	components.Velocity.SetValue(playerEntry, components.VelocityData{X: 0, Y: 0})
+	components.Rotation.SetValue(playerEntry, components.RotationData{Angle: 0})
+	components.Ship.SetValue(playerEntry, components.ShipData{
+		Class:    components.Fighter,
+		Speed:    0,
+		MaxSpeed: maxSpeed,
+		Accel:    acceleration,
+	})
+	components.Faction.SetValue(playerEntry, components.FactionData{ID: 0}) // Green team
+	components.Health.SetValue(playerEntry, components.HealthData{Current: 8, Max: 8})
+	components.Weapon.SetValue(playerEntry, components.WeaponData{
+		Capacitor:  1.0, // Start fully charged
+		ChargeRate: capacitorChargeRate,
+		FiringCone: firingConeAngle,
+	})
+	components.Sprite.SetValue(playerEntry, components.SpriteData{Image: fighterSprite})
+
+	// Create player state entity (singleton for score/kills tracking)
+	playerState := world.Create(components.PlayerState)
+	playerStateEntry := world.Entry(playerState)
+	components.PlayerState.SetValue(playerStateEntry, components.PlayerStateData{
+		ControlledShip: playerShip,
+		Score:          0,
+		Kills:          0,
+	})
+
 	return &Game{
-		ships:       []*Ship{pship},
-		player:      &Player{ship: pship, score: 0, kills: 0},
-		laserSprite: laserSprite,
-		hudFont:     hudFont,
-		cameraX:     startX - float64(screenWidth)/2,
-		cameraY:     startY - float64(screenHeight)/2,
+		world:              world,
+		playerEntity:       playerShip,
+		playerStateEntity:  playerState,
+		laserSprite:        laserSprite,
+		hudFont:            hudFont,
+		cameraX:            startX - float64(screenWidth)/2,
+		cameraY:            startY - float64(screenHeight)/2,
 	}, nil
 }
 
-// Update updates the game logic
+// Update updates the game logic using ECS systems
 // This is called 60 times per second
 func (g *Game) Update() error {
-	ship := g.player.ship
+	// Run systems in sequence
+	systems.UpdatePlayerInput(g.world)
+	systems.UpdateWeapons(g.world)
+	systems.UpdateMovement(g.world)
+	systems.UpdateProjectileLifetime(g.world)
 
-	// Handle rotation
-	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		// Rotate left (counter-clockwise)
-		ship.angle -= rotationSpeed
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		// Rotate right (clockwise)
-		ship.angle += rotationSpeed
-	}
-
-	// Handle acceleration/deceleration
-	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		// Accelerate
-		ship.speed += acceleration
-		if ship.speed > maxSpeed {
-			ship.speed = maxSpeed
-		}
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		// Decelerate
-		ship.speed -= acceleration
-		if ship.speed < 0 {
-			ship.speed = 0
-		}
-	}
-
-	// Apply velocity to position
-	// Sprite faces upward at angle 0, so we adjust the standard math:
-	// - Upward (angle 0) means negative Y in screen coordinates
-	// - Use sin() for X and -cos() for Y
-	ship.x += math.Sin(ship.angle) * ship.speed
-	ship.y += -math.Cos(ship.angle) * ship.speed
-
-	// Keep ship within game bounds (wrap around if necessary)
-	if ship.x < 0 {
-		ship.x += float64(gameWidth)
-	} else if ship.x >= float64(gameWidth) {
-		ship.x -= float64(gameWidth)
-	}
-	if ship.y < 0 {
-		ship.y += float64(gameHeight)
-	} else if ship.y >= float64(gameHeight) {
-		ship.y -= float64(gameHeight)
-	}
-
-	// Charge capacitor
-	if ship.capacitor < 1.0 {
-		ship.capacitor += capacitorChargeRate
-	}
-
-	// Handle firing
+	// Handle player firing
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		// Get mouse position in world coordinates
 		mouseX, mouseY := ebiten.CursorPosition()
 		worldMouseX := float64(mouseX) + g.cameraX
 		worldMouseY := float64(mouseY) + g.cameraY
 
-		// Attempt to fire at mouse position
-		g.fireWeapon(ship, worldMouseX, worldMouseY)
-	}
-
-	// Update projectiles
-	activeProjectiles := []*Projectile{}
-	for _, p := range g.projectiles {
-		// Update position
-		p.x += p.vx
-		p.y += p.vy
-
-		// Wrap around world boundaries
-		if p.x < 0 {
-			p.x += float64(gameWidth)
-		} else if p.x >= float64(gameWidth) {
-			p.x -= float64(gameWidth)
-		}
-		if p.y < 0 {
-			p.y += float64(gameHeight)
-		} else if p.y >= float64(gameHeight) {
-			p.y -= float64(gameHeight)
-		}
-
-		// Decrease lifetime
-		p.lifetime--
-
-		// Keep if still alive
-		if p.lifetime > 0 {
-			activeProjectiles = append(activeProjectiles, p)
+		// Get player ship entry and attempt to fire
+		if g.world.Valid(g.playerEntity) {
+			playerEntry := g.world.Entry(g.playerEntity)
+			systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
 		}
 	}
-	g.projectiles = activeProjectiles
 
-	// Update camera to follow player (centered on player)
-	g.cameraX = ship.x - float64(screenWidth)/2
-	g.cameraY = ship.y - float64(screenHeight)/2
+	// Update camera to follow player
+	if g.world.Valid(g.playerEntity) {
+		playerEntry := g.world.Entry(g.playerEntity)
+		pos := components.Position.Get(playerEntry)
+		g.cameraX = pos.X - float64(screenWidth)/2
+		g.cameraY = pos.Y - float64(screenHeight)/2
+	}
 
 	return nil
 }
@@ -411,6 +261,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 					// Only draw if on screen
 					if screenX >= 0 && screenX < float64(screenWidth) && screenY >= 0 && screenY < float64(screenHeight) {
+						// TODO: Repalce DrawFilledRect with FillRect
 						vector.DrawFilledRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
 					}
 				}
@@ -440,58 +291,40 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}
 
-	// Draw each ship
-	for _, ship := range g.ships {
-		op := &ebiten.DrawImageOptions{}
+	// Draw ships using ECS render system
+	systems.RenderShips(g.world, screen, g.cameraX, g.cameraY)
 
-		// Get ship dimensions
-		bounds := ship.sprite.Bounds()
-		shipWidth := float64(bounds.Dx())
-		shipHeight := float64(bounds.Dy())
-
-		// Apply transformations in order:
-		// 1. Translate ship to center it around origin (for rotation)
-		op.GeoM.Translate(-shipWidth/2, -shipHeight/2)
-		// 2. Rotate around origin
-		op.GeoM.Rotate(ship.angle)
-		// 3. Translate to ship position in world
-		op.GeoM.Translate(ship.x, ship.y)
-		// 4. Translate by camera offset to convert to screen coordinates
-		op.GeoM.Translate(-g.cameraX, -g.cameraY)
-
-		screen.DrawImage(ship.sprite, op)
-	}
-
-	// Draw projectiles
-	for _, p := range g.projectiles {
-		op := &ebiten.DrawImageOptions{}
-
-		// Get sprite dimensions for centering
-		bounds := g.laserSprite.Bounds()
-		spriteWidth := float64(bounds.Dx())
-		spriteHeight := float64(bounds.Dy())
-
-		// Apply transformations (no rotation needed for square sprite):
-		// 1. Translate to projectile position (centered)
-		op.GeoM.Translate(p.x-spriteWidth/2, p.y-spriteHeight/2)
-		// 2. Apply camera offset
-		op.GeoM.Translate(-g.cameraX, -g.cameraY)
-
-		screen.DrawImage(g.laserSprite, op)
-	}
+	// Draw projectiles using ECS render system
+	systems.RenderProjectiles(g.world, screen, g.cameraX, g.cameraY)
 
 	// Draw HUD
 	textColor := color.White
 
+	// Get player state from ECS
+	var playerScore, playerKills, playerShield int
+	if g.world.Valid(g.playerStateEntity) {
+		stateEntry := g.world.Entry(g.playerStateEntity)
+		state := components.PlayerState.Get(stateEntry)
+		playerScore = state.Score
+		playerKills = state.Kills
+
+		// Get shield from player ship
+		if g.world.Valid(state.ControlledShip) {
+			shipEntry := g.world.Entry(state.ControlledShip)
+			health := components.Health.Get(shipEntry)
+			playerShield = health.Current
+		}
+	}
+
 	// Upper left: Score
-	scoreText := fmt.Sprintf("Score: %d", g.player.score)
+	scoreText := fmt.Sprintf("Score: %d", playerScore)
 	scoreOp := &text.DrawOptions{}
 	scoreOp.GeoM.Translate(10, 10)
 	scoreOp.ColorScale.ScaleWithColor(textColor)
 	text.Draw(screen, scoreText, g.hudFont, scoreOp)
 
 	// Upper right: Shield
-	shieldText := fmt.Sprintf("Shield: %d", g.player.ship.hull)
+	shieldText := fmt.Sprintf("Shield: %d", playerShield)
 	shieldWidth, _ := text.Measure(shieldText, g.hudFont, 0)
 	shieldOp := &text.DrawOptions{}
 	shieldOp.GeoM.Translate(float64(screenWidth)-shieldWidth-10, 10)
@@ -499,7 +332,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	text.Draw(screen, shieldText, g.hudFont, shieldOp)
 
 	// Upper right: Kills
-	killsText := fmt.Sprintf("Kills: %d", g.player.kills)
+	killsText := fmt.Sprintf("Kills: %d", playerKills)
 	killsWidth, _ := text.Measure(killsText, g.hudFont, 0)
 	killsOp := &text.DrawOptions{}
 	killsOp.GeoM.Translate(float64(screenWidth)-killsWidth-10, 27)
