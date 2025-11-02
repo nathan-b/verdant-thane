@@ -50,6 +50,15 @@ type FactionData struct {
 
 var Faction = donburi.NewComponentType[FactionData]()
 
+// FactionInfo stores information about a faction including its spawn point
+type FactionInfoData struct {
+	FactionID int
+	SpawnX    float64
+	SpawnY    float64
+}
+
+var FactionInfo = donburi.NewComponentType[FactionInfoData]()
+
 type HealthData struct {
 	Current int
 	Max     int

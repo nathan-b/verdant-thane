@@ -133,9 +133,8 @@ func NewGame() (*Game, error) {
 		Size:   14,
 	}
 
-	// Create player ship entity at center of world
-	startX := float64(systems.GameWidth) / 2
-	startY := float64(systems.GameHeight) / 2
+	// Initialize factions and spawn points
+	systems.InitializeFactions(world)
 
 	// Load fighter sprite
 	fighterSprite, _, err := ebitenutil.NewImageFromFile("assets/fighter.png")
@@ -143,38 +142,21 @@ func NewGame() (*Game, error) {
 		return nil, err
 	}
 
-	// Create player ship entity
-	playerShip := world.Create(
-		components.IsShip,
-		components.PlayerControlled,
-		components.Position,
-		components.Velocity,
-		components.Rotation,
-		components.Ship,
-		components.Faction,
-		components.Health,
-		components.Weapon,
-		components.Sprite,
-	)
-
-	playerEntry := world.Entry(playerShip)
-	components.Position.SetValue(playerEntry, components.PositionData{X: startX, Y: startY})
-	components.Velocity.SetValue(playerEntry, components.VelocityData{X: 0, Y: 0})
-	components.Rotation.SetValue(playerEntry, components.RotationData{Angle: 0})
-	components.Ship.SetValue(playerEntry, components.ShipData{
-		Class:    components.Fighter,
-		Speed:    0,
-		MaxSpeed: maxSpeed,
-		Accel:    acceleration,
+	// Spawn player ship at faction 0 (green) spawn point
+	playerShip, err := systems.SpawnShip(world, systems.ShipConfig{
+		Class:              components.Fighter,
+		FactionID:          0, // Green team
+		MaxSpeed:           maxSpeed,
+		Acceleration:       acceleration,
+		MaxHealth:          8,
+		CapacitorRate:      capacitorChargeRate,
+		FiringCone:         firingConeAngle,
+		Sprite:             fighterSprite,
+		IsPlayerControlled: true,
 	})
-	components.Faction.SetValue(playerEntry, components.FactionData{ID: 0}) // Green team
-	components.Health.SetValue(playerEntry, components.HealthData{Current: 8, Max: 8})
-	components.Weapon.SetValue(playerEntry, components.WeaponData{
-		Capacitor:  1.0, // Start fully charged
-		ChargeRate: capacitorChargeRate,
-		FiringCone: firingConeAngle,
-	})
-	components.Sprite.SetValue(playerEntry, components.SpriteData{Image: fighterSprite})
+	if err != nil {
+		return nil, fmt.Errorf("failed to spawn player ship: %w", err)
+	}
 
 	// Create player state entity (singleton for score/kills tracking)
 	playerState := world.Create(components.PlayerState)
@@ -185,14 +167,18 @@ func NewGame() (*Game, error) {
 		Kills:          0,
 	})
 
+	// Get player position for camera initialization
+	playerEntry := world.Entry(playerShip)
+	playerPos := components.Position.Get(playerEntry)
+
 	return &Game{
-		world:              world,
-		playerEntity:       playerShip,
-		playerStateEntity:  playerState,
-		laserSprite:        laserSprite,
-		hudFont:            hudFont,
-		cameraX:            startX - float64(systems.ScreenWidth)/2,
-		cameraY:            startY - float64(systems.ScreenHeight)/2,
+		world:             world,
+		playerEntity:      playerShip,
+		playerStateEntity: playerState,
+		laserSprite:       laserSprite,
+		hudFont:           hudFont,
+		cameraX:           playerPos.X - float64(systems.ScreenWidth)/2,
+		cameraY:           playerPos.Y - float64(systems.ScreenHeight)/2,
 	}, nil
 }
 
