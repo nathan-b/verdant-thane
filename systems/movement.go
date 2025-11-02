@@ -7,11 +7,6 @@ import (
 	"github.com/nathan/verdant-thane/components"
 )
 
-const (
-	gameWidth  = 5040
-	gameHeight = 5040
-)
-
 // UpdateMovement applies velocity to position and handles world wrapping
 func UpdateMovement(w donburi.World) {
 	query := donburi.NewQuery(
@@ -31,14 +26,14 @@ func UpdateMovement(w donburi.World) {
 
 		// World wrapping (toroidal topology)
 		if pos.X < 0 {
-			pos.X += gameWidth
-		} else if pos.X >= gameWidth {
-			pos.X -= gameWidth
+			pos.X += GameWidth
+		} else if pos.X >= GameWidth {
+			pos.X -= GameWidth
 		}
 		if pos.Y < 0 {
-			pos.Y += gameHeight
-		} else if pos.Y >= gameHeight {
-			pos.Y -= gameHeight
+			pos.Y += GameHeight
+		} else if pos.Y >= GameHeight {
+			pos.Y -= GameHeight
 		}
 	}
 }

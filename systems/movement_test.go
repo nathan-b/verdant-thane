@@ -40,14 +40,14 @@ func TestUpdateMovement_WorldWrappingRight(t *testing.T) {
 	entry := world.Entry(entity)
 
 	// Position near right edge
-	components.Position.SetValue(entry, components.PositionData{X: gameWidth - 1, Y: 100})
+	components.Position.SetValue(entry, components.PositionData{X: GameWidth - 1, Y: 100})
 	components.Velocity.SetValue(entry, components.VelocityData{X: 5, Y: 0})
 
 	UpdateMovement(world)
 
 	pos := components.Position.Get(entry)
 	// Should wrap to left side
-	if pos.X >= gameWidth {
+	if pos.X >= GameWidth {
 		t.Errorf("Expected X to wrap around, got %f", pos.X)
 	}
 	if pos.X != 4 { // -1 + 5 = 4, then wraps
@@ -72,7 +72,7 @@ func TestUpdateMovement_WorldWrappingLeft(t *testing.T) {
 	if pos.X < 0 {
 		t.Errorf("Expected X to be positive after wrapping, got %f", pos.X)
 	}
-	expectedX := gameWidth - 3 // 2 - 5 = -3, wraps to gameWidth - 3
+	expectedX := GameWidth - 3 // 2 - 5 = -3, wraps to GameWidth - 3
 	if pos.X != float64(expectedX) {
 		t.Errorf("Expected X=%f after wrapping, got %f", float64(expectedX), pos.X)
 	}
@@ -85,14 +85,14 @@ func TestUpdateMovement_WorldWrappingBottom(t *testing.T) {
 	entry := world.Entry(entity)
 
 	// Position near bottom edge
-	components.Position.SetValue(entry, components.PositionData{X: 100, Y: gameHeight - 1})
+	components.Position.SetValue(entry, components.PositionData{X: 100, Y: GameHeight - 1})
 	components.Velocity.SetValue(entry, components.VelocityData{X: 0, Y: 5})
 
 	UpdateMovement(world)
 
 	pos := components.Position.Get(entry)
 	// Should wrap to top
-	if pos.Y >= gameHeight {
+	if pos.Y >= GameHeight {
 		t.Errorf("Expected Y to wrap around, got %f", pos.Y)
 	}
 }

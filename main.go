@@ -19,12 +19,6 @@ import (
 )
 
 const (
-	screenWidth  = 1024
-	screenHeight = 768
-
-	gameWidth  = 5040
-	gameHeight = 5040
-
 	// Movement constants (for Fighter class)
 	maxSpeed     = 6.0        // pixels per tick
 	acceleration = 4.0 / 60.0 // pixels per second per tick
@@ -63,8 +57,8 @@ func modulo(a, b int) int {
 // Wraps grid coordinates to ensure consistent stars across world boundaries
 func hashPosition(gridX, gridY int) int {
 	// Calculate number of grid cells in the game world
-	gridCountX := gameWidth / starGridSize
-	gridCountY := gameHeight / starGridSize
+	gridCountX := systems.GameWidth / starGridSize
+	gridCountY := systems.GameHeight / starGridSize
 
 	// Wrap grid coordinates to ensure tiling
 	wrappedX := modulo(gridX, gridCountX)
@@ -140,8 +134,8 @@ func NewGame() (*Game, error) {
 	}
 
 	// Create player ship entity at center of world
-	startX := float64(gameWidth) / 2
-	startY := float64(gameHeight) / 2
+	startX := float64(systems.GameWidth) / 2
+	startY := float64(systems.GameHeight) / 2
 
 	// Load fighter sprite
 	fighterSprite, _, err := ebitenutil.NewImageFromFile("assets/fighter.png")
@@ -197,8 +191,8 @@ func NewGame() (*Game, error) {
 		playerStateEntity:  playerState,
 		laserSprite:        laserSprite,
 		hudFont:            hudFont,
-		cameraX:            startX - float64(screenWidth)/2,
-		cameraY:            startY - float64(screenHeight)/2,
+		cameraX:            startX - float64(systems.ScreenWidth)/2,
+		cameraY:            startY - float64(systems.ScreenHeight)/2,
 	}, nil
 }
 
@@ -229,8 +223,8 @@ func (g *Game) Update() error {
 	if g.world.Valid(g.playerEntity) {
 		playerEntry := g.world.Entry(g.playerEntity)
 		pos := components.Position.Get(playerEntry)
-		g.cameraX = pos.X - float64(screenWidth)/2
-		g.cameraY = pos.Y - float64(screenHeight)/2
+		g.cameraX = pos.X - float64(systems.ScreenWidth)/2
+		g.cameraY = pos.Y - float64(systems.ScreenHeight)/2
 	}
 
 	return nil
@@ -244,9 +238,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Draw stars
 	// Determine which grid cells are visible
 	minGridX := int(g.cameraX) / starGridSize
-	maxGridX := int(g.cameraX+float64(screenWidth)) / starGridSize
+	maxGridX := int(g.cameraX+float64(systems.ScreenWidth)) / starGridSize
 	minGridY := int(g.cameraY) / starGridSize
-	maxGridY := int(g.cameraY+float64(screenHeight)) / starGridSize
+	maxGridY := int(g.cameraY+float64(systems.ScreenHeight)) / starGridSize
 
 	// Draw stars for visible grid cells
 	for gridX := minGridX; gridX <= maxGridX; gridX++ {
@@ -260,7 +254,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 					screenY := worldY - g.cameraY
 
 					// Only draw if on screen
-					if screenX >= 0 && screenX < float64(screenWidth) && screenY >= 0 && screenY < float64(screenHeight) {
+					if screenX >= 0 && screenX < float64(systems.ScreenWidth) && screenY >= 0 && screenY < float64(systems.ScreenHeight) {
 						// TODO: Repalce DrawFilledRect with FillRect
 						vector.DrawFilledRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
 					}
@@ -273,19 +267,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				// This handles the case where the camera is near world boundaries
 				if star.x < g.cameraX {
 					// Star is to the left of camera, try drawing wrapped to the right
-					drawStarAtPosition(star.x+float64(gameWidth), star.y)
+					drawStarAtPosition(star.x+float64(systems.GameWidth), star.y)
 				}
-				if star.x > g.cameraX+float64(screenWidth) {
+				if star.x > g.cameraX+float64(systems.ScreenWidth) {
 					// Star is to the right of camera, try drawing wrapped to the left
-					drawStarAtPosition(star.x-float64(gameWidth), star.y)
+					drawStarAtPosition(star.x-float64(systems.GameWidth), star.y)
 				}
 				if star.y < g.cameraY {
 					// Star is above camera, try drawing wrapped below
-					drawStarAtPosition(star.x, star.y+float64(gameHeight))
+					drawStarAtPosition(star.x, star.y+float64(systems.GameHeight))
 				}
-				if star.y > g.cameraY+float64(screenHeight) {
+				if star.y > g.cameraY+float64(systems.ScreenHeight) {
 					// Star is below camera, try drawing wrapped above
-					drawStarAtPosition(star.x, star.y-float64(gameHeight))
+					drawStarAtPosition(star.x, star.y-float64(systems.GameHeight))
 				}
 			}
 		}
@@ -327,7 +321,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	shieldText := fmt.Sprintf("Shield: %d", playerShield)
 	shieldWidth, _ := text.Measure(shieldText, g.hudFont, 0)
 	shieldOp := &text.DrawOptions{}
-	shieldOp.GeoM.Translate(float64(screenWidth)-shieldWidth-10, 10)
+	shieldOp.GeoM.Translate(float64(systems.ScreenWidth)-shieldWidth-10, 10)
 	shieldOp.ColorScale.ScaleWithColor(textColor)
 	text.Draw(screen, shieldText, g.hudFont, shieldOp)
 
@@ -335,18 +329,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	killsText := fmt.Sprintf("Kills: %d", playerKills)
 	killsWidth, _ := text.Measure(killsText, g.hudFont, 0)
 	killsOp := &text.DrawOptions{}
-	killsOp.GeoM.Translate(float64(screenWidth)-killsWidth-10, 27)
+	killsOp.GeoM.Translate(float64(systems.ScreenWidth)-killsWidth-10, 27)
 	killsOp.ColorScale.ScaleWithColor(textColor)
 	text.Draw(screen, killsText, g.hudFont, killsOp)
 }
 
 // Layout returns the game's screen dimensions
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return screenWidth, screenHeight
+	return systems.ScreenWidth, systems.ScreenHeight
 }
 
 func main() {
-	ebiten.SetWindowSize(screenWidth, screenHeight)
+	ebiten.SetWindowSize(systems.ScreenWidth, systems.ScreenHeight)
 	ebiten.SetWindowTitle("Verdant Thane")
 
 	game, err := NewGame()
