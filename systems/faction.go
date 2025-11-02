@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/yohamta/donburi"
 	"github.com/yohamta/donburi/filter"
 
@@ -58,14 +57,14 @@ func GetFactionSpawnPoint(w donburi.World, factionID int) (float64, float64) {
 
 // ShipConfig holds configuration parameters for spawning a ship
 type ShipConfig struct {
-	Class            components.ShipClass
-	FactionID        int
-	MaxSpeed         float64
-	Acceleration     float64
-	MaxHealth        int
-	CapacitorRate    float64
-	FiringCone       float64
-	Sprite           *ebiten.Image
+	Class              components.ShipClass
+	FactionID          int
+	MaxSpeed           float64
+	Acceleration       float64
+	MaxHealth          int
+	CapacitorRate      float64
+	FiringCone         float64
+	FactionSprites     *FactionSprites
 	IsPlayerControlled bool
 }
 
@@ -116,7 +115,10 @@ func SpawnShip(w donburi.World, config ShipConfig) (donburi.Entity, error) {
 		ChargeRate: config.CapacitorRate,
 		FiringCone: config.FiringCone,
 	})
-	components.Sprite.SetValue(entry, components.SpriteData{Image: config.Sprite})
+
+	// Get the correct sprite for this faction
+	sprite := config.FactionSprites.GetSpriteForFaction(config.FactionID)
+	components.Sprite.SetValue(entry, components.SpriteData{Image: sprite})
 
 	return ship, nil
 }

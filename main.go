@@ -40,12 +40,13 @@ type Game struct {
 	playerStateEntity  donburi.Entity
 
 	// Shared resources
-	laserSprite *ebiten.Image    // Shared sprite for all projectiles
-	hudFont     *text.GoTextFace // Font for HUD rendering
+	laserSprite    *ebiten.Image           // Shared sprite for all projectiles
+	factionSprites *systems.FactionSprites // Ship sprites for all factions
+	hudFont        *text.GoTextFace        // Font for HUD rendering
 
 	// Camera (could be moved to ECS later)
-	cameraX     float64          // Camera position (follows player)
-	cameraY     float64
+	cameraX float64 // Camera position (follows player)
+	cameraY float64
 }
 
 // modulo performs proper modulo operation (handles negatives correctly)
@@ -117,6 +118,12 @@ func NewGame() (*Game, error) {
 		return nil, err
 	}
 
+	// Load faction sprites
+	factionSprites, err := systems.LoadFactionSprites()
+	if err != nil {
+		return nil, err
+	}
+
 	// Load font for HUD
 	fontBytes, err := os.ReadFile("assets/orbitron.ttf")
 	if err != nil {
@@ -136,12 +143,6 @@ func NewGame() (*Game, error) {
 	// Initialize factions and spawn points
 	systems.InitializeFactions(world)
 
-	// Load fighter sprite
-	fighterSprite, _, err := ebitenutil.NewImageFromFile("assets/fighter.png")
-	if err != nil {
-		return nil, err
-	}
-
 	// Spawn player ship at faction 0 (green) spawn point
 	playerShip, err := systems.SpawnShip(world, systems.ShipConfig{
 		Class:              components.Fighter,
@@ -151,7 +152,7 @@ func NewGame() (*Game, error) {
 		MaxHealth:          8,
 		CapacitorRate:      capacitorChargeRate,
 		FiringCone:         firingConeAngle,
-		Sprite:             fighterSprite,
+		FactionSprites:     factionSprites,
 		IsPlayerControlled: true,
 	})
 	if err != nil {
@@ -176,6 +177,7 @@ func NewGame() (*Game, error) {
 		playerEntity:      playerShip,
 		playerStateEntity: playerState,
 		laserSprite:       laserSprite,
+		factionSprites:    factionSprites,
 		hudFont:           hudFont,
 		cameraX:           playerPos.X - float64(systems.ScreenWidth)/2,
 		cameraY:           playerPos.Y - float64(systems.ScreenHeight)/2,
