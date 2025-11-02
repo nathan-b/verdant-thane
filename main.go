@@ -243,8 +243,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 					// Only draw if on screen
 					if screenX >= 0 && screenX < float64(systems.ScreenWidth) && screenY >= 0 && screenY < float64(systems.ScreenHeight) {
-						// TODO: Repalce DrawFilledRect with FillRect
-						vector.DrawFilledRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
+						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
 					}
 				}
 
@@ -278,6 +277,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Draw projectiles using ECS render system
 	systems.RenderProjectiles(g.world, screen, g.cameraX, g.cameraY)
+
+	// Draw minimap
+	systems.RenderMinimap(g.world, screen, g.playerEntity)
 
 	// Draw HUD
 	textColor := color.White

@@ -1,12 +1,25 @@
 package systems
 
 import (
+	"image/color"
+
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/yohamta/donburi"
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
 )
+
+// Faction colors for minimap
+var factionColors = map[int]color.Color{
+	0: color.RGBA{0, 255, 0, 255},   // Green
+	1: color.RGBA{0, 128, 255, 255}, // Blue
+	2: color.RGBA{255, 0, 0, 255},   // Red
+	3: color.RGBA{255, 255, 0, 255}, // Yellow
+}
+
+var playerMarkerColor = color.RGBA{128, 255, 128, 255} // Light green for player marker
 
 // RenderShips draws all ships with sprites, rotation, and position
 func RenderShips(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64) {
@@ -144,6 +157,60 @@ func RenderProjectiles(w donburi.World, screen *ebiten.Image, cameraX, cameraY f
 		if pos.Y > cameraY+float64(ScreenHeight) {
 			// Projectile is below camera, try drawing wrapped above
 			drawProjectileAtPosition(pos.X, pos.Y-float64(GameHeight))
+		}
+	}
+}
+
+// RenderMinimap draws the minimap showing all ships in the game world
+func RenderMinimap(w donburi.World, screen *ebiten.Image, playerEntity donburi.Entity) {
+	// Draw minimap background (dark semi-transparent box)
+	vector.FillRect(screen,
+		float32(MinimapX), float32(MinimapY),
+		float32(MinimapSize), float32(MinimapSize),
+		color.RGBA{0, 0, 0, 180}, true)
+
+	// Draw minimap border
+	vector.StrokeRect(screen,
+		float32(MinimapX), float32(MinimapY),
+		float32(MinimapSize), float32(MinimapSize),
+		2, color.RGBA{100, 100, 100, 255}, false)
+
+	// Scale factor: minimap pixels per world units
+	scale := float64(MinimapSize) / float64(GameWidth)
+
+	// Helper function to convert world coordinates to minimap screen coordinates
+	worldToMinimap := func(worldX, worldY float64) (float32, float32) {
+		minimapLocalX := worldX * scale
+		minimapLocalY := worldY * scale
+		screenX := float32(MinimapX) + float32(minimapLocalX)
+		screenY := float32(MinimapY) + float32(minimapLocalY)
+		return screenX, screenY
+	}
+
+	// Draw all ships on minimap
+	query := donburi.NewQuery(filter.Contains(components.IsShip, components.Position, components.Faction))
+	for entry := range query.Iter(w) {
+		pos := components.Position.Get(entry)
+		faction := components.Faction.Get(entry)
+
+		screenX, screenY := worldToMinimap(pos.X, pos.Y)
+
+		// Check if this is the player ship
+		isPlayer := entry.Entity() == playerEntity
+
+		if isPlayer {
+			// Draw player as a light green plus sign (5 pixels high × 5 wide)
+			// Vertical line (5 pixels high)
+			vector.FillRect(screen, screenX, screenY-2, 1, 5, playerMarkerColor, false)
+			// Horizontal line (5 pixels wide)
+			vector.FillRect(screen, screenX-2, screenY, 5, 1, playerMarkerColor, false)
+		} else {
+			// Draw regular ships as a single pixel in their faction color
+			c, ok := factionColors[faction.ID]
+			if !ok {
+				c = color.White // Fallback color
+			}
+			vector.FillRect(screen, screenX, screenY, 1, 1, c, false)
 		}
 	}
 }
