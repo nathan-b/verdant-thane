@@ -159,6 +159,31 @@ func NewGame() (*Game, error) {
 		return nil, fmt.Errorf("failed to spawn player ship: %w", err)
 	}
 
+	// Spawn AI opponent fighter at faction 1 (blue) spawn point
+	aiShip, err := systems.SpawnShip(world, systems.ShipConfig{
+		Class:              components.Fighter,
+		FactionID:          1, // Blue team
+		MaxSpeed:           maxSpeed,
+		Acceleration:       acceleration,
+		MaxHealth:          8,
+		CapacitorRate:      capacitorChargeRate,
+		FiringCone:         firingConeAngle,
+		FactionSprites:     factionSprites,
+		IsPlayerControlled: false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to spawn AI ship: %w", err)
+	}
+
+	// Set AI ship to fly forward at half speed
+	aiEntry := world.Entry(aiShip)
+	aiShipData := components.Ship.Get(aiEntry)
+	aiShipData.Speed = maxSpeed / 2
+	aiVel := components.Velocity.Get(aiEntry)
+	aiRot := components.Rotation.Get(aiEntry)
+	aiVel.X = math.Sin(aiRot.Angle) * aiShipData.Speed
+	aiVel.Y = -math.Cos(aiRot.Angle) * aiShipData.Speed
+
 	// Create player state entity (singleton for score/kills tracking)
 	playerState := world.Create(components.PlayerState)
 	playerStateEntry := world.Entry(playerState)
@@ -189,9 +214,11 @@ func NewGame() (*Game, error) {
 func (g *Game) Update() error {
 	// Run systems in sequence
 	systems.UpdatePlayerInput(g.world)
+	systems.UpdateAIMovement(g.world)
 	systems.UpdateWeapons(g.world)
 	systems.UpdateMovement(g.world)
 	systems.UpdateProjectileLifetime(g.world)
+	systems.UpdateCollisions(g.world)
 
 	// Handle player firing
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
@@ -206,6 +233,9 @@ func (g *Game) Update() error {
 			systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
 		}
 	}
+
+	// Handle AI firing
+	systems.UpdateAIFiring(g.world, g.playerEntity, g.laserSprite)
 
 	// Update camera to follow player
 	if g.world.Valid(g.playerEntity) {

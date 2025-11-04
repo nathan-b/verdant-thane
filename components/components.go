@@ -98,6 +98,13 @@ type PlayerStateData struct {
 
 var PlayerState = donburi.NewComponentType[PlayerStateData]()
 
+// AI state for decision making
+type AIStateData struct {
+	DecisionTimer int // Ticks until next decision (60 ticks ≈ 1 second)
+}
+
+var AIState = donburi.NewComponentType[AIStateData]()
+
 // Tags for entity classification
 var PlayerControlled = donburi.NewTag("PlayerControlled")
 var AIControlled = donburi.NewTag("AIControlled")

@@ -91,14 +91,20 @@ func SpawnShip(w donburi.World, config ShipConfig) (donburi.Entity, error) {
 		components.Sprite,
 	)
 
-	// Add player controlled tag if needed
+	// Add control tags and AI state
+	entry := w.Entry(ship)
 	if config.IsPlayerControlled {
-		entry := w.Entry(ship)
 		entry.AddComponent(components.PlayerControlled)
+	} else {
+		entry.AddComponent(components.AIControlled)
+		entry.AddComponent(components.AIState)
+		// Initialize AI with first decision in ~1 second
+		components.AIState.SetValue(entry, components.AIStateData{
+			DecisionTimer: 60, // 60 ticks ≈ 1 second
+		})
 	}
 
 	// Set component values
-	entry := w.Entry(ship)
 	components.Position.SetValue(entry, components.PositionData{X: spawnX, Y: spawnY})
 	components.Velocity.SetValue(entry, components.VelocityData{X: 0, Y: 0})
 	components.Rotation.SetValue(entry, components.RotationData{Angle: 0})
