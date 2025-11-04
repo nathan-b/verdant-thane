@@ -40,9 +40,10 @@ type Game struct {
 	playerStateEntity  donburi.Entity
 
 	// Shared resources
-	laserSprite    *ebiten.Image           // Shared sprite for all projectiles
-	factionSprites *systems.FactionSprites // Ship sprites for all factions
-	hudFont        *text.GoTextFace        // Font for HUD rendering
+	laserSprite     *ebiten.Image           // Shared sprite for all projectiles
+	explosionSprite *ebiten.Image           // Sprite sheet for explosion animation
+	factionSprites  *systems.FactionSprites // Ship sprites for all factions
+	hudFont         *text.GoTextFace        // Font for HUD rendering
 
 	// Camera (could be moved to ECS later)
 	cameraX float64 // Camera position (follows player)
@@ -114,6 +115,12 @@ func NewGame() (*Game, error) {
 
 	// Load shared assets
 	laserSprite, _, err := ebitenutil.NewImageFromFile("assets/laser.png")
+	if err != nil {
+		return nil, err
+	}
+
+	// Load explosion sprite sheet (400x70, 4 frames of 100x70 each)
+	explosionSprite, _, err := ebitenutil.NewImageFromFile("assets/explosion.png")
 	if err != nil {
 		return nil, err
 	}
@@ -202,6 +209,7 @@ func NewGame() (*Game, error) {
 		playerEntity:      playerShip,
 		playerStateEntity: playerState,
 		laserSprite:       laserSprite,
+		explosionSprite:   explosionSprite,
 		factionSprites:    factionSprites,
 		hudFont:           hudFont,
 		cameraX:           playerPos.X - float64(systems.ScreenWidth)/2,
@@ -218,7 +226,8 @@ func (g *Game) Update() error {
 	systems.UpdateWeapons(g.world)
 	systems.UpdateMovement(g.world)
 	systems.UpdateProjectileLifetime(g.world)
-	systems.UpdateCollisions(g.world)
+	systems.UpdateCollisions(g.world, g.explosionSprite)
+	systems.UpdateExplosions(g.world)
 
 	// Handle player firing
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
@@ -307,6 +316,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Draw projectiles using ECS render system
 	systems.RenderProjectiles(g.world, screen, g.cameraX, g.cameraY)
+
+	// Draw explosions using ECS render system
+	systems.RenderExplosions(g.world, screen, g.cameraX, g.cameraY)
 
 	// Draw minimap
 	systems.RenderMinimap(g.world, screen, g.playerEntity)

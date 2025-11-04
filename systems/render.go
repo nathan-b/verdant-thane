@@ -1,6 +1,7 @@
 package systems
 
 import (
+	"image"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -158,6 +159,43 @@ func RenderProjectiles(w donburi.World, screen *ebiten.Image, cameraX, cameraY f
 			// Projectile is below camera, try drawing wrapped above
 			drawProjectileAtPosition(pos.X, pos.Y-float64(GameHeight))
 		}
+	}
+}
+
+// RenderExplosions draws explosion animations
+func RenderExplosions(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64) {
+	query := donburi.NewQuery(filter.Contains(
+		components.IsExplosion,
+		components.Position,
+		components.Explosion,
+		components.Sprite,
+	))
+
+	for entry := range query.Iter(w) {
+		pos := components.Position.Get(entry)
+		explosion := components.Explosion.Get(entry)
+		sprite := components.Sprite.Get(entry)
+
+		// Each frame is 100x70 pixels, sprite sheet is horizontal
+		frameWidth := 100.0
+		frameHeight := 70.0
+		srcX := float64(explosion.CurrentFrame) * frameWidth
+
+		op := &ebiten.DrawImageOptions{}
+
+		// Center the explosion on the position
+		op.GeoM.Translate(-frameWidth/2, -frameHeight/2)
+		op.GeoM.Translate(pos.X, pos.Y)
+		op.GeoM.Translate(-cameraX, -cameraY)
+
+		// Draw the current frame from sprite sheet
+		screen.DrawImage(
+			sprite.Image.SubImage(image.Rect(
+				int(srcX), 0,
+				int(srcX+frameWidth), int(frameHeight),
+			)).(*ebiten.Image),
+			op,
+		)
 	}
 }
 

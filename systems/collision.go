@@ -3,6 +3,7 @@ package systems
 import (
 	"math"
 
+	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/yohamta/donburi"
 	"github.com/yohamta/donburi/filter"
 
@@ -42,7 +43,9 @@ func distance(x1, y1, x2, y2 float64) float64 {
 
 // UpdateCollisions checks for collisions between projectiles and ships
 // Projectiles damage ships of different factions
-func UpdateCollisions(w donburi.World) {
+// Updates player score and kill count when player destroys enemy ships
+// Creates explosion entities for destroyed ships
+func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 	// Get all projectiles
 	projectileQuery := donburi.NewQuery(filter.Contains(
 		components.IsProjectile,
@@ -58,9 +61,11 @@ func UpdateCollisions(w donburi.World) {
 		components.Faction,
 	))
 
-	// Track which entities to remove
+	// Track which entities to remove, who killed whom, and where explosions should be
 	projectilesToRemove := []donburi.Entity{}
 	shipsToRemove := []donburi.Entity{}
+	explosionPositions := []struct{ x, y float64 }{}
+	kills := []struct{ killerFactionID, victimFactionID int }{}
 
 	// Check each projectile against each ship
 	for projEntry := range projectileQuery.Iter(w) {
@@ -92,6 +97,16 @@ func UpdateCollisions(w donburi.World) {
 				// Check if ship is destroyed
 				if health.Current <= 0 {
 					shipsToRemove = append(shipsToRemove, shipEntry.Entity())
+					// Record position for explosion
+					explosionPositions = append(explosionPositions, struct{ x, y float64 }{
+						x: shipPos.X,
+						y: shipPos.Y,
+					})
+					// Record the kill (who killed whom)
+					kills = append(kills, struct{ killerFactionID, victimFactionID int }{
+						killerFactionID: projFaction.ID,
+						victimFactionID: shipFaction.ID,
+					})
 				}
 
 				// Break out of ship loop since this projectile hit something
@@ -111,6 +126,42 @@ func UpdateCollisions(w donburi.World) {
 	for _, entity := range shipsToRemove {
 		if w.Valid(entity) {
 			w.Remove(entity)
+		}
+	}
+
+	// Create explosion entities at destroyed ship positions
+	for _, pos := range explosionPositions {
+		explosion := w.Create(
+			components.IsExplosion,
+			components.Position,
+			components.Explosion,
+			components.Sprite,
+		)
+		explosionEntry := w.Entry(explosion)
+		components.Position.SetValue(explosionEntry, components.PositionData{X: pos.x, Y: pos.y})
+		components.Explosion.SetValue(explosionEntry, components.ExplosionData{
+			CurrentFrame: 0,
+			FrameTimer:   5, // 5 ticks per frame (~12 FPS)
+		})
+		components.Sprite.SetValue(explosionEntry, components.SpriteData{Image: explosionSprite})
+	}
+
+	// Update player score and kills if player got any kills
+	playerKills := 0
+	for _, kill := range kills {
+		if kill.killerFactionID == 0 { // Player is faction 0 (green)
+			playerKills++
+		}
+	}
+
+	if playerKills > 0 {
+		// Find player state entity and update
+		playerStateQuery := donburi.NewQuery(filter.Contains(components.PlayerState))
+		playerStateEntry, ok := playerStateQuery.First(w)
+		if ok {
+			state := components.PlayerState.Get(playerStateEntry)
+			state.Kills += playerKills
+			state.Score += playerKills * 10 // 10 points per kill
 		}
 	}
 }

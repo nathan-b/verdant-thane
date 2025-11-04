@@ -105,8 +105,17 @@ type AIStateData struct {
 
 var AIState = donburi.NewComponentType[AIStateData]()
 
+// Explosion animation data
+type ExplosionData struct {
+	CurrentFrame int // Current animation frame (0-3)
+	FrameTimer   int // Ticks until next frame
+}
+
+var Explosion = donburi.NewComponentType[ExplosionData]()
+
 // Tags for entity classification
 var PlayerControlled = donburi.NewTag("PlayerControlled")
 var AIControlled = donburi.NewTag("AIControlled")
 var IsShip = donburi.NewTag("IsShip")
 var IsProjectile = donburi.NewTag("IsProjectile")
+var IsExplosion = donburi.NewTag("IsExplosion")
