@@ -51,6 +51,7 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 		components.IsProjectile,
 		components.Position,
 		components.Faction,
+		components.Owner,
 	))
 
 	// Get all ships
@@ -65,12 +66,13 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 	projectilesToRemove := []donburi.Entity{}
 	shipsToRemove := []donburi.Entity{}
 	explosionPositions := []struct{ x, y float64 }{}
-	kills := []struct{ killerFactionID, victimFactionID int }{}
+	kills := []donburi.Entity{} // Track which entity (ship) made each kill
 
 	// Check each projectile against each ship
 	for projEntry := range projectileQuery.Iter(w) {
 		projPos := components.Position.Get(projEntry)
 		projFaction := components.Faction.Get(projEntry)
+		projOwner := components.Owner.Get(projEntry)
 
 		for shipEntry := range shipQuery.Iter(w) {
 			shipPos := components.Position.Get(shipEntry)
@@ -102,11 +104,8 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 						x: shipPos.X,
 						y: shipPos.Y,
 					})
-					// Record the kill (who killed whom)
-					kills = append(kills, struct{ killerFactionID, victimFactionID int }{
-						killerFactionID: projFaction.ID,
-						victimFactionID: shipFaction.ID,
-					})
+					// Record the kill - track which ship (owner) made the kill
+					kills = append(kills, projOwner.OwnerEntity)
 				}
 
 				// Break out of ship loop since this projectile hit something
@@ -147,19 +146,22 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 	}
 
 	// Update player score and kills if player got any kills
-	playerKills := 0
-	for _, kill := range kills {
-		if kill.killerFactionID == 0 { // Player is faction 0 (green)
-			playerKills++
-		}
-	}
+	// Find player state entity
+	playerStateQuery := donburi.NewQuery(filter.Contains(components.PlayerState))
+	playerStateEntry, ok := playerStateQuery.First(w)
+	if ok {
+		state := components.PlayerState.Get(playerStateEntry)
+		playerShip := state.ControlledShip
 
-	if playerKills > 0 {
-		// Find player state entity and update
-		playerStateQuery := donburi.NewQuery(filter.Contains(components.PlayerState))
-		playerStateEntry, ok := playerStateQuery.First(w)
-		if ok {
-			state := components.PlayerState.Get(playerStateEntry)
+		// Count kills made by the player specifically
+		playerKills := 0
+		for _, killerEntity := range kills {
+			if killerEntity == playerShip {
+				playerKills++
+			}
+		}
+
+		if playerKills > 0 {
 			state.Kills += playerKills
 			state.Score += playerKills * 10 // 10 points per kill
 		}

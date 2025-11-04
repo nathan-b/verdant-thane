@@ -98,9 +98,16 @@ func SpawnShip(w donburi.World, config ShipConfig) (donburi.Entity, error) {
 	} else {
 		entry.AddComponent(components.AIControlled)
 		entry.AddComponent(components.AIState)
-		// Initialize AI with first decision in ~1 second
+		entry.AddComponent(components.AITarget)
+		// Initialize AI with first decision in ~1 second and first retarget in ~3 seconds
 		components.AIState.SetValue(entry, components.AIStateData{
-			DecisionTimer: 60, // 60 ticks ≈ 1 second
+			DecisionTimer: 60,  // 60 ticks ≈ 1 second
+			RetargetTimer: 180, // 180 ticks ≈ 3 seconds
+		})
+		// Initialize with no target
+		var emptyEntity donburi.Entity
+		components.AITarget.SetValue(entry, components.AITargetData{
+			TargetEntity: emptyEntity,
 		})
 	}
 

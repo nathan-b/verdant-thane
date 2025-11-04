@@ -42,11 +42,13 @@ func TestUpdateCollisions_PlayerScoreAndKills(t *testing.T) {
 		components.Position,
 		components.Faction,
 		components.Sprite,
+		components.Owner,
 	)
 	projEntry := world.Entry(projectile)
 	components.Position.SetValue(projEntry, components.PositionData{X: 105, Y: 100}) // Same position as enemy
 	components.Faction.SetValue(projEntry, components.FactionData{ID: 0})
 	components.Sprite.SetValue(projEntry, components.SpriteData{Image: ebiten.NewImage(1, 1)})
+	components.Owner.SetValue(projEntry, components.OwnerData{OwnerEntity: playerShip}) // Set player as owner
 
 	// Create player state
 	playerState := world.Create(components.PlayerState)
@@ -113,11 +115,13 @@ func TestUpdateCollisions_NoScoreForFriendlyFire(t *testing.T) {
 		components.Position,
 		components.Faction,
 		components.Sprite,
+		components.Owner,
 	)
 	projEntry := world.Entry(projectile)
 	components.Position.SetValue(projEntry, components.PositionData{X: 100, Y: 100})
 	components.Faction.SetValue(projEntry, components.FactionData{ID: 0}) // Same faction!
 	components.Sprite.SetValue(projEntry, components.SpriteData{Image: ebiten.NewImage(1, 1)})
+	components.Owner.SetValue(projEntry, components.OwnerData{OwnerEntity: ship1}) // Owned by ship1
 
 	// Run collision system
 	dummyExplosionSprite := ebiten.NewImage(400, 70)
@@ -141,12 +145,23 @@ func TestUpdateCollisions_NoScoreForFriendlyFire(t *testing.T) {
 func TestUpdateCollisions_MultipleKills(t *testing.T) {
 	world := donburi.NewWorld()
 
+	// Create player ship (faction 0)
+	playerShip := world.Create(
+		components.IsShip,
+		components.Position,
+		components.Faction,
+	)
+	playerEntry := world.Entry(playerShip)
+	components.Position.SetValue(playerEntry, components.PositionData{X: 50, Y: 50})
+	components.Faction.SetValue(playerEntry, components.FactionData{ID: 0})
+
 	// Create player state
 	playerState := world.Create(components.PlayerState)
 	playerStateEntry := world.Entry(playerState)
 	components.PlayerState.SetValue(playerStateEntry, components.PlayerStateData{
-		Score: 0,
-		Kills: 0,
+		ControlledShip: playerShip,
+		Score:          0,
+		Kills:          0,
 	})
 
 	// Create 3 enemy ships at same location
@@ -170,11 +185,13 @@ func TestUpdateCollisions_MultipleKills(t *testing.T) {
 			components.Position,
 			components.Faction,
 			components.Sprite,
+			components.Owner,
 		)
 		projEntry := world.Entry(projectile)
 		components.Position.SetValue(projEntry, components.PositionData{X: 100, Y: 100})
 		components.Faction.SetValue(projEntry, components.FactionData{ID: 0})
 		components.Sprite.SetValue(projEntry, components.SpriteData{Image: ebiten.NewImage(1, 1)})
+		components.Owner.SetValue(projEntry, components.OwnerData{OwnerEntity: playerShip}) // Set player as owner
 	}
 
 	// Run collision system

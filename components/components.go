@@ -89,6 +89,13 @@ type ProjectileData struct {
 
 var Projectile = donburi.NewComponentType[ProjectileData]()
 
+// Owner component tracks which entity created a projectile
+type OwnerData struct {
+	OwnerEntity donburi.Entity
+}
+
+var Owner = donburi.NewComponentType[OwnerData]()
+
 // Player state (singleton component)
 type PlayerStateData struct {
 	ControlledShip donburi.Entity
@@ -101,9 +108,17 @@ var PlayerState = donburi.NewComponentType[PlayerStateData]()
 // AI state for decision making
 type AIStateData struct {
 	DecisionTimer int // Ticks until next decision (60 ticks ≈ 1 second)
+	RetargetTimer int // Ticks until next target re-evaluation (180 ticks ≈ 3 seconds)
 }
 
 var AIState = donburi.NewComponentType[AIStateData]()
+
+// AI targeting data
+type AITargetData struct {
+	TargetEntity donburi.Entity // The entity this AI is currently targeting
+}
+
+var AITarget = donburi.NewComponentType[AITargetData]()
 
 // Explosion animation data
 type ExplosionData struct {

@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"math/rand"
 	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -31,6 +32,59 @@ const (
 	starDensity  = 0.0003 // stars per pixel
 	starGridSize = 200    // grid size for deterministic star generation
 )
+
+// FleetConfig defines the composition of ships across factions
+type FleetConfig struct {
+	// Number of factions participating (2-4)
+	NumFactions int
+	// Ships per faction (indexed by faction ID)
+	ShipsPerFaction []int
+}
+
+// GenerateFleetConfig creates a deterministic fleet configuration
+// for testing specific scenarios
+func GenerateFleetConfig(numFactions, shipsPerFaction int) FleetConfig {
+	if numFactions < 2 {
+		numFactions = 2
+	}
+	if numFactions > 4 {
+		numFactions = 4
+	}
+	if shipsPerFaction < 1 {
+		shipsPerFaction = 1
+	}
+
+	ships := make([]int, numFactions)
+	for i := 0; i < numFactions; i++ {
+		ships[i] = shipsPerFaction
+	}
+
+	return FleetConfig{
+		NumFactions:     numFactions,
+		ShipsPerFaction: ships,
+	}
+}
+
+// GenerateRandomFleetConfig creates a randomized fleet configuration
+// using the provided seed for reproducibility
+// Generates 2-4 factions with 7-16 ships each
+func GenerateRandomFleetConfig(seed int64) FleetConfig {
+	rng := rand.New(rand.NewSource(seed))
+
+	// Random number of factions (2-4)
+	numFactions := rng.Intn(3) + 2 // 2, 3, or 4
+
+	// Random ships per faction (7-16 per faction)
+	ships := make([]int, numFactions)
+	for i := 0; i < numFactions; i++ {
+		ships[i] = rng.Intn(10) + 7 // 7 to 16 inclusive
+	}
+
+	return FleetConfig{
+		NumFactions:     numFactions,
+		ShipsPerFaction: ships,
+	}
+}
 
 // Game represents the main game state
 type Game struct {
@@ -109,7 +163,7 @@ func generateStarsForGrid(gridX, gridY int) []struct{ x, y float64 } {
 }
 
 // NewGame creates and initializes a new game with ECS
-func NewGame() (*Game, error) {
+func NewGame(fleetConfig FleetConfig) (*Game, error) {
 	// Create ECS world
 	world := donburi.NewWorld()
 
@@ -150,46 +204,61 @@ func NewGame() (*Game, error) {
 	// Initialize factions and spawn points
 	systems.InitializeFactions(world)
 
-	// Spawn player ship at faction 0 (green) spawn point
-	playerShip, err := systems.SpawnShip(world, systems.ShipConfig{
-		Class:              components.Fighter,
-		FactionID:          0, // Green team
-		MaxSpeed:           maxSpeed,
-		Acceleration:       acceleration,
-		MaxHealth:          8,
-		CapacitorRate:      capacitorChargeRate,
-		FiringCone:         firingConeAngle,
-		FactionSprites:     factionSprites,
-		IsPlayerControlled: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to spawn player ship: %w", err)
+	// Spawn ships according to fleet configuration
+	const spawnRadius = 75.0 // Radius for circular spawn pattern
+	var playerShip donburi.Entity
+	var playerFound bool
+
+	for factionID := 0; factionID < fleetConfig.NumFactions; factionID++ {
+		numShips := fleetConfig.ShipsPerFaction[factionID]
+
+		for shipIndex := 0; shipIndex < numShips; shipIndex++ {
+			// First ship of faction 0 is player-controlled
+			isPlayerControlled := (factionID == 0 && shipIndex == 0)
+
+			// Spawn ship at faction spawn point
+			ship, err := systems.SpawnShip(world, systems.ShipConfig{
+				Class:              components.Fighter,
+				FactionID:          factionID,
+				MaxSpeed:           maxSpeed,
+				Acceleration:       acceleration,
+				MaxHealth:          8,
+				CapacitorRate:      capacitorChargeRate,
+				FiringCone:         firingConeAngle,
+				FactionSprites:     factionSprites,
+				IsPlayerControlled: isPlayerControlled,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to spawn ship for faction %d: %w", factionID, err)
+			}
+
+			// Apply position offset for ships after the first in this faction
+			// Arrange in circular pattern around spawn point
+			if shipIndex > 0 {
+				entry := world.Entry(ship)
+				pos := components.Position.Get(entry)
+
+				// Calculate angle for this ship in the circle
+				angleStep := 2.0 * math.Pi / float64(numShips-1)
+				angle := float64(shipIndex-1) * angleStep
+
+				// Apply offset
+				pos.X += spawnRadius * math.Cos(angle)
+				pos.Y += spawnRadius * math.Sin(angle)
+			}
+
+			// Track player ship
+			if isPlayerControlled {
+				playerShip = ship
+				playerFound = true
+			}
+		}
 	}
 
-	// Spawn AI opponent fighter at faction 1 (blue) spawn point
-	aiShip, err := systems.SpawnShip(world, systems.ShipConfig{
-		Class:              components.Fighter,
-		FactionID:          1, // Blue team
-		MaxSpeed:           maxSpeed,
-		Acceleration:       acceleration,
-		MaxHealth:          8,
-		CapacitorRate:      capacitorChargeRate,
-		FiringCone:         firingConeAngle,
-		FactionSprites:     factionSprites,
-		IsPlayerControlled: false,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to spawn AI ship: %w", err)
+	// Ensure we found a player ship
+	if !playerFound {
+		return nil, fmt.Errorf("no player ship spawned (faction 0 must have at least 1 ship)")
 	}
-
-	// Set AI ship to fly forward at half speed
-	aiEntry := world.Entry(aiShip)
-	aiShipData := components.Ship.Get(aiEntry)
-	aiShipData.Speed = maxSpeed / 2
-	aiVel := components.Velocity.Get(aiEntry)
-	aiRot := components.Rotation.Get(aiEntry)
-	aiVel.X = math.Sin(aiRot.Angle) * aiShipData.Speed
-	aiVel.Y = -math.Cos(aiRot.Angle) * aiShipData.Speed
 
 	// Create player state entity (singleton for score/kills tracking)
 	playerState := world.Create(components.PlayerState)
@@ -375,7 +444,10 @@ func main() {
 	ebiten.SetWindowSize(systems.ScreenWidth, systems.ScreenHeight)
 	ebiten.SetWindowTitle("Verdant Thane")
 
-	game, err := NewGame()
+	// Generate random fleet configuration
+	fleetConfig := GenerateRandomFleetConfig(rand.Int63())
+
+	game, err := NewGame(fleetConfig)
 	if err != nil {
 		log.Fatalf("Failed to create game: %v", err)
 	}

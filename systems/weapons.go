@@ -92,6 +92,7 @@ func FireWeapon(w donburi.World, shipEntry *donburi.Entry, targetX, targetY floa
 		components.Faction,
 		components.Projectile,
 		components.Sprite,
+		components.Owner,
 	)
 
 	entry := w.Entry(projectile)
@@ -102,6 +103,7 @@ func FireWeapon(w donburi.World, shipEntry *donburi.Entry, targetX, targetY floa
 		Lifetime:    projectileLifetime,
 		MaxLifetime: projectileLifetime,
 	})
+	components.Owner.SetValue(entry, components.OwnerData{OwnerEntity: shipEntry.Entity()})
 	components.Sprite.SetValue(entry, components.SpriteData{Image: laserSprite})
 
 	// Drain capacitor
