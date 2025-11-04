@@ -17,6 +17,7 @@ import (
 
 	"github.com/nathan/verdant-thane/components"
 	"github.com/nathan/verdant-thane/systems"
+	"github.com/nathan/verdant-thane/ui"
 )
 
 const (
@@ -86,12 +87,24 @@ func GenerateRandomFleetConfig(seed int64) FleetConfig {
 	}
 }
 
+// GameState represents the current state of the game
+type GameState int
+
+const (
+	TitleScreen GameState = iota
+	InGame
+)
+
 // Game represents the main game state
 type Game struct {
+	// Game state
+	currentState GameState
+	titleDialog  *ui.Dialog // Title screen dialog (only used in TitleScreen state)
+
 	// ECS World (interface, not pointer)
-	world              donburi.World
-	playerEntity       donburi.Entity
-	playerStateEntity  donburi.Entity
+	world             donburi.World
+	playerEntity      donburi.Entity
+	playerStateEntity donburi.Entity
 
 	// Shared resources
 	laserSprite     *ebiten.Image           // Shared sprite for all projectiles
@@ -162,11 +175,8 @@ func generateStarsForGrid(gridX, gridY int) []struct{ x, y float64 } {
 	return stars
 }
 
-// NewGame creates and initializes a new game with ECS
-func NewGame(fleetConfig FleetConfig) (*Game, error) {
-	// Create ECS world
-	world := donburi.NewWorld()
-
+// NewGame creates and initializes a new game, starting at the title screen
+func NewGame() (*Game, error) {
 	// Load shared assets
 	laserSprite, _, err := ebitenutil.NewImageFromFile("assets/laser.png")
 	if err != nil {
@@ -201,8 +211,26 @@ func NewGame(fleetConfig FleetConfig) (*Game, error) {
 		Size:   14,
 	}
 
+	// Create title screen dialog
+	titleDialog := ui.CreateTitleScreen()
+
+	return &Game{
+		currentState:    TitleScreen,
+		titleDialog:     titleDialog,
+		laserSprite:     laserSprite,
+		explosionSprite: explosionSprite,
+		factionSprites:  factionSprites,
+		hudFont:         hudFont,
+	}, nil
+}
+
+// StartGame transitions from title screen to in-game state by spawning ships
+func (g *Game) StartGame(fleetConfig FleetConfig) error {
+	// Create ECS world
+	g.world = donburi.NewWorld()
+
 	// Initialize factions and spawn points
-	systems.InitializeFactions(world)
+	systems.InitializeFactions(g.world)
 
 	// Spawn ships according to fleet configuration
 	const spawnRadius = 75.0 // Radius for circular spawn pattern
@@ -217,7 +245,7 @@ func NewGame(fleetConfig FleetConfig) (*Game, error) {
 			isPlayerControlled := (factionID == 0 && shipIndex == 0)
 
 			// Spawn ship at faction spawn point
-			ship, err := systems.SpawnShip(world, systems.ShipConfig{
+			ship, err := systems.SpawnShip(g.world, systems.ShipConfig{
 				Class:              components.Fighter,
 				FactionID:          factionID,
 				MaxSpeed:           maxSpeed,
@@ -225,17 +253,17 @@ func NewGame(fleetConfig FleetConfig) (*Game, error) {
 				MaxHealth:          8,
 				CapacitorRate:      capacitorChargeRate,
 				FiringCone:         firingConeAngle,
-				FactionSprites:     factionSprites,
+				FactionSprites:     g.factionSprites,
 				IsPlayerControlled: isPlayerControlled,
 			})
 			if err != nil {
-				return nil, fmt.Errorf("failed to spawn ship for faction %d: %w", factionID, err)
+				return fmt.Errorf("failed to spawn ship for faction %d: %w", factionID, err)
 			}
 
 			// Apply position offset for ships after the first in this faction
 			// Arrange in circular pattern around spawn point
 			if shipIndex > 0 {
-				entry := world.Entry(ship)
+				entry := g.world.Entry(ship)
 				pos := components.Position.Get(entry)
 
 				// Calculate angle for this ship in the circle
@@ -257,12 +285,12 @@ func NewGame(fleetConfig FleetConfig) (*Game, error) {
 
 	// Ensure we found a player ship
 	if !playerFound {
-		return nil, fmt.Errorf("no player ship spawned (faction 0 must have at least 1 ship)")
+		return fmt.Errorf("no player ship spawned (faction 0 must have at least 1 ship)")
 	}
 
 	// Create player state entity (singleton for score/kills tracking)
-	playerState := world.Create(components.PlayerState)
-	playerStateEntry := world.Entry(playerState)
+	playerState := g.world.Create(components.PlayerState)
+	playerStateEntry := g.world.Entry(playerState)
 	components.PlayerState.SetValue(playerStateEntry, components.PlayerStateData{
 		ControlledShip: playerShip,
 		Score:          0,
@@ -270,57 +298,73 @@ func NewGame(fleetConfig FleetConfig) (*Game, error) {
 	})
 
 	// Get player position for camera initialization
-	playerEntry := world.Entry(playerShip)
+	playerEntry := g.world.Entry(playerShip)
 	playerPos := components.Position.Get(playerEntry)
 
-	return &Game{
-		world:             world,
-		playerEntity:      playerShip,
-		playerStateEntity: playerState,
-		laserSprite:       laserSprite,
-		explosionSprite:   explosionSprite,
-		factionSprites:    factionSprites,
-		hudFont:           hudFont,
-		cameraX:           playerPos.X - float64(systems.ScreenWidth)/2,
-		cameraY:           playerPos.Y - float64(systems.ScreenHeight)/2,
-	}, nil
+	// Set game state
+	g.playerEntity = playerShip
+	g.playerStateEntity = playerState
+	g.cameraX = playerPos.X - float64(systems.ScreenWidth)/2
+	g.cameraY = playerPos.Y - float64(systems.ScreenHeight)/2
+	g.currentState = InGame
+
+	return nil
 }
 
 // Update updates the game logic using ECS systems
 // This is called 60 times per second
 func (g *Game) Update() error {
-	// Run systems in sequence
-	systems.UpdatePlayerInput(g.world)
-	systems.UpdateAIMovement(g.world)
-	systems.UpdateWeapons(g.world)
-	systems.UpdateMovement(g.world)
-	systems.UpdateProjectileLifetime(g.world)
-	systems.UpdateCollisions(g.world, g.explosionSprite)
-	systems.UpdateExplosions(g.world)
+	switch g.currentState {
+	case TitleScreen:
+		// Handle title screen button clicks
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			mouseX, mouseY := ebiten.CursorPosition()
+			buttonIndex := ui.CheckButtonClick(g.titleDialog, mouseX, mouseY)
 
-	// Handle player firing
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-		// Get mouse position in world coordinates
-		mouseX, mouseY := ebiten.CursorPosition()
-		worldMouseX := float64(mouseX) + g.cameraX
-		worldMouseY := float64(mouseY) + g.cameraY
+			if buttonIndex == 0 { // "Play Game" button
+				// Generate random fleet configuration
+				fleetConfig := GenerateRandomFleetConfig(rand.Int63())
+				if err := g.StartGame(fleetConfig); err != nil {
+					return fmt.Errorf("failed to start game: %w", err)
+				}
+			}
+			// TODO: Handle other buttons (Settings, Instructions, High Scores)
+		}
 
-		// Get player ship entry and attempt to fire
+	case InGame:
+		// Run systems in sequence
+		systems.UpdatePlayerInput(g.world)
+		systems.UpdateAIMovement(g.world)
+		systems.UpdateWeapons(g.world)
+		systems.UpdateMovement(g.world)
+		systems.UpdateProjectileLifetime(g.world)
+		systems.UpdateCollisions(g.world, g.explosionSprite)
+		systems.UpdateExplosions(g.world)
+
+		// Handle player firing
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			// Get mouse position in world coordinates
+			mouseX, mouseY := ebiten.CursorPosition()
+			worldMouseX := float64(mouseX) + g.cameraX
+			worldMouseY := float64(mouseY) + g.cameraY
+
+			// Get player ship entry and attempt to fire
+			if g.world.Valid(g.playerEntity) {
+				playerEntry := g.world.Entry(g.playerEntity)
+				systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
+			}
+		}
+
+		// Handle AI firing
+		systems.UpdateAIFiring(g.world, g.playerEntity, g.laserSprite)
+
+		// Update camera to follow player
 		if g.world.Valid(g.playerEntity) {
 			playerEntry := g.world.Entry(g.playerEntity)
-			systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
+			pos := components.Position.Get(playerEntry)
+			g.cameraX = pos.X - float64(systems.ScreenWidth)/2
+			g.cameraY = pos.Y - float64(systems.ScreenHeight)/2
 		}
-	}
-
-	// Handle AI firing
-	systems.UpdateAIFiring(g.world, g.playerEntity, g.laserSprite)
-
-	// Update camera to follow player
-	if g.world.Valid(g.playerEntity) {
-		playerEntry := g.world.Entry(g.playerEntity)
-		pos := components.Position.Get(playerEntry)
-		g.cameraX = pos.X - float64(systems.ScreenWidth)/2
-		g.cameraY = pos.Y - float64(systems.ScreenHeight)/2
 	}
 
 	return nil
@@ -331,108 +375,150 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Fill the screen with black
 	screen.Fill(color.RGBA{0, 0, 0, 255})
 
-	// Draw stars
-	// Determine which grid cells are visible
-	minGridX := int(g.cameraX) / starGridSize
-	maxGridX := int(g.cameraX+float64(systems.ScreenWidth)) / starGridSize
-	minGridY := int(g.cameraY) / starGridSize
-	maxGridY := int(g.cameraY+float64(systems.ScreenHeight)) / starGridSize
+	switch g.currentState {
+	case TitleScreen:
+		// Draw stars background (static, camera at origin)
+		cameraX, cameraY := 0.0, 0.0
+		minGridX := int(cameraX) / starGridSize
+		maxGridX := int(cameraX+float64(systems.ScreenWidth)) / starGridSize
+		minGridY := int(cameraY) / starGridSize
+		maxGridY := int(cameraY+float64(systems.ScreenHeight)) / starGridSize
 
-	// Draw stars for visible grid cells
-	for gridX := minGridX; gridX <= maxGridX; gridX++ {
-		for gridY := minGridY; gridY <= maxGridY; gridY++ {
-			stars := generateStarsForGrid(gridX, gridY)
-			for _, star := range stars {
-				// Convert star position to screen coordinates
-				// We need to handle wrapping: stars might need to be drawn at wrapped positions
-				drawStarAtPosition := func(worldX, worldY float64) {
-					screenX := worldX - g.cameraX
-					screenY := worldY - g.cameraY
-
-					// Only draw if on screen
+		for gridX := minGridX; gridX <= maxGridX; gridX++ {
+			for gridY := minGridY; gridY <= maxGridY; gridY++ {
+				stars := generateStarsForGrid(gridX, gridY)
+				for _, star := range stars {
+					screenX := star.x - cameraX
+					screenY := star.y - cameraY
 					if screenX >= 0 && screenX < float64(systems.ScreenWidth) && screenY >= 0 && screenY < float64(systems.ScreenHeight) {
 						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
 					}
 				}
+			}
+		}
 
-				// Draw star at its primary position
-				drawStarAtPosition(star.x, star.y)
+		// Draw title text
+		titleText := "Verdant Thane"
+		titleFont := &text.GoTextFace{
+			Source: g.hudFont.Source,
+			Size:   36,
+		}
+		titleWidth, _ := text.Measure(titleText, titleFont, 0)
+		titleX := (float64(systems.ScreenWidth) - titleWidth) / 2
+		titleY := ui.GetTitleY()
 
-				// Also check if we should draw the star at wrapped positions
-				// This handles the case where the camera is near world boundaries
-				if star.x < g.cameraX {
-					// Star is to the left of camera, try drawing wrapped to the right
-					drawStarAtPosition(star.x+float64(systems.GameWidth), star.y)
-				}
-				if star.x > g.cameraX+float64(systems.ScreenWidth) {
-					// Star is to the right of camera, try drawing wrapped to the left
-					drawStarAtPosition(star.x-float64(systems.GameWidth), star.y)
-				}
-				if star.y < g.cameraY {
-					// Star is above camera, try drawing wrapped below
-					drawStarAtPosition(star.x, star.y+float64(systems.GameHeight))
-				}
-				if star.y > g.cameraY+float64(systems.ScreenHeight) {
-					// Star is below camera, try drawing wrapped above
-					drawStarAtPosition(star.x, star.y-float64(systems.GameHeight))
+		titleOp := &text.DrawOptions{}
+		titleOp.GeoM.Translate(titleX, titleY)
+		titleOp.ColorScale.ScaleWithColor(color.White)
+		text.Draw(screen, titleText, titleFont, titleOp)
+
+		// Draw title screen dialog
+		ui.RenderDialog(screen, g.titleDialog, g.hudFont)
+
+	case InGame:
+		// Draw stars
+		// Determine which grid cells are visible
+		minGridX := int(g.cameraX) / starGridSize
+		maxGridX := int(g.cameraX+float64(systems.ScreenWidth)) / starGridSize
+		minGridY := int(g.cameraY) / starGridSize
+		maxGridY := int(g.cameraY+float64(systems.ScreenHeight)) / starGridSize
+
+		// Draw stars for visible grid cells
+		for gridX := minGridX; gridX <= maxGridX; gridX++ {
+			for gridY := minGridY; gridY <= maxGridY; gridY++ {
+				stars := generateStarsForGrid(gridX, gridY)
+				for _, star := range stars {
+					// Convert star position to screen coordinates
+					// We need to handle wrapping: stars might need to be drawn at wrapped positions
+					drawStarAtPosition := func(worldX, worldY float64) {
+						screenX := worldX - g.cameraX
+						screenY := worldY - g.cameraY
+
+						// Only draw if on screen
+						if screenX >= 0 && screenX < float64(systems.ScreenWidth) && screenY >= 0 && screenY < float64(systems.ScreenHeight) {
+							vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
+						}
+					}
+
+					// Draw star at its primary position
+					drawStarAtPosition(star.x, star.y)
+
+					// Also check if we should draw the star at wrapped positions
+					// This handles the case where the camera is near world boundaries
+					if star.x < g.cameraX {
+						// Star is to the left of camera, try drawing wrapped to the right
+						drawStarAtPosition(star.x+float64(systems.GameWidth), star.y)
+					}
+					if star.x > g.cameraX+float64(systems.ScreenWidth) {
+						// Star is to the right of camera, try drawing wrapped to the left
+						drawStarAtPosition(star.x-float64(systems.GameWidth), star.y)
+					}
+					if star.y < g.cameraY {
+						// Star is above camera, try drawing wrapped below
+						drawStarAtPosition(star.x, star.y+float64(systems.GameHeight))
+					}
+					if star.y > g.cameraY+float64(systems.ScreenHeight) {
+						// Star is below camera, try drawing wrapped above
+						drawStarAtPosition(star.x, star.y-float64(systems.GameHeight))
+					}
 				}
 			}
 		}
-	}
 
-	// Draw ships using ECS render system
-	systems.RenderShips(g.world, screen, g.cameraX, g.cameraY)
+		// Draw ships using ECS render system
+		systems.RenderShips(g.world, screen, g.cameraX, g.cameraY)
 
-	// Draw projectiles using ECS render system
-	systems.RenderProjectiles(g.world, screen, g.cameraX, g.cameraY)
+		// Draw projectiles using ECS render system
+		systems.RenderProjectiles(g.world, screen, g.cameraX, g.cameraY)
 
-	// Draw explosions using ECS render system
-	systems.RenderExplosions(g.world, screen, g.cameraX, g.cameraY)
+		// Draw explosions using ECS render system
+		systems.RenderExplosions(g.world, screen, g.cameraX, g.cameraY)
 
-	// Draw minimap
-	systems.RenderMinimap(g.world, screen, g.playerEntity)
+		// Draw minimap
+		systems.RenderMinimap(g.world, screen, g.playerEntity)
 
-	// Draw HUD
-	textColor := color.White
+		// Draw HUD
+		textColor := color.White
 
-	// Get player state from ECS
-	var playerScore, playerKills, playerShield int
-	if g.world.Valid(g.playerStateEntity) {
-		stateEntry := g.world.Entry(g.playerStateEntity)
-		state := components.PlayerState.Get(stateEntry)
-		playerScore = state.Score
-		playerKills = state.Kills
+		// Get player state from ECS
+		var playerScore, playerKills, playerShield int
+		if g.world.Valid(g.playerStateEntity) {
+			stateEntry := g.world.Entry(g.playerStateEntity)
+			state := components.PlayerState.Get(stateEntry)
+			playerScore = state.Score
+			playerKills = state.Kills
 
-		// Get shield from player ship
-		if g.world.Valid(state.ControlledShip) {
-			shipEntry := g.world.Entry(state.ControlledShip)
-			health := components.Health.Get(shipEntry)
-			playerShield = health.Current
+			// Get shield from player ship
+			if g.world.Valid(state.ControlledShip) {
+				shipEntry := g.world.Entry(state.ControlledShip)
+				health := components.Health.Get(shipEntry)
+				playerShield = health.Current
+			}
 		}
+
+		// Upper left: Score
+		scoreText := fmt.Sprintf("Score: %d", playerScore)
+		scoreOp := &text.DrawOptions{}
+		scoreOp.GeoM.Translate(10, 10)
+		scoreOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, scoreText, g.hudFont, scoreOp)
+
+		// Upper right: Shield
+		shieldText := fmt.Sprintf("Shield: %d", playerShield)
+		shieldWidth, _ := text.Measure(shieldText, g.hudFont, 0)
+		shieldOp := &text.DrawOptions{}
+		shieldOp.GeoM.Translate(float64(systems.ScreenWidth)-shieldWidth-10, 10)
+		shieldOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, shieldText, g.hudFont, shieldOp)
+
+		// Upper right: Kills
+		killsText := fmt.Sprintf("Kills: %d", playerKills)
+		killsWidth, _ := text.Measure(killsText, g.hudFont, 0)
+		killsOp := &text.DrawOptions{}
+		killsOp.GeoM.Translate(float64(systems.ScreenWidth)-killsWidth-10, 27)
+		killsOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, killsText, g.hudFont, killsOp)
 	}
-
-	// Upper left: Score
-	scoreText := fmt.Sprintf("Score: %d", playerScore)
-	scoreOp := &text.DrawOptions{}
-	scoreOp.GeoM.Translate(10, 10)
-	scoreOp.ColorScale.ScaleWithColor(textColor)
-	text.Draw(screen, scoreText, g.hudFont, scoreOp)
-
-	// Upper right: Shield
-	shieldText := fmt.Sprintf("Shield: %d", playerShield)
-	shieldWidth, _ := text.Measure(shieldText, g.hudFont, 0)
-	shieldOp := &text.DrawOptions{}
-	shieldOp.GeoM.Translate(float64(systems.ScreenWidth)-shieldWidth-10, 10)
-	shieldOp.ColorScale.ScaleWithColor(textColor)
-	text.Draw(screen, shieldText, g.hudFont, shieldOp)
-
-	// Upper right: Kills
-	killsText := fmt.Sprintf("Kills: %d", playerKills)
-	killsWidth, _ := text.Measure(killsText, g.hudFont, 0)
-	killsOp := &text.DrawOptions{}
-	killsOp.GeoM.Translate(float64(systems.ScreenWidth)-killsWidth-10, 27)
-	killsOp.ColorScale.ScaleWithColor(textColor)
-	text.Draw(screen, killsText, g.hudFont, killsOp)
 }
 
 // Layout returns the game's screen dimensions
@@ -444,10 +530,7 @@ func main() {
 	ebiten.SetWindowSize(systems.ScreenWidth, systems.ScreenHeight)
 	ebiten.SetWindowTitle("Verdant Thane")
 
-	// Generate random fleet configuration
-	fleetConfig := GenerateRandomFleetConfig(rand.Int63())
-
-	game, err := NewGame(fleetConfig)
+	game, err := NewGame()
 	if err != nil {
 		log.Fatalf("Failed to create game: %v", err)
 	}
