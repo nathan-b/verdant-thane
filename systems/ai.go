@@ -12,12 +12,12 @@ import (
 )
 
 const (
-	aiDecisionInterval   = 60                       // Ticks between decisions (~1 second at 60 TPS)
-	aiRetargetInterval   = 180                      // Ticks between target re-evaluation (~3 seconds at 60 TPS)
-	aiRotationSpeed      = 3.0 * math.Pi / 180.0    // 3 degrees per tick rotation toward target
-	aiPursuitSpeedMin    = 0.80                     // Minimum speed when pursuing (80% of max)
-	aiPursuitSpeedMax    = 1.00                     // Maximum speed when pursuing (100% of max)
-	aiPatrolSpeed        = 0.50                     // Speed when no target (50% of max)
+	aiDecisionInterval = 60                    // Ticks between decisions (~1 second at 60 TPS)
+	aiRetargetInterval = 60                    // Ticks between target re-evaluation (~1 second at 60 TPS)
+	aiRotationSpeed    = 3.0 * math.Pi / 180.0 // 3 degrees per tick rotation toward target
+	aiPursuitSpeedMin  = 0.80                  // Minimum speed when pursuing (80% of max)
+	aiPursuitSpeedMax  = 1.00                  // Maximum speed when pursuing (100% of max)
+	aiPatrolSpeed      = 0.50                  // Speed when no target (50% of max)
 )
 
 // normalizeAngle brings an angle into the range [-π, π] (defined in weapons.go but needed here too)
@@ -88,6 +88,7 @@ func UpdateAIMovement(w donburi.World) {
 		components.Velocity,
 	))
 
+	// Process all AI ships every frame
 	for entry := range query.Iter(w) {
 		aiState := components.AIState.Get(entry)
 		aiTarget := components.AITarget.Get(entry)
@@ -238,4 +239,3 @@ func UpdateAIFiring(w donburi.World, playerEntity donburi.Entity, laserSprite *e
 		}
 	}
 }
-

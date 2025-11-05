@@ -35,6 +35,21 @@ func RenderShips(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64
 
 	for entry := range query.Iter(w) {
 		pos := components.Position.Get(entry)
+
+		// Early visibility check - skip if ship is far from visible area
+		// Rough estimate with generous margin for world wrapping
+		const roughMargin = 100.0
+		screenX := pos.X - cameraX
+		screenY := pos.Y - cameraY
+
+		// Quick rejection test before loading sprite data
+		farFromScreen := (screenX < -GameWidth/2-roughMargin || screenX > GameWidth/2+roughMargin) &&
+			(screenY < -GameHeight/2-roughMargin || screenY > GameHeight/2+roughMargin)
+
+		if farFromScreen {
+			continue // Skip this ship entirely
+		}
+
 		rot := components.Rotation.Get(entry)
 		sprite := components.Sprite.Get(entry)
 

@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"image/color"
 	"log"
 	"math"
 	"math/rand"
 	"os"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -18,6 +20,15 @@ import (
 	"github.com/nathan/verdant-thane/components"
 	"github.com/nathan/verdant-thane/systems"
 	"github.com/nathan/verdant-thane/ui"
+)
+
+var (
+	// Command-line flags for performance testing
+	perfTest     = flag.Bool("perf", false, "Enable performance testing mode with large fleets")
+	perfShips    = flag.Int("ships", 800, "Total number of ships for performance testing")
+	perfFactions = flag.Int("factions", 4, "Number of factions for performance testing")
+	showFPS      = flag.Bool("fps", false, "Show FPS/TPS counter")
+	showProfile  = flag.Bool("profile", false, "Show detailed performance profiling data")
 )
 
 const (
@@ -95,6 +106,44 @@ const (
 	InGame
 )
 
+// ProfileData tracks timing for performance profiling
+type ProfileData struct {
+	PlayerInput       time.Duration
+	AIMovement        time.Duration
+	WeaponsUpdate     time.Duration
+	Movement          time.Duration
+	ProjectileLife    time.Duration
+	Collisions        time.Duration
+	Explosions        time.Duration
+	AIFiring          time.Duration
+	RenderStars       time.Duration
+	RenderShips       time.Duration
+	RenderProjectiles time.Duration
+	RenderExplosions  time.Duration
+	RenderMinimap     time.Duration
+	TotalUpdate       time.Duration
+	TotalDraw         time.Duration
+}
+
+// Reset clears all timing data
+func (p *ProfileData) Reset() {
+	p.PlayerInput = 0
+	p.AIMovement = 0
+	p.WeaponsUpdate = 0
+	p.Movement = 0
+	p.ProjectileLife = 0
+	p.Collisions = 0
+	p.Explosions = 0
+	p.AIFiring = 0
+	p.RenderStars = 0
+	p.RenderShips = 0
+	p.RenderProjectiles = 0
+	p.RenderExplosions = 0
+	p.RenderMinimap = 0
+	p.TotalUpdate = 0
+	p.TotalDraw = 0
+}
+
 // Game represents the main game state
 type Game struct {
 	// Game state
@@ -115,6 +164,17 @@ type Game struct {
 	// Camera (could be moved to ECS later)
 	cameraX float64 // Camera position (follows player)
 	cameraY float64
+
+	// Performance monitoring
+	frameCount  int
+	lastFPSTime time.Time
+	currentFPS  float64
+	currentTPS  float64
+
+	// Performance profiling
+	profileData      ProfileData
+	profileFrameCount int
+	lastProfileTime   time.Time
 }
 
 // modulo performs proper modulo operation (handles negatives correctly)
@@ -221,6 +281,8 @@ func NewGame() (*Game, error) {
 		explosionSprite: explosionSprite,
 		factionSprites:  factionSprites,
 		hudFont:         hudFont,
+		lastFPSTime:     time.Now(),
+		lastProfileTime: time.Now(),
 	}, nil
 }
 
@@ -314,6 +376,15 @@ func (g *Game) StartGame(fleetConfig FleetConfig) error {
 // Update updates the game logic using ECS systems
 // This is called 60 times per second
 func (g *Game) Update() error {
+	// Update performance counters
+	g.frameCount++
+	if time.Since(g.lastFPSTime) >= time.Second {
+		g.currentTPS = float64(g.frameCount) / time.Since(g.lastFPSTime).Seconds()
+		g.currentFPS = ebiten.ActualFPS()
+		g.frameCount = 0
+		g.lastFPSTime = time.Now()
+	}
+
 	switch g.currentState {
 	case TitleScreen:
 		// Handle title screen button clicks
@@ -332,14 +403,36 @@ func (g *Game) Update() error {
 		}
 
 	case InGame:
-		// Run systems in sequence
+		updateStart := time.Now()
+
+		// Run systems in sequence with timing
+		t := time.Now()
 		systems.UpdatePlayerInput(g.world)
+		g.profileData.PlayerInput += time.Since(t)
+
+		t = time.Now()
 		systems.UpdateAIMovement(g.world)
+		g.profileData.AIMovement += time.Since(t)
+
+		t = time.Now()
 		systems.UpdateWeapons(g.world)
+		g.profileData.WeaponsUpdate += time.Since(t)
+
+		t = time.Now()
 		systems.UpdateMovement(g.world)
+		g.profileData.Movement += time.Since(t)
+
+		t = time.Now()
 		systems.UpdateProjectileLifetime(g.world)
+		g.profileData.ProjectileLife += time.Since(t)
+
+		t = time.Now()
 		systems.UpdateCollisions(g.world, g.explosionSprite)
+		g.profileData.Collisions += time.Since(t)
+
+		t = time.Now()
 		systems.UpdateExplosions(g.world)
+		g.profileData.Explosions += time.Since(t)
 
 		// Handle player firing
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
@@ -356,7 +449,9 @@ func (g *Game) Update() error {
 		}
 
 		// Handle AI firing
+		t = time.Now()
 		systems.UpdateAIFiring(g.world, g.playerEntity, g.laserSprite)
+		g.profileData.AIFiring += time.Since(t)
 
 		// Update camera to follow player
 		if g.world.Valid(g.playerEntity) {
@@ -365,6 +460,9 @@ func (g *Game) Update() error {
 			g.cameraX = pos.X - float64(systems.ScreenWidth)/2
 			g.cameraY = pos.Y - float64(systems.ScreenHeight)/2
 		}
+
+		g.profileData.TotalUpdate += time.Since(updateStart)
+		g.profileFrameCount++
 	}
 
 	return nil
@@ -416,7 +514,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		ui.RenderDialog(screen, g.titleDialog, g.hudFont)
 
 	case InGame:
+		drawStart := time.Now()
+
 		// Draw stars
+		starsStart := time.Now()
 		// Determine which grid cells are visible
 		minGridX := int(g.cameraX) / starGridSize
 		maxGridX := int(g.cameraX+float64(systems.ScreenWidth)) / starGridSize
@@ -464,18 +565,27 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				}
 			}
 		}
+		g.profileData.RenderStars += time.Since(starsStart)
 
 		// Draw ships using ECS render system
+		t := time.Now()
 		systems.RenderShips(g.world, screen, g.cameraX, g.cameraY)
+		g.profileData.RenderShips += time.Since(t)
 
 		// Draw projectiles using ECS render system
+		t = time.Now()
 		systems.RenderProjectiles(g.world, screen, g.cameraX, g.cameraY)
+		g.profileData.RenderProjectiles += time.Since(t)
 
 		// Draw explosions using ECS render system
+		t = time.Now()
 		systems.RenderExplosions(g.world, screen, g.cameraX, g.cameraY)
+		g.profileData.RenderExplosions += time.Since(t)
 
 		// Draw minimap
+		t = time.Now()
 		systems.RenderMinimap(g.world, screen, g.playerEntity)
+		g.profileData.RenderMinimap += time.Since(t)
 
 		// Draw HUD
 		textColor := color.White
@@ -518,6 +628,59 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		killsOp.GeoM.Translate(float64(systems.ScreenWidth)-killsWidth-10, 27)
 		killsOp.ColorScale.ScaleWithColor(textColor)
 		text.Draw(screen, killsText, g.hudFont, killsOp)
+
+		// FPS/TPS counter (if enabled)
+		if *showFPS {
+			fpsText := fmt.Sprintf("FPS: %.1f  TPS: %.1f", g.currentFPS, g.currentTPS)
+			fpsOp := &text.DrawOptions{}
+			fpsOp.GeoM.Translate(10, float64(systems.ScreenHeight)-20)
+			fpsOp.ColorScale.ScaleWithColor(textColor)
+			text.Draw(screen, fpsText, g.hudFont, fpsOp)
+		}
+
+		// Performance profiling
+		g.profileData.TotalDraw += time.Since(drawStart)
+
+		// Display profiling data every second (if enabled)
+		if time.Since(g.lastProfileTime) >= time.Second {
+			if *showProfile {
+				// Calculate averages
+				frameCount := float64(g.profileFrameCount)
+				if frameCount == 0 {
+					frameCount = 1
+				}
+
+				// Print profiling data to console
+				fmt.Printf("\n=== Performance Profile (avg per frame) ===\n")
+				fmt.Printf("Update Systems:\n")
+				fmt.Printf("  Player Input:    %6.2f ms\n", float64(g.profileData.PlayerInput.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  AI Movement:     %6.2f ms\n", float64(g.profileData.AIMovement.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Weapons Update:  %6.2f ms\n", float64(g.profileData.WeaponsUpdate.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Movement:        %6.2f ms\n", float64(g.profileData.Movement.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Projectile Life: %6.2f ms\n", float64(g.profileData.ProjectileLife.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Collisions:      %6.2f ms\n", float64(g.profileData.Collisions.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Explosions:      %6.2f ms\n", float64(g.profileData.Explosions.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  AI Firing:       %6.2f ms\n", float64(g.profileData.AIFiring.Microseconds())/frameCount/1000.0)
+				fmt.Printf("Render Systems:\n")
+				fmt.Printf("  Stars:           %6.2f ms\n", float64(g.profileData.RenderStars.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Ships:           %6.2f ms\n", float64(g.profileData.RenderShips.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Projectiles:     %6.2f ms\n", float64(g.profileData.RenderProjectiles.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Explosions:      %6.2f ms\n", float64(g.profileData.RenderExplosions.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Minimap:         %6.2f ms\n", float64(g.profileData.RenderMinimap.Microseconds())/frameCount/1000.0)
+				fmt.Printf("Totals:\n")
+				fmt.Printf("  Total Update:    %6.2f ms\n", float64(g.profileData.TotalUpdate.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Total Draw:      %6.2f ms\n", float64(g.profileData.TotalDraw.Microseconds())/frameCount/1000.0)
+				totalFrame := g.profileData.TotalUpdate + g.profileData.TotalDraw
+				fmt.Printf("  Total Frame:     %6.2f ms\n", float64(totalFrame.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Frame Budget:    %6.2f ms (60 FPS)\n", 16.67)
+				fmt.Printf("==========================================\n")
+			}
+
+			// Reset profiling data
+			g.profileData.Reset()
+			g.profileFrameCount = 0
+			g.lastProfileTime = time.Now()
+		}
 	}
 }
 
@@ -527,12 +690,42 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
+	flag.Parse()
+
 	ebiten.SetWindowSize(systems.ScreenWidth, systems.ScreenHeight)
 	ebiten.SetWindowTitle("Verdant Thane")
 
 	game, err := NewGame()
 	if err != nil {
 		log.Fatalf("Failed to create game: %v", err)
+	}
+
+	// If performance testing mode is enabled, skip title screen and spawn large fleet
+	if *perfTest {
+		log.Printf("Performance test mode enabled: %d ships across %d factions", *perfShips, *perfFactions)
+
+		// Calculate ships per faction
+		shipsPerFaction := make([]int, *perfFactions)
+		baseShips := *perfShips / *perfFactions
+		remainder := *perfShips % *perfFactions
+
+		for i := 0; i < *perfFactions; i++ {
+			shipsPerFaction[i] = baseShips
+			if i < remainder {
+				shipsPerFaction[i]++
+			}
+		}
+
+		fleetConfig := FleetConfig{
+			NumFactions:     *perfFactions,
+			ShipsPerFaction: shipsPerFaction,
+		}
+
+		if err := game.StartGame(fleetConfig); err != nil {
+			log.Fatalf("Failed to start performance test: %v", err)
+		}
+
+		log.Printf("Fleet spawned successfully. Ships per faction: %v", shipsPerFaction)
 	}
 
 	if err := ebiten.RunGame(game); err != nil {
