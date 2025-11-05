@@ -14,7 +14,7 @@ const (
 
 // Minimap dimensions and position
 const (
-	MinimapSize = 205                           // 20% of screen width (1024 * 0.2 ≈ 205)
+	MinimapSize = 205                            // 20% of screen width (1024 * 0.2 ≈ 205)
 	MinimapX    = ScreenWidth - MinimapSize - 10 // Bottom right corner with 10px margin
 	MinimapY    = ScreenHeight - MinimapSize - 5 // Bottom with small margin
 )

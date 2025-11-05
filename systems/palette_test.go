@@ -118,58 +118,75 @@ func TestGetFactionColor(t *testing.T) {
 func TestLoadFactionSprites(t *testing.T) {
 	// This is an integration test that requires assets to be present
 	// When running from the systems package, assets are in ../assets
-	sprites, err := LoadFactionSpritesFromPath("../assets/fighter.png")
+	sprites, err := LoadFactionSpritesWithBasePath("../assets")
 
 	if err != nil {
 		t.Fatalf("LoadFactionSprites failed: %v", err)
 	}
 
-	// Verify all faction sprites were generated
-	if sprites.Green == nil {
-		t.Error("Green sprite is nil")
+	// Verify Fighter sprites were loaded
+	if sprites.Fighter == nil {
+		t.Fatal("Fighter sprites are nil")
 	}
-	if sprites.Blue == nil {
-		t.Error("Blue sprite is nil")
+
+	// Verify Destroyer sprites were loaded
+	if sprites.Destroyer == nil {
+		t.Fatal("Destroyer sprites are nil")
 	}
-	if sprites.Red == nil {
-		t.Error("Red sprite is nil")
+
+	// Verify all faction sprites were generated for Fighter
+	if sprites.Fighter.Green == nil {
+		t.Error("Fighter Green sprite is nil")
 	}
-	if sprites.Yellow == nil {
-		t.Error("Yellow sprite is nil")
+	if sprites.Fighter.Blue == nil {
+		t.Error("Fighter Blue sprite is nil")
+	}
+	if sprites.Fighter.Red == nil {
+		t.Error("Fighter Red sprite is nil")
+	}
+	if sprites.Fighter.Yellow == nil {
+		t.Error("Fighter Yellow sprite is nil")
 	}
 
 	// Verify base sprite was loaded
-	if sprites.baseSprite == nil {
-		t.Error("Base sprite is nil")
+	if sprites.Fighter.baseSprite == nil {
+		t.Error("Fighter base sprite is nil")
 	}
 
-	// Verify all sprites have correct dimensions
-	checkDimensions := func(name string, sprite *ebiten.Image) {
+	// Verify all fighter sprites have correct dimensions (24x24)
+	checkDimensions := func(name string, sprite *ebiten.Image, expectedWidth, expectedHeight int) {
 		if sprite == nil {
 			return
 		}
 		bounds := sprite.Bounds()
-		if bounds.Dx() != 24 || bounds.Dy() != 24 {
-			t.Errorf("%s sprite has wrong dimensions: %dx%d (expected 24x24)",
-				name, bounds.Dx(), bounds.Dy())
+		if bounds.Dx() != expectedWidth || bounds.Dy() != expectedHeight {
+			t.Errorf("%s sprite has wrong dimensions: %dx%d (expected %dx%d)",
+				name, bounds.Dx(), bounds.Dy(), expectedWidth, expectedHeight)
 		}
 	}
 
-	checkDimensions("Green", sprites.Green)
-	checkDimensions("Blue", sprites.Blue)
-	checkDimensions("Red", sprites.Red)
-	checkDimensions("Yellow", sprites.Yellow)
-	checkDimensions("Base", sprites.baseSprite)
+	checkDimensions("Fighter Green", sprites.Fighter.Green, 24, 24)
+	checkDimensions("Fighter Blue", sprites.Fighter.Blue, 24, 24)
+	checkDimensions("Fighter Red", sprites.Fighter.Red, 24, 24)
+	checkDimensions("Fighter Yellow", sprites.Fighter.Yellow, 24, 24)
+	checkDimensions("Fighter Base", sprites.Fighter.baseSprite, 24, 24)
+
+	// Verify destroyer sprites have correct dimensions (40x60)
+	checkDimensions("Destroyer Green", sprites.Destroyer.Green, 40, 60)
+	checkDimensions("Destroyer Blue", sprites.Destroyer.Blue, 40, 60)
+	checkDimensions("Destroyer Red", sprites.Destroyer.Red, 40, 60)
+	checkDimensions("Destroyer Yellow", sprites.Destroyer.Yellow, 40, 60)
+	checkDimensions("Destroyer Base", sprites.Destroyer.baseSprite, 40, 60)
 }
 
 func TestFactionSprites_GetSpriteForFaction(t *testing.T) {
-	// Load sprites (from correct path for tests)
-	sprites, err := LoadFactionSpritesFromPath("../assets/fighter.png")
+	// Load sprites
+	sprites, err := LoadFactionSpritesWithBasePath("../assets")
 	if err != nil {
 		t.Fatalf("LoadFactionSprites failed: %v", err)
 	}
 
-	// Test getting sprite for each faction
+	// Test getting fighter sprite for each faction (legacy method)
 	for factionID := 0; factionID < 4; factionID++ {
 		sprite := sprites.GetSpriteForFaction(factionID)
 		if sprite == nil {
@@ -177,9 +194,9 @@ func TestFactionSprites_GetSpriteForFaction(t *testing.T) {
 		}
 	}
 
-	// Test unknown faction (should fallback to green)
+	// Test unknown faction (should fallback to green fighter)
 	fallback := sprites.GetSpriteForFaction(999)
-	if fallback != sprites.Green {
-		t.Error("GetSpriteForFaction should fallback to green for unknown faction")
+	if fallback != sprites.Fighter.Green {
+		t.Error("GetSpriteForFaction should fallback to green fighter for unknown faction")
 	}
 }

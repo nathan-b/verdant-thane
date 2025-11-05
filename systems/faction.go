@@ -2,6 +2,7 @@ package systems
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 
 	"github.com/yohamta/donburi"
@@ -129,10 +130,21 @@ func SpawnShip(w donburi.World, config ShipConfig) (donburi.Entity, error) {
 		FiringCone: config.FiringCone,
 	})
 
-	// Get the correct sprite for this faction
-	sprite := config.FactionSprites.GetSpriteForFaction(config.FactionID)
+	// Get the correct sprite for this ship's class and faction
+	sprite := config.FactionSprites.GetSpriteForShip(config.Class, config.FactionID)
 	components.Sprite.SetValue(entry, components.SpriteData{Image: sprite})
+
+	// Add SecondaryWeapon component for destroyers (missiles)
+	if config.Class == components.Destroyer {
+		entry.AddComponent(components.SecondaryWeapon)
+		// Missile charge rate is half that of primary weapon (1200ms vs 600ms)
+		missileChargeRate := 1.0 / ((1200.0 / 1000.0) * 60.0)
+		components.SecondaryWeapon.SetValue(entry, components.SecondaryWeaponData{
+			Capacitor:  1.0, // Start fully charged
+			ChargeRate: missileChargeRate,
+			FiringArc:  math.Pi, // 180° rear arc
+		})
+	}
 
 	return ship, nil
 }
-

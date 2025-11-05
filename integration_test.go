@@ -12,6 +12,25 @@ import (
 	"github.com/nathan/verdant-thane/systems"
 )
 
+// createTestFactionSprites creates dummy faction sprites for testing
+func createTestFactionSprites() *systems.FactionSprites {
+	testSprite := ebiten.NewImage(24, 24)
+	return &systems.FactionSprites{
+		Fighter: &systems.ShipClassSprites{
+			Green:  testSprite,
+			Blue:   testSprite,
+			Red:    testSprite,
+			Yellow: testSprite,
+		},
+		Destroyer: &systems.ShipClassSprites{
+			Green:  testSprite,
+			Blue:   testSprite,
+			Red:    testSprite,
+			Yellow: testSprite,
+		},
+	}
+}
+
 // TestFullGameFlowWithCombat tests the complete game flow from initialization through combat
 func TestFullGameFlowWithCombat(t *testing.T) {
 	// Create a minimal game setup
@@ -20,7 +39,10 @@ func TestFullGameFlowWithCombat(t *testing.T) {
 
 	// Create dummy sprites
 	laserSprite := ebiten.NewImage(4, 4)
+	missileSprite := ebiten.NewImage(5, 10)
+	_ = missileSprite // Not used in this test
 	explosionSprite := ebiten.NewImage(400, 70)
+	testFactionSprites := createTestFactionSprites()
 
 	// Spawn two ships from different factions positioned for combat
 	playerShip, err := systems.SpawnShip(world, systems.ShipConfig{
@@ -31,7 +53,7 @@ func TestFullGameFlowWithCombat(t *testing.T) {
 		MaxHealth:          8,
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523, // ~30 degrees
-		FactionSprites:     &systems.FactionSprites{},
+		FactionSprites:     testFactionSprites,
 		IsPlayerControlled: true,
 	})
 	if err != nil {
@@ -46,7 +68,7 @@ func TestFullGameFlowWithCombat(t *testing.T) {
 		MaxHealth:          1, // Low health for easy kill
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523,
-		FactionSprites:     &systems.FactionSprites{},
+		FactionSprites:     testFactionSprites,
 		IsPlayerControlled: false,
 	})
 	if err != nil {
@@ -134,7 +156,8 @@ func TestMultiFactionBattle(t *testing.T) {
 	systems.InitializeFactions(world)
 
 	laserSprite := ebiten.NewImage(4, 4)
-	factionSprites := &systems.FactionSprites{}
+	missileSprite := ebiten.NewImage(5, 10)
+	factionSprites := createTestFactionSprites()
 
 	// Spawn 3 ships from different factions
 	faction0Ship, _ := systems.SpawnShip(world, systems.ShipConfig{
@@ -215,7 +238,7 @@ func TestMultiFactionBattle(t *testing.T) {
 	}
 
 	// Run AI firing system
-	systems.UpdateAIFiring(world, faction0Ship, laserSprite)
+	systems.UpdateAIFiring(world, faction0Ship, laserSprite, missileSprite)
 
 	// AI ships may have fired, check if projectiles exist
 	projectileQuery := donburi.NewQuery(filter.Contains(components.IsProjectile))
@@ -234,7 +257,8 @@ func TestAICombatBehavior(t *testing.T) {
 	systems.InitializeFactions(world)
 
 	laserSprite := ebiten.NewImage(4, 4)
-	factionSprites := &systems.FactionSprites{}
+	missileSprite := ebiten.NewImage(5, 10)
+	factionSprites := createTestFactionSprites()
 
 	// Spawn AI ship with fully charged weapon
 	aiShip, _ := systems.SpawnShip(world, systems.ShipConfig{
@@ -288,7 +312,7 @@ func TestAICombatBehavior(t *testing.T) {
 
 	// Run AI systems
 	systems.UpdateAIMovement(world) // This should select enemy as target
-	systems.UpdateAIFiring(world, aiShip, laserSprite)
+	systems.UpdateAIFiring(world, aiShip, laserSprite, missileSprite)
 
 	// Verify AI selected the enemy as target
 	aiTarget := components.AITarget.Get(aiEntry)
@@ -314,7 +338,7 @@ func TestFleetSpawningIntegration(t *testing.T) {
 	world := donburi.NewWorld()
 	systems.InitializeFactions(world)
 
-	factionSprites := &systems.FactionSprites{}
+	factionSprites := createTestFactionSprites()
 
 	// Create a fleet configuration
 	fleetConfig := GenerateFleetConfig(3, 5) // 3 factions, 5 ships each
@@ -393,6 +417,8 @@ func TestProjectileLifecycleIntegration(t *testing.T) {
 	systems.InitializeFactions(world)
 
 	laserSprite := ebiten.NewImage(4, 4)
+	missileSprite := ebiten.NewImage(5, 10)
+	_ = missileSprite // Not used in this test
 	explosionSprite := ebiten.NewImage(400, 70)
 
 	// Spawn ship and fire multiple projectiles
@@ -404,7 +430,7 @@ func TestProjectileLifecycleIntegration(t *testing.T) {
 		MaxHealth:          8,
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523,
-		FactionSprites:     &systems.FactionSprites{},
+		FactionSprites:     createTestFactionSprites(),
 		IsPlayerControlled: true,
 	})
 
@@ -450,6 +476,8 @@ func TestExplosionLifecycleIntegration(t *testing.T) {
 	systems.InitializeFactions(world)
 
 	laserSprite := ebiten.NewImage(4, 4)
+	missileSprite := ebiten.NewImage(5, 10)
+	_ = missileSprite // Not used in this test
 	explosionSprite := ebiten.NewImage(400, 70)
 
 	// Spawn ships for combat
@@ -461,7 +489,7 @@ func TestExplosionLifecycleIntegration(t *testing.T) {
 		MaxHealth:          8,
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523,
-		FactionSprites:     &systems.FactionSprites{},
+		FactionSprites:     createTestFactionSprites(),
 		IsPlayerControlled: true,
 	})
 
@@ -473,7 +501,7 @@ func TestExplosionLifecycleIntegration(t *testing.T) {
 		MaxHealth:          1, // Low health
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523,
-		FactionSprites:     &systems.FactionSprites{},
+		FactionSprites:     createTestFactionSprites(),
 		IsPlayerControlled: false,
 	})
 

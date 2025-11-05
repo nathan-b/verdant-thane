@@ -38,14 +38,14 @@ func CreateTitleScreen() *Dialog {
 		{
 			Label:  "Instructions",
 			X:      buttonX,
-			Y:      buttonStartY + 2 * (buttonHeight + buttonSpacing),
+			Y:      buttonStartY + 2*(buttonHeight+buttonSpacing),
 			Width:  buttonWidth,
 			Height: buttonHeight,
 		},
 		{
 			Label:  "High Scores",
 			X:      buttonX,
-			Y:      buttonStartY + 3 * (buttonHeight + buttonSpacing),
+			Y:      buttonStartY + 3*(buttonHeight+buttonSpacing),
 			Width:  buttonWidth,
 			Height: buttonHeight,
 		},
@@ -53,7 +53,7 @@ func CreateTitleScreen() *Dialog {
 
 	// Calculate dialog height based on buttons
 	totalButtonHeight := float64(len(buttons)) * buttonHeight
-	totalSpacing := float64(len(buttons) - 1) * buttonSpacing + (2 * internalMargin)
+	totalSpacing := float64(len(buttons)-1)*buttonSpacing + (2 * internalMargin)
 	dialogHeight := totalButtonHeight + totalSpacing
 
 	// Center the dialog

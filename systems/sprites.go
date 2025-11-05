@@ -5,10 +5,12 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+
+	"github.com/nathan/verdant-thane/components"
 )
 
-// FactionSprites holds the sprite images for each faction
-type FactionSprites struct {
+// ShipClassSprites holds faction-colored sprites for a single ship class
+type ShipClassSprites struct {
 	baseSprite *ebiten.Image // Grayscale base sprite
 	Green      *ebiten.Image // Faction 0 - Player
 	Blue       *ebiten.Image // Faction 1
@@ -16,19 +18,18 @@ type FactionSprites struct {
 	Yellow     *ebiten.Image // Faction 3
 }
 
-// LoadFactionSprites loads the grayscale base sprite and generates faction-colored sprites
-// via palette swapping
-func LoadFactionSprites() (*FactionSprites, error) {
-	return LoadFactionSpritesFromPath("assets/fighter.png")
+// FactionSprites holds sprites for all ship classes
+type FactionSprites struct {
+	Fighter   *ShipClassSprites
+	Destroyer *ShipClassSprites
 }
 
-// LoadFactionSpritesFromPath loads faction sprites from a specific path
-// This is useful for testing with different base paths
-func LoadFactionSpritesFromPath(basePath string) (*FactionSprites, error) {
+// loadShipClassSprites loads and generates faction sprites for a ship class
+func loadShipClassSprites(basePath string) (*ShipClassSprites, error) {
 	// Load the grayscale base sprite
 	baseSprite, _, err := ebitenutil.NewImageFromFile(basePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load base fighter sprite: %w", err)
+		return nil, fmt.Errorf("failed to load base sprite from %s: %w", basePath, err)
 	}
 
 	// Generate faction sprites using palette swapping
@@ -37,7 +38,7 @@ func LoadFactionSpritesFromPath(basePath string) (*FactionSprites, error) {
 	red := ApplyFactionPalette(baseSprite, 2)
 	yellow := ApplyFactionPalette(baseSprite, 3)
 
-	return &FactionSprites{
+	return &ShipClassSprites{
 		baseSprite: baseSprite,
 		Green:      green,
 		Blue:       blue,
@@ -46,18 +47,62 @@ func LoadFactionSpritesFromPath(basePath string) (*FactionSprites, error) {
 	}, nil
 }
 
-// GetSpriteForFaction returns the correct sprite for a given faction ID
-func (fs *FactionSprites) GetSpriteForFaction(factionID int) *ebiten.Image {
+// LoadFactionSprites loads sprites for all ship classes
+func LoadFactionSprites() (*FactionSprites, error) {
+	return LoadFactionSpritesWithBasePath("assets")
+}
+
+// LoadFactionSpritesWithBasePath loads sprites with a custom base path (useful for testing)
+func LoadFactionSpritesWithBasePath(basePath string) (*FactionSprites, error) {
+	// Load fighter sprites
+	fighterSprites, err := loadShipClassSprites(basePath + "/fighter.png")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load fighter sprites: %w", err)
+	}
+
+	// Load destroyer sprites
+	destroyerSprites, err := loadShipClassSprites(basePath + "/destroyer_gray.png")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load destroyer sprites: %w", err)
+	}
+
+	return &FactionSprites{
+		Fighter:   fighterSprites,
+		Destroyer: destroyerSprites,
+	}, nil
+}
+
+// GetSpriteForShip returns the correct sprite for a ship's class and faction
+func (fs *FactionSprites) GetSpriteForShip(shipClass components.ShipClass, factionID int) *ebiten.Image {
+	var classSprites *ShipClassSprites
+
+	// Select ship class sprites
+	switch shipClass {
+	case components.Fighter:
+		classSprites = fs.Fighter
+	case components.Destroyer:
+		classSprites = fs.Destroyer
+	default:
+		// Fallback to fighter
+		classSprites = fs.Fighter
+	}
+
+	// Select faction color
 	switch factionID {
 	case 0:
-		return fs.Green
+		return classSprites.Green
 	case 1:
-		return fs.Blue
+		return classSprites.Blue
 	case 2:
-		return fs.Red
+		return classSprites.Red
 	case 3:
-		return fs.Yellow
+		return classSprites.Yellow
 	default:
-		return fs.Green // Fallback to green
+		return classSprites.Green // Fallback to green
 	}
+}
+
+// GetSpriteForFaction returns the fighter sprite for a given faction ID (legacy compatibility)
+func (fs *FactionSprites) GetSpriteForFaction(factionID int) *ebiten.Image {
+	return fs.GetSpriteForShip(components.Fighter, factionID)
 }

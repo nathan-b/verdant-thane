@@ -20,7 +20,7 @@ func TestUpdateWeapons_ChargesCapacitor(t *testing.T) {
 	// Start with empty capacitor
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  0.0,
-		ChargeRate: capacitorChargeRate,
+		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -48,7 +48,7 @@ func TestUpdateWeapons_DoesNotOvercharge(t *testing.T) {
 	// Start nearly full
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  0.99,
-		ChargeRate: capacitorChargeRate,
+		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -82,7 +82,7 @@ func TestFireWeapon_FailsWhenNotCharged(t *testing.T) {
 	components.Faction.SetValue(entry, components.FactionData{ID: 0})
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  0.5, // Not fully charged
-		ChargeRate: capacitorChargeRate,
+		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -113,7 +113,7 @@ func TestFireWeapon_SucceedsWhenCharged(t *testing.T) {
 	components.Faction.SetValue(entry, components.FactionData{ID: 0})
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  1.0, // Fully charged
-		ChargeRate: capacitorChargeRate,
+		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -149,7 +149,7 @@ func TestFireWeapon_CreatesProjectile(t *testing.T) {
 	components.Faction.SetValue(entry, components.FactionData{ID: 0})
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  1.0,
-		ChargeRate: capacitorChargeRate,
+		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -192,7 +192,7 @@ func TestFireWeapon_ProjectileHasCorrectComponents(t *testing.T) {
 	components.Faction.SetValue(entry, components.FactionData{ID: 1})
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  1.0,
-		ChargeRate: capacitorChargeRate,
+		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -258,7 +258,7 @@ func TestFireWeapon_FiringConeConstraint(t *testing.T) {
 	components.Faction.SetValue(entry, components.FactionData{ID: 0})
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  1.0,
-		ChargeRate: capacitorChargeRate,
+		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180, // 30 degree cone
 	})
 

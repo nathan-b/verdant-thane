@@ -106,7 +106,7 @@ func TestSpawnMultipleFactions(t *testing.T) {
 	systems.InitializeFactions(world)
 
 	// Spawn ships manually (simulate what NewGame does, but without loading assets)
-	factionSprites := &systems.FactionSprites{} // Empty sprites for testing
+	factionSprites := createTestFactionSprites()
 
 	for factionID := 0; factionID < config.NumFactions; factionID++ {
 		numShips := config.ShipsPerFaction[factionID]
@@ -163,7 +163,7 @@ func TestPlayerShipAssignment(t *testing.T) {
 	systems.InitializeFactions(world)
 
 	// Spawn ships
-	factionSprites := &systems.FactionSprites{} // Empty sprites for testing
+	factionSprites := createTestFactionSprites()
 	var playerShip donburi.Entity
 
 	for factionID := 0; factionID < config.NumFactions; factionID++ {

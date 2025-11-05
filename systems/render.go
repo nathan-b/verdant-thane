@@ -111,7 +111,7 @@ func RenderShips(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64
 	}
 }
 
-// RenderProjectiles draws all projectiles (no rotation needed for square sprites)
+// RenderProjectiles draws all projectiles (missiles have rotation, lasers do not)
 func RenderProjectiles(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64) {
 	query := donburi.NewQuery(
 		filter.Contains(
@@ -128,6 +128,14 @@ func RenderProjectiles(w donburi.World, screen *ebiten.Image, cameraX, cameraY f
 		bounds := sprite.Image.Bounds()
 		width := float64(bounds.Dx())
 		height := float64(bounds.Dy())
+
+		// Check if this projectile has rotation (e.g., missiles)
+		var rotation float64
+		hasRotation := entry.HasComponent(components.Rotation)
+		if hasRotation {
+			rot := components.Rotation.Get(entry)
+			rotation = rot.Angle
+		}
 
 		// Helper function to draw projectile at a specific world position
 		drawProjectileAtPosition := func(worldX, worldY float64) {
@@ -147,9 +155,18 @@ func RenderProjectiles(w donburi.World, screen *ebiten.Image, cameraX, cameraY f
 
 			op := &ebiten.DrawImageOptions{}
 
-			// Simple centered positioning (no rotation needed)
-			op.GeoM.Translate(worldX-width/2, worldY-height/2)
-			op.GeoM.Translate(-cameraX, -cameraY)
+			// Apply rotation if this projectile has rotation component
+			if hasRotation {
+				// Center sprite, rotate, then translate to world position
+				op.GeoM.Translate(-width/2, -height/2)
+				op.GeoM.Rotate(rotation)
+				op.GeoM.Translate(worldX, worldY)
+				op.GeoM.Translate(-cameraX, -cameraY)
+			} else {
+				// Simple centered positioning (no rotation)
+				op.GeoM.Translate(worldX-width/2, worldY-height/2)
+				op.GeoM.Translate(-cameraX, -cameraY)
+			}
 
 			screen.DrawImage(sprite.Image, op)
 		}

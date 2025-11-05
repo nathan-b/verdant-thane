@@ -74,6 +74,15 @@ type WeaponData struct {
 
 var Weapon = donburi.NewComponentType[WeaponData]()
 
+// SecondaryWeapon for destroyers (missiles)
+type SecondaryWeaponData struct {
+	Capacitor  float64 // 0.0 to 1.0
+	ChargeRate float64
+	FiringArc  float64 // Radians (rear 180° arc)
+}
+
+var SecondaryWeapon = donburi.NewComponentType[SecondaryWeaponData]()
+
 // Rendering components
 type SpriteData struct {
 	Image *ebiten.Image
@@ -95,6 +104,14 @@ type OwnerData struct {
 }
 
 var Owner = donburi.NewComponentType[OwnerData]()
+
+// Missile component for tracking projectiles
+type MissileData struct {
+	TargetEntity donburi.Entity // Entity this missile is tracking
+	Acceleration float64        // Pixels per tick² acceleration toward target
+}
+
+var Missile = donburi.NewComponentType[MissileData]()
 
 // Player state (singleton component)
 type PlayerStateData struct {
@@ -133,4 +150,5 @@ var PlayerControlled = donburi.NewTag("PlayerControlled")
 var AIControlled = donburi.NewTag("AIControlled")
 var IsShip = donburi.NewTag("IsShip")
 var IsProjectile = donburi.NewTag("IsProjectile")
+var IsMissile = donburi.NewTag("IsMissile")
 var IsExplosion = donburi.NewTag("IsExplosion")

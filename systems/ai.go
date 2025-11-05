@@ -169,7 +169,8 @@ func UpdateAIMovement(w donburi.World) {
 
 // UpdateAIFiring handles AI decision making for firing weapons
 // AI ships attempt to fire at their current target when in range
-func UpdateAIFiring(w donburi.World, playerEntity donburi.Entity, laserSprite *ebiten.Image) {
+// If the ship has a secondary weapon (missiles), it will fire at targets in the rear arc
+func UpdateAIFiring(w donburi.World, playerEntity donburi.Entity, laserSprite, missileSprite *ebiten.Image) {
 	// Query all AI ships with targets
 	aiQuery := donburi.NewQuery(filter.Contains(
 		components.AIControlled,
@@ -217,7 +218,7 @@ func UpdateAIFiring(w donburi.World, playerEntity donburi.Entity, laserSprite *e
 		targetAngle := math.Atan2(dx, -dy)
 		angleDiff := normalizeAngleAI(targetAngle - aiRot.Angle)
 
-		// Check if target is within firing cone
+		// Check if target is within firing cone (front)
 		halfCone := aiWeapon.FiringCone / 2
 		if math.Abs(angleDiff) <= halfCone {
 			// Target is in firing cone!
@@ -236,6 +237,25 @@ func UpdateAIFiring(w donburi.World, playerEntity donburi.Entity, laserSprite *e
 				FireWeapon(w, aiEntry, randomTargetX, randomTargetY, laserSprite)
 			}
 			// else: 25% chance: Don't fire
+		}
+
+		// Check if ship has secondary weapon (missiles) and target is in rear arc
+		if aiEntry.HasComponent(components.SecondaryWeapon) {
+			// Check if target is in rear 180° arc
+			// Rear arc is centered at 180° from facing direction
+			rearAngleDiff := normalizeAngleAI(angleDiff)
+
+			// Target is in rear arc if angle difference is > 90° (π/2)
+			if math.Abs(rearAngleDiff) > math.Pi/2 {
+				// Target is behind us! Fire missile with same probability as main gun
+				fireRoll := rand.Float64()
+
+				if fireRoll < 0.50 {
+					// 50% chance: Fire missile at target
+					FireMissile(w, aiEntry, aiTarget.TargetEntity, missileSprite)
+				}
+				// else: Don't fire missile
+			}
 		}
 	}
 }

@@ -29,17 +29,10 @@ var (
 	perfFactions = flag.Int("factions", 4, "Number of factions for performance testing")
 	showFPS      = flag.Bool("fps", false, "Show FPS/TPS counter")
 	showProfile  = flag.Bool("profile", false, "Show detailed performance profiling data")
+	useDestroyer = flag.Bool("destroyer", false, "Spawn player and opponents as destroyers instead of fighters")
 )
 
 const (
-	// Movement constants (for Fighter class)
-	maxSpeed     = 6.0        // pixels per tick
-	acceleration = 4.0 / 60.0 // pixels per second per tick
-
-	// Firing constants (used for entity initialization)
-	capacitorChargeRate = 1.0 / ((600.0 / 1000.0) * 60.0) // charge per tick (600ms charge time)
-	firingConeAngle     = 30.0 * math.Pi / 180.0          // 30 degrees in radians
-
 	// Starfield constants
 	starDensity  = 0.0003 // stars per pixel
 	starGridSize = 200    // grid size for deterministic star generation
@@ -112,6 +105,7 @@ type ProfileData struct {
 	AIMovement        time.Duration
 	WeaponsUpdate     time.Duration
 	Movement          time.Duration
+	MissileTracking   time.Duration
 	ProjectileLife    time.Duration
 	Collisions        time.Duration
 	Explosions        time.Duration
@@ -131,6 +125,7 @@ func (p *ProfileData) Reset() {
 	p.AIMovement = 0
 	p.WeaponsUpdate = 0
 	p.Movement = 0
+	p.MissileTracking = 0
 	p.ProjectileLife = 0
 	p.Collisions = 0
 	p.Explosions = 0
@@ -156,7 +151,8 @@ type Game struct {
 	playerStateEntity donburi.Entity
 
 	// Shared resources
-	laserSprite     *ebiten.Image           // Shared sprite for all projectiles
+	laserSprite     *ebiten.Image           // Shared sprite for all laser projectiles
+	missileSprite   *ebiten.Image           // Shared sprite for all missile projectiles
 	explosionSprite *ebiten.Image           // Sprite sheet for explosion animation
 	factionSprites  *systems.FactionSprites // Ship sprites for all factions
 	hudFont         *text.GoTextFace        // Font for HUD rendering
@@ -172,7 +168,7 @@ type Game struct {
 	currentTPS  float64
 
 	// Performance profiling
-	profileData      ProfileData
+	profileData       ProfileData
 	profileFrameCount int
 	lastProfileTime   time.Time
 }
@@ -243,6 +239,11 @@ func NewGame() (*Game, error) {
 		return nil, err
 	}
 
+	missileSprite, _, err := ebitenutil.NewImageFromFile("assets/missile.png")
+	if err != nil {
+		return nil, err
+	}
+
 	// Load explosion sprite sheet (400x70, 4 frames of 100x70 each)
 	explosionSprite, _, err := ebitenutil.NewImageFromFile("assets/explosion.png")
 	if err != nil {
@@ -278,6 +279,7 @@ func NewGame() (*Game, error) {
 		currentState:    TitleScreen,
 		titleDialog:     titleDialog,
 		laserSprite:     laserSprite,
+		missileSprite:   missileSprite,
 		explosionSprite: explosionSprite,
 		factionSprites:  factionSprites,
 		hudFont:         hudFont,
@@ -306,15 +308,24 @@ func (g *Game) StartGame(fleetConfig FleetConfig) error {
 			// First ship of faction 0 is player-controlled
 			isPlayerControlled := (factionID == 0 && shipIndex == 0)
 
+			// Determine ship class based on -destroyer flag
+			shipClass := components.Fighter
+			if *useDestroyer {
+				shipClass = components.Destroyer
+			}
+
+			// Get ship characteristics from database
+			shipChars := GetShipCharacteristics(shipClass)
+
 			// Spawn ship at faction spawn point
 			ship, err := systems.SpawnShip(g.world, systems.ShipConfig{
-				Class:              components.Fighter,
+				Class:              shipClass,
 				FactionID:          factionID,
-				MaxSpeed:           maxSpeed,
-				Acceleration:       acceleration,
-				MaxHealth:          8,
-				CapacitorRate:      capacitorChargeRate,
-				FiringCone:         firingConeAngle,
+				MaxSpeed:           shipChars.MaxSpeed,
+				Acceleration:       shipChars.Acceleration,
+				MaxHealth:          shipChars.MaxShield,
+				CapacitorRate:      shipChars.CapacitorChargeRate,
+				FiringCone:         shipChars.FiringCone,
 				FactionSprites:     g.factionSprites,
 				IsPlayerControlled: isPlayerControlled,
 			})
@@ -423,6 +434,10 @@ func (g *Game) Update() error {
 		g.profileData.Movement += time.Since(t)
 
 		t = time.Now()
+		systems.UpdateMissileTracking(g.world)
+		g.profileData.MissileTracking += time.Since(t)
+
+		t = time.Now()
 		systems.UpdateProjectileLifetime(g.world)
 		g.profileData.ProjectileLife += time.Since(t)
 
@@ -444,13 +459,24 @@ func (g *Game) Update() error {
 			// Get player ship entry and attempt to fire
 			if g.world.Valid(g.playerEntity) {
 				playerEntry := g.world.Entry(g.playerEntity)
-				systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
+
+				// Check if cursor is within main weapon firing arc
+				if systems.IsTargetInFiringArc(playerEntry, worldMouseX, worldMouseY) {
+					// Cursor in front arc - fire main weapon (laser)
+					systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
+				} else if playerEntry.HasComponent(components.SecondaryWeapon) {
+					// Cursor outside front arc and ship has missiles
+					// Try to fire missile at nearest enemy in rear arc
+					if nearestEnemy, found := systems.FindNearestEnemyInRearArc(g.world, playerEntry); found {
+						systems.FireMissile(g.world, playerEntry, nearestEnemy, g.missileSprite)
+					}
+				}
 			}
 		}
 
 		// Handle AI firing
 		t = time.Now()
-		systems.UpdateAIFiring(g.world, g.playerEntity, g.laserSprite)
+		systems.UpdateAIFiring(g.world, g.playerEntity, g.laserSprite, g.missileSprite)
 		g.profileData.AIFiring += time.Since(t)
 
 		// Update camera to follow player
