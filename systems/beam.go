@@ -24,8 +24,9 @@ func UpdateBeamWeapons(w donburi.World) {
 		position := components.Position.Get(entry)
 		faction := components.Faction.Get(entry)
 
-		// Check if current target is still valid
-		targetValid := false
+		var targetToFire *donburi.Entry
+
+		// First, check if current AI target is valid and in range
 		if w.Valid(beamWeapon.TargetEntity) {
 			targetEntry := w.Entry(beamWeapon.TargetEntity)
 			if targetEntry.HasComponent(components.Health) {
@@ -40,18 +41,22 @@ func UpdateBeamWeapons(w donburi.World) {
 				if targetHealth.Current > 0 &&
 					targetFaction.ID != faction.ID &&
 					IsInRange(position.X, position.Y, targetPosition.X, targetPosition.Y, beamWeapon.Range) {
-					targetValid = true
-
-					// Apply damage to valid target
-					ApplyBeamDamage(w, entry, targetEntry, beamWeapon)
+					targetToFire = targetEntry
 				}
 			}
 		}
 
-		// If target is invalid, clear it
-		if !targetValid {
-			var emptyEntity donburi.Entity
-			beamWeapon.TargetEntity = emptyEntity
+		// If primary target is not in range, opportunistically fire at ANY in-range enemy
+		// This makes Testudons more aggressive - they fire while moving toward distant targets
+		if targetToFire == nil {
+			targetToFire = FindNearestInRangeEnemy(w, entry, beamWeapon.Range)
+		}
+
+		// Fire at the chosen target (if any)
+		if targetToFire != nil {
+			ApplyBeamDamage(w, entry, targetToFire, beamWeapon)
+		} else {
+			// No target in range - reset damage accumulator
 			beamWeapon.DamageAccumulator = 0.0
 		}
 	}
@@ -158,4 +163,46 @@ func ClearBeamTarget(attackerEntry *donburi.Entry) {
 	beamWeapon := components.BeamWeapon.Get(attackerEntry)
 	beamWeapon.TargetEntity = emptyEntity
 	beamWeapon.DamageAccumulator = 0.0
+}
+
+// FindNearestInRangeEnemy finds the nearest enemy within range for opportunistic beam firing
+// Returns nil if no enemies are in range
+func FindNearestInRangeEnemy(w donburi.World, attackerEntry *donburi.Entry, maxRange float64) *donburi.Entry {
+	attackerPos := components.Position.Get(attackerEntry)
+	attackerFaction := components.Faction.Get(attackerEntry)
+
+	// Query all enemy ships
+	enemyQuery := donburi.NewQuery(filter.Contains(
+		components.IsShip,
+		components.Position,
+		components.Faction,
+		components.Health,
+	))
+
+	var closestEnemy *donburi.Entry
+	closestDistance := math.MaxFloat64 // Start with infinity
+
+	for enemyEntry := range enemyQuery.Iter(w) {
+		enemyFaction := components.Faction.Get(enemyEntry)
+		enemyHealth := components.Health.Get(enemyEntry)
+
+		// Skip friendlies and dead ships
+		if enemyFaction.ID == attackerFaction.ID || enemyHealth.Current <= 0 {
+			continue
+		}
+
+		enemyPos := components.Position.Get(enemyEntry)
+
+		// Calculate distance with wrapping
+		dx, dy := GetWrappedDistance(attackerPos.X, attackerPos.Y, enemyPos.X, enemyPos.Y)
+		distance := math.Sqrt(dx*dx + dy*dy)
+
+		// CRITICAL: Only consider enemies within max range AND closer than current closest
+		if distance <= maxRange && distance < closestDistance {
+			closestDistance = distance
+			closestEnemy = enemyEntry
+		}
+	}
+
+	return closestEnemy
 }

@@ -18,13 +18,17 @@ func TestGenerateFleetConfig_Deterministic(t *testing.T) {
 		t.Errorf("Expected 3 factions, got %d", config.NumFactions)
 	}
 
-	if len(config.ShipsPerFaction) != 3 {
-		t.Errorf("Expected 3 faction entries, got %d", len(config.ShipsPerFaction))
+	if len(config.Compositions) != 3 {
+		t.Errorf("Expected 3 faction entries, got %d", len(config.Compositions))
 	}
 
-	for i, ships := range config.ShipsPerFaction {
-		if ships != 10 {
-			t.Errorf("Expected 10 ships for faction %d, got %d", i, ships)
+	for i, comp := range config.Compositions {
+		if comp.Fighters != 10 {
+			t.Errorf("Expected 10 fighters for faction %d, got %d", i, comp.Fighters)
+		}
+		if comp.Destroyers != 0 || comp.Testudons != 0 {
+			t.Errorf("Expected only fighters for faction %d, got destroyers=%d testudons=%d",
+				i, comp.Destroyers, comp.Testudons)
 		}
 	}
 }
@@ -44,9 +48,9 @@ func TestGenerateFleetConfig_BoundsChecking(t *testing.T) {
 
 	// Test minimum ships (< 1 should be clamped to 1)
 	config = GenerateFleetConfig(2, 0)
-	for i, ships := range config.ShipsPerFaction {
-		if ships != 1 {
-			t.Errorf("Expected 1 ship (clamped from 0) for faction %d, got %d", i, ships)
+	for i, comp := range config.Compositions {
+		if comp.Fighters != 1 {
+			t.Errorf("Expected 1 fighter (clamped from 0) for faction %d, got %d", i, comp.Fighters)
 		}
 	}
 }
@@ -63,15 +67,16 @@ func TestGenerateRandomFleetConfig_SeedDeterminism(t *testing.T) {
 		t.Errorf("Expected same NumFactions, got %d and %d", config1.NumFactions, config2.NumFactions)
 	}
 
-	if len(config1.ShipsPerFaction) != len(config2.ShipsPerFaction) {
+	if len(config1.Compositions) != len(config2.Compositions) {
 		t.Fatalf("Expected same number of faction entries, got %d and %d",
-			len(config1.ShipsPerFaction), len(config2.ShipsPerFaction))
+			len(config1.Compositions), len(config2.Compositions))
 	}
 
-	for i := range config1.ShipsPerFaction {
-		if config1.ShipsPerFaction[i] != config2.ShipsPerFaction[i] {
-			t.Errorf("Expected same ships for faction %d, got %d and %d",
-				i, config1.ShipsPerFaction[i], config2.ShipsPerFaction[i])
+	for i := range config1.Compositions {
+		comp1 := config1.Compositions[i]
+		comp2 := config2.Compositions[i]
+		if comp1.Fighters != comp2.Fighters || comp1.Destroyers != comp2.Destroyers || comp1.Testudons != comp2.Testudons {
+			t.Errorf("Expected same composition for faction %d, got %+v and %+v", i, comp1, comp2)
 		}
 	}
 }
@@ -86,10 +91,11 @@ func TestGenerateRandomFleetConfig_BoundsChecking(t *testing.T) {
 			t.Errorf("Faction count out of bounds: %d (expected 2-4)", config.NumFactions)
 		}
 
-		// Check ships per faction (7-16)
-		for factionID, ships := range config.ShipsPerFaction {
-			if ships < 7 || ships > 16 {
-				t.Errorf("Ships for faction %d out of bounds: %d (expected 7-16)", factionID, ships)
+		// Check total ships per faction (should be <= 16 since fighter budget is 7-16)
+		for factionID, comp := range config.Compositions {
+			totalShips := comp.Total()
+			if totalShips < 1 || totalShips > 16 {
+				t.Errorf("Total ships for faction %d out of bounds: %d (expected 1-16)", factionID, totalShips)
 			}
 		}
 	}
@@ -109,7 +115,7 @@ func TestSpawnMultipleFactions(t *testing.T) {
 	factionSprites := createTestFactionSprites()
 
 	for factionID := 0; factionID < config.NumFactions; factionID++ {
-		numShips := config.ShipsPerFaction[factionID]
+		numShips := config.Compositions[factionID].Total()
 
 		for shipIndex := 0; shipIndex < numShips; shipIndex++ {
 			isPlayerControlled := (factionID == 0 && shipIndex == 0)
@@ -143,7 +149,7 @@ func TestSpawnMultipleFactions(t *testing.T) {
 
 	// Verify counts
 	for factionID := 0; factionID < config.NumFactions; factionID++ {
-		expected := config.ShipsPerFaction[factionID]
+		expected := config.Compositions[factionID].Total()
 		actual := shipCounts[factionID]
 
 		if actual != expected {
@@ -167,7 +173,7 @@ func TestPlayerShipAssignment(t *testing.T) {
 	var playerShip donburi.Entity
 
 	for factionID := 0; factionID < config.NumFactions; factionID++ {
-		numShips := config.ShipsPerFaction[factionID]
+		numShips := config.Compositions[factionID].Total()
 
 		for shipIndex := 0; shipIndex < numShips; shipIndex++ {
 			isPlayerControlled := (factionID == 0 && shipIndex == 0)

@@ -39,16 +39,76 @@ const (
 	starGridSize = 200    // grid size for deterministic star generation
 )
 
+// FactionComposition defines the ship class breakdown for a single faction
+type FactionComposition struct {
+	Fighters   int
+	Destroyers int
+	Testudons  int
+}
+
+// Total returns the total number of ships in this composition
+func (fc FactionComposition) Total() int {
+	return fc.Fighters + fc.Destroyers + fc.Testudons
+}
+
+// getFleetComposition converts a fighter budget into a mixed fleet composition
+// using random exchanges at specified equivalence rates:
+//   - 1 Destroyer = 4 Fighters
+//   - 1 Testudon = 8 Fighters
+//
+// Each faction gets a different random composition from the same budget.
+// Respects max limits for each ship type (e.g., no testudons until round 3).
+func getFleetComposition(rng *rand.Rand, numFighters int, maxDestroyers int, maxTestudons int) FactionComposition {
+	const (
+		destroyerCost = 4 // fighters per destroyer
+		testudonCost  = 8 // fighters per testudon
+	)
+
+	remainingFighters := numFighters
+	destroyers := 0
+	testudons := 0
+
+	// First, randomly purchase testudons (most expensive)
+	// Each testudon has a probability of being purchased if we can afford it
+	for testudons < maxTestudons && remainingFighters >= testudonCost {
+		// ~33% chance to purchase a testudon (tunable)
+		if rng.Float64() < 0.33 {
+			testudons++
+			remainingFighters -= testudonCost
+		} else {
+			break // Stop trying to buy testudons
+		}
+	}
+
+	// Next, randomly purchase destroyers
+	// Each destroyer has a probability of being purchased if we can afford it
+	for destroyers < maxDestroyers && remainingFighters >= destroyerCost {
+		// ~50% chance to purchase a destroyer (tunable)
+		if rng.Float64() < 0.50 {
+			destroyers++
+			remainingFighters -= destroyerCost
+		} else {
+			break // Stop trying to buy destroyers
+		}
+	}
+
+	return FactionComposition{
+		Fighters:   remainingFighters,
+		Destroyers: destroyers,
+		Testudons:  testudons,
+	}
+}
+
 // FleetConfig defines the composition of ships across factions
 type FleetConfig struct {
 	// Number of factions participating (2-4)
 	NumFactions int
-	// Ships per faction (indexed by faction ID)
-	ShipsPerFaction []int
+	// Ship composition per faction (indexed by faction ID)
+	Compositions []FactionComposition
 }
 
 // GenerateFleetConfig creates a deterministic fleet configuration
-// for testing specific scenarios
+// for testing specific scenarios (all factions get fighters only)
 func GenerateFleetConfig(numFactions, shipsPerFaction int) FleetConfig {
 	if numFactions < 2 {
 		numFactions = 2
@@ -60,35 +120,42 @@ func GenerateFleetConfig(numFactions, shipsPerFaction int) FleetConfig {
 		shipsPerFaction = 1
 	}
 
-	ships := make([]int, numFactions)
+	compositions := make([]FactionComposition, numFactions)
 	for i := 0; i < numFactions; i++ {
-		ships[i] = shipsPerFaction
+		compositions[i] = FactionComposition{
+			Fighters:   shipsPerFaction,
+			Destroyers: 0,
+			Testudons:  0,
+		}
 	}
 
 	return FleetConfig{
-		NumFactions:     numFactions,
-		ShipsPerFaction: ships,
+		NumFactions:  numFactions,
+		Compositions: compositions,
 	}
 }
 
 // GenerateRandomFleetConfig creates a randomized fleet configuration
 // using the provided seed for reproducibility
-// Generates 2-4 factions with 7-16 ships each
+// Generates 2-4 factions with balanced but varied ship compositions
 func GenerateRandomFleetConfig(seed int64) FleetConfig {
 	rng := rand.New(rand.NewSource(seed))
 
 	// Random number of factions (2-4)
 	numFactions := rng.Intn(3) + 2 // 2, 3, or 4
 
-	// Random ships per faction (7-16 per faction)
-	ships := make([]int, numFactions)
+	// Each faction gets a balanced fleet from a random fighter budget (7-16)
+	// For now, we allow unlimited destroyers and testudons (TODO: add round limits)
+	compositions := make([]FactionComposition, numFactions)
 	for i := 0; i < numFactions; i++ {
-		ships[i] = rng.Intn(10) + 7 // 7 to 16 inclusive
+		fighterBudget := rng.Intn(10) + 7 // 7 to 16 inclusive
+		// Unlimited destroyers and testudons for now
+		compositions[i] = getFleetComposition(rng, fighterBudget, 999, 999)
 	}
 
 	return FleetConfig{
-		NumFactions:     numFactions,
-		ShipsPerFaction: ships,
+		NumFactions:  numFactions,
+		Compositions: compositions,
 	}
 }
 
@@ -307,22 +374,46 @@ func (g *Game) StartGame(fleetConfig FleetConfig) error {
 	var playerFound bool
 
 	for factionID := 0; factionID < fleetConfig.NumFactions; factionID++ {
-		numShips := fleetConfig.ShipsPerFaction[factionID]
+		comp := fleetConfig.Compositions[factionID]
+		totalShips := comp.Total()
 
-		for shipIndex := 0; shipIndex < numShips; shipIndex++ {
+		// Build list of ship classes to spawn for this faction
+		shipClasses := make([]components.ShipClass, 0, totalShips)
+
+		// Add fighters first (player will be first fighter of faction 0)
+		for i := 0; i < comp.Fighters; i++ {
+			shipClasses = append(shipClasses, components.Fighter)
+		}
+		// Add destroyers
+		for i := 0; i < comp.Destroyers; i++ {
+			shipClasses = append(shipClasses, components.Destroyer)
+		}
+		// Add testudons
+		for i := 0; i < comp.Testudons; i++ {
+			shipClasses = append(shipClasses, components.Testudon)
+		}
+
+		// Debug flags can override ship classes
+		if *useDestroyer {
+			// Convert all fighters to destroyers (but not testudons)
+			for i := range shipClasses {
+				if shipClasses[i] == components.Fighter {
+					shipClasses[i] = components.Destroyer
+				}
+			}
+		}
+		if *useTestudon {
+			// Add one testudon at index 1 if there are enough ships
+			if len(shipClasses) > 1 {
+				// Insert testudon at position 1 (second ship)
+				shipClasses = append(shipClasses[:1], append([]components.ShipClass{components.Testudon}, shipClasses[1:]...)...)
+			}
+		}
+
+		// Spawn all ships for this faction
+		for shipIndex, shipClass := range shipClasses {
 			// First ship of faction 0 is player-controlled
 			isPlayerControlled := (factionID == 0 && shipIndex == 0)
-
-			// Determine ship class based on command-line flags
-			shipClass := components.Fighter
-			if *useTestudon && shipIndex == 1 {
-				// Second ship of each faction is an AI-controlled Testudon when -testudon flag is set
-				// (Player is always first ship of faction 0, so they remain Fighter/Destroyer)
-				shipClass = components.Testudon
-			} else if *useDestroyer {
-				// All other ships are destroyers when -destroyer flag is set
-				shipClass = components.Destroyer
-			}
 
 			// Get ship characteristics from database
 			shipChars := GetShipCharacteristics(shipClass)
@@ -350,7 +441,7 @@ func (g *Game) StartGame(fleetConfig FleetConfig) error {
 				pos := components.Position.Get(entry)
 
 				// Calculate angle for this ship in the circle
-				angleStep := 2.0 * math.Pi / float64(numShips-1)
+				angleStep := 2.0 * math.Pi / float64(len(shipClasses)-1)
 				angle := float64(shipIndex-1) * angleStep
 
 				// Apply offset
@@ -758,27 +849,33 @@ func main() {
 		log.Printf("Performance test mode enabled: %d ships across %d factions", *perfShips, *perfFactions)
 
 		// Calculate ships per faction
-		shipsPerFaction := make([]int, *perfFactions)
 		baseShips := *perfShips / *perfFactions
 		remainder := *perfShips % *perfFactions
 
+		compositions := make([]FactionComposition, *perfFactions)
 		for i := 0; i < *perfFactions; i++ {
-			shipsPerFaction[i] = baseShips
+			numShips := baseShips
 			if i < remainder {
-				shipsPerFaction[i]++
+				numShips++
+			}
+			// For performance tests, all ships are fighters
+			compositions[i] = FactionComposition{
+				Fighters:   numShips,
+				Destroyers: 0,
+				Testudons:  0,
 			}
 		}
 
 		fleetConfig := FleetConfig{
-			NumFactions:     *perfFactions,
-			ShipsPerFaction: shipsPerFaction,
+			NumFactions:  *perfFactions,
+			Compositions: compositions,
 		}
 
 		if err := game.StartGame(fleetConfig); err != nil {
 			log.Fatalf("Failed to start performance test: %v", err)
 		}
 
-		log.Printf("Fleet spawned successfully. Ships per faction: %v", shipsPerFaction)
+		log.Printf("Fleet spawned successfully. Compositions: %+v", compositions)
 	}
 
 	if err := ebiten.RunGame(game); err != nil {

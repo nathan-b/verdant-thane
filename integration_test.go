@@ -352,7 +352,8 @@ func TestFleetSpawningIntegration(t *testing.T) {
 	// Spawn all ships
 	var playerShip donburi.Entity
 	for factionID := 0; factionID < fleetConfig.NumFactions; factionID++ {
-		for shipIndex := 0; shipIndex < fleetConfig.ShipsPerFaction[factionID]; shipIndex++ {
+		numShips := fleetConfig.Compositions[factionID].Total()
+		for shipIndex := 0; shipIndex < numShips; shipIndex++ {
 			isPlayer := (factionID == 0 && shipIndex == 0)
 
 			ship, err := systems.SpawnShip(world, systems.ShipConfig{
@@ -383,7 +384,7 @@ func TestFleetSpawningIntegration(t *testing.T) {
 		shipCount++
 	}
 
-	expectedShips := fleetConfig.NumFactions * fleetConfig.ShipsPerFaction[0]
+	expectedShips := fleetConfig.NumFactions * fleetConfig.Compositions[0].Total()
 	if shipCount != expectedShips {
 		t.Errorf("Expected %d ships, got %d", expectedShips, shipCount)
 	}
@@ -410,9 +411,10 @@ func TestFleetSpawningIntegration(t *testing.T) {
 	}
 
 	for factionID := 0; factionID < fleetConfig.NumFactions; factionID++ {
-		if factionCount[factionID] != fleetConfig.ShipsPerFaction[factionID] {
+		expectedCount := fleetConfig.Compositions[factionID].Total()
+		if factionCount[factionID] != expectedCount {
 			t.Errorf("Faction %d: expected %d ships, got %d",
-				factionID, fleetConfig.ShipsPerFaction[factionID], factionCount[factionID])
+				factionID, expectedCount, factionCount[factionID])
 		}
 	}
 }

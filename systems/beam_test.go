@@ -97,19 +97,25 @@ func TestBeamWeapon_RangeCheck(t *testing.T) {
 		DamageAccumulator: 0.0,
 	})
 
-	// Run update - beam should clear target since out of range
+	// Run update - beam should not damage target since out of range
+	// (With new opportunistic targeting, target is kept for AI navigation)
 	UpdateBeamWeapons(world)
 
-	// Target should be cleared
+	// Target reference is kept (for AI navigation purposes)
 	beamWeapon := components.BeamWeapon.Get(attackerEntry)
-	if world.Valid(beamWeapon.TargetEntity) {
-		t.Error("Target should be cleared when out of range")
+	if !world.Valid(beamWeapon.TargetEntity) {
+		t.Error("Target reference should be kept for AI navigation")
 	}
 
-	// Health should be unchanged
+	// But health should be unchanged (no damage dealt)
 	health := components.Health.Get(targetEntry)
 	if health.Current != 100 {
 		t.Errorf("Target health should be unchanged, got %d", health.Current)
+	}
+
+	// Damage accumulator should be reset since no firing occurred
+	if beamWeapon.DamageAccumulator != 0.0 {
+		t.Errorf("Damage accumulator should be reset, got %f", beamWeapon.DamageAccumulator)
 	}
 }
 
@@ -159,10 +165,10 @@ func TestBeamWeapon_FriendlyFirePrevention(t *testing.T) {
 		t.Errorf("Friendly fire should not occur, expected health 100, got %d", health.Current)
 	}
 
-	// Target should be cleared
+	// Damage accumulator should remain at 0 since no firing occurred
 	beamWeapon := components.BeamWeapon.Get(attackerEntry)
-	if world.Valid(beamWeapon.TargetEntity) {
-		t.Error("Friendly target should be cleared")
+	if beamWeapon.DamageAccumulator != 0.0 {
+		t.Errorf("No damage should accumulate against friendly, got %f", beamWeapon.DamageAccumulator)
 	}
 }
 
@@ -212,11 +218,171 @@ func TestBeamWeapon_DeadTargetClearing(t *testing.T) {
 		t.Errorf("Target should be dead, got health %d", health.Current)
 	}
 
-	// Beam should clear dead target on next update
-	UpdateBeamWeapons(world)
+	// Run several more updates - dead target should not receive further damage
+	for i := 0; i < 10; i++ {
+		UpdateBeamWeapons(world)
+	}
+
+	// Health should still be 0 (no negative damage)
+	health = components.Health.Get(targetEntry)
+	if health.Current != 0 {
+		t.Errorf("Dead target should remain at 0 health, got %d", health.Current)
+	}
+
+	// Damage accumulator should be reset (no firing at dead target)
 	beamWeapon := components.BeamWeapon.Get(attackerEntry)
-	if world.Valid(beamWeapon.TargetEntity) {
-		t.Error("Beam should clear dead target")
+	if beamWeapon.DamageAccumulator != 0.0 {
+		t.Errorf("Should not accumulate damage against dead target, got %f", beamWeapon.DamageAccumulator)
+	}
+}
+
+// TestBeamWeapon_OpportunisticTargeting verifies beams fire at any in-range enemy
+// even while moving toward a higher-priority out-of-range target
+func TestBeamWeapon_OpportunisticTargeting(t *testing.T) {
+	world := donburi.NewWorld()
+
+	// Create Testudon attacker
+	attacker := world.Create(
+		components.Position,
+		components.Faction,
+		components.Health,
+		components.BeamWeapon,
+	)
+	attackerEntry := world.Entry(attacker)
+	components.Position.SetValue(attackerEntry, components.PositionData{X: 1000, Y: 1000})
+	components.Faction.SetValue(attackerEntry, components.FactionData{ID: 0})
+	components.Health.SetValue(attackerEntry, components.HealthData{Current: 100, Max: 100})
+
+	// Create high-priority target (Testudon) that is OUT OF RANGE (beam range = 200)
+	primaryTarget := world.Create(
+		components.IsShip,
+		components.Position,
+		components.Faction,
+		components.Health,
+		components.Ship,
+	)
+	primaryEntry := world.Entry(primaryTarget)
+	components.Position.SetValue(primaryEntry, components.PositionData{X: 1500, Y: 1000}) // 500 pixels away
+	components.Faction.SetValue(primaryEntry, components.FactionData{ID: 1})
+	components.Health.SetValue(primaryEntry, components.HealthData{Current: 100, Max: 100})
+	components.Ship.SetValue(primaryEntry, components.ShipData{Class: components.Testudon}) // High priority
+
+	// Create lower-priority target (Fighter) that is IN RANGE
+	opportunisticTarget := world.Create(
+		components.IsShip,
+		components.Position,
+		components.Faction,
+		components.Health,
+		components.Ship,
+	)
+	opportunisticEntry := world.Entry(opportunisticTarget)
+	components.Position.SetValue(opportunisticEntry, components.PositionData{X: 1100, Y: 1000}) // 100 pixels away
+	components.Faction.SetValue(opportunisticEntry, components.FactionData{ID: 1})
+	components.Health.SetValue(opportunisticEntry, components.HealthData{Current: 8, Max: 8})
+	components.Ship.SetValue(opportunisticEntry, components.ShipData{Class: components.Fighter}) // Lower priority
+
+	// Set beam weapon to high-priority target (out of range)
+	// This simulates AI choosing distant Testudon as navigation target
+	components.BeamWeapon.SetValue(attackerEntry, components.BeamWeaponData{
+		TargetEntity:      primaryTarget,
+		Range:             200.0,
+		DamagePerTick:     0.5,
+		DamageAccumulator: 0.0,
+	})
+
+	// Run for several ticks
+	for i := 0; i < 10; i++ {
+		UpdateBeamWeapons(world)
+	}
+
+	// Primary target (out of range) should NOT be damaged
+	primaryHealth := components.Health.Get(primaryEntry)
+	if primaryHealth.Current != 100 {
+		t.Errorf("Out-of-range primary target should not be damaged, got health %d", primaryHealth.Current)
+	}
+
+	// Opportunistic target (in range) SHOULD be damaged
+	opportunisticHealth := components.Health.Get(opportunisticEntry)
+	if opportunisticHealth.Current >= 8 {
+		t.Errorf("In-range opportunistic target should be damaged, got health %d", opportunisticHealth.Current)
+	}
+
+	// Verify damage was actually applied (should be dead or nearly dead after 10 ticks @ 0.5/tick)
+	if opportunisticHealth.Current > 3 {
+		t.Errorf("Opportunistic target should be heavily damaged after 10 ticks, got health %d", opportunisticHealth.Current)
+	}
+
+	// Primary target reference should still be set (for AI navigation)
+	beamWeapon := components.BeamWeapon.Get(attackerEntry)
+	if beamWeapon.TargetEntity != primaryTarget {
+		t.Error("Primary target reference should be maintained for AI navigation")
+	}
+}
+
+// TestBeamWeapon_RangeConstraint verifies beam never fires beyond max range
+func TestBeamWeapon_RangeConstraint(t *testing.T) {
+	world := donburi.NewWorld()
+
+	// Create Testudon attacker
+	attacker := world.Create(
+		components.Position,
+		components.Faction,
+		components.Health,
+		components.BeamWeapon,
+	)
+	attackerEntry := world.Entry(attacker)
+	components.Position.SetValue(attackerEntry, components.PositionData{X: 1000, Y: 1000})
+	components.Faction.SetValue(attackerEntry, components.FactionData{ID: 0})
+	components.Health.SetValue(attackerEntry, components.HealthData{Current: 100, Max: 100})
+
+	// Create enemy EXACTLY at max range (200 pixels) - should be targetable
+	atRangeEnemy := world.Create(
+		components.IsShip,
+		components.Position,
+		components.Faction,
+		components.Health,
+	)
+	atRangeEntry := world.Entry(atRangeEnemy)
+	components.Position.SetValue(atRangeEntry, components.PositionData{X: 1200, Y: 1000}) // Exactly 200 away
+	components.Faction.SetValue(atRangeEntry, components.FactionData{ID: 1})
+	components.Health.SetValue(atRangeEntry, components.HealthData{Current: 100, Max: 100})
+
+	// Create enemy BEYOND max range (201 pixels) - should NOT be targetable
+	beyondRangeEnemy := world.Create(
+		components.IsShip,
+		components.Position,
+		components.Faction,
+		components.Health,
+	)
+	beyondRangeEntry := world.Entry(beyondRangeEnemy)
+	components.Position.SetValue(beyondRangeEntry, components.PositionData{X: 1201, Y: 1000}) // 201 pixels away
+	components.Faction.SetValue(beyondRangeEntry, components.FactionData{ID: 1})
+	components.Health.SetValue(beyondRangeEntry, components.HealthData{Current: 100, Max: 100})
+
+	// Set beam weapon with no initial target (will use opportunistic targeting)
+	var emptyEntity donburi.Entity
+	components.BeamWeapon.SetValue(attackerEntry, components.BeamWeaponData{
+		TargetEntity:      emptyEntity,
+		Range:             200.0, // Exactly 200 range
+		DamagePerTick:     0.5,
+		DamageAccumulator: 0.0,
+	})
+
+	// Run for 10 ticks
+	for i := 0; i < 10; i++ {
+		UpdateBeamWeapons(world)
+	}
+
+	// Enemy at exactly max range (200) should be damaged
+	atRangeHealth := components.Health.Get(atRangeEntry)
+	if atRangeHealth.Current >= 100 {
+		t.Errorf("Enemy at exactly max range should be damaged, got health %d", atRangeHealth.Current)
+	}
+
+	// Enemy beyond max range (201) should NOT be damaged
+	beyondRangeHealth := components.Health.Get(beyondRangeEntry)
+	if beyondRangeHealth.Current != 100 {
+		t.Errorf("Enemy beyond max range should NOT be damaged, got health %d (expected 100)", beyondRangeHealth.Current)
 	}
 }
 
