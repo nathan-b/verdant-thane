@@ -83,6 +83,16 @@ type SecondaryWeaponData struct {
 
 var SecondaryWeapon = donburi.NewComponentType[SecondaryWeaponData]()
 
+// BeamWeapon for testudons (instantaneous beam attack)
+type BeamWeaponData struct {
+	TargetEntity    donburi.Entity // Current target being attacked
+	Range           float64        // Maximum range of beam
+	DamagePerTick   float64        // Damage dealt per tick (0.1 = 1 damage per 10 ticks)
+	DamageAccumulator float64       // Accumulates partial damage
+}
+
+var BeamWeapon = donburi.NewComponentType[BeamWeaponData]()
+
 // Rendering components
 type SpriteData struct {
 	Image *ebiten.Image
@@ -136,6 +146,13 @@ type AITargetData struct {
 }
 
 var AITarget = donburi.NewComponentType[AITargetData]()
+
+// UnderAttack tracks entities that are currently attacking this ship (for Testudon defensive AI)
+type UnderAttackData struct {
+	Attackers []donburi.Entity // List of entities currently attacking
+}
+
+var UnderAttack = donburi.NewComponentType[UnderAttackData]()
 
 // Explosion animation data
 type ExplosionData struct {

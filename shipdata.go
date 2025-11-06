@@ -35,6 +35,15 @@ var ShipDatabase = map[components.ShipClass]ShipCharacteristics{
 		FiringCone:          30.0 * 0.017453292519943295,     // 30 degrees in radians
 		BaseSpritePath:      "assets/destroyer_gray.png",
 	},
+	components.Testudon: {
+		Class:               components.Testudon,
+		MaxSpeed:            3.0,      // Very slow battleship
+		Acceleration:        2.0 / 60.0, // Slow acceleration
+		MaxShield:           100,      // Heavy armor (12.5x fighter)
+		CapacitorChargeRate: 0.0,      // No projectile weapon
+		FiringCone:          0.0,      // No firing cone (360° beam weapon)
+		BaseSpritePath:      "assets/testudon_gray.png",
+	},
 }
 
 // GetShipCharacteristics returns the characteristics for a ship class

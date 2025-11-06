@@ -31,6 +31,103 @@ func normalizeAngleAI(angle float64) float64 {
 	return angle
 }
 
+// SelectTestudonTarget finds the best target for a Testudon using priority-based targeting
+// Priority: 1. Attackers (defensive), 2. Enemy Testudons, 3. Enemy Destroyers, 4. Enemy Fighters
+// Returns the selected enemy entity, or an invalid entity if no enemies found
+func SelectTestudonTarget(w donburi.World, aiEntity donburi.Entity) donburi.Entity {
+	if !w.Valid(aiEntity) {
+		var emptyEntity donburi.Entity
+		return emptyEntity
+	}
+
+	aiEntry := w.Entry(aiEntity)
+	aiPos := components.Position.Get(aiEntry)
+	aiFaction := components.Faction.Get(aiEntry)
+
+	// Check if under attack - prioritize attackers
+	if aiEntry.HasComponent(components.UnderAttack) {
+		underAttack := components.UnderAttack.Get(aiEntry)
+		if len(underAttack.Attackers) > 0 {
+			// Find nearest attacker
+			minDistance := math.MaxFloat64
+			var nearestAttacker donburi.Entity
+
+			for _, attackerEntity := range underAttack.Attackers {
+				if !w.Valid(attackerEntity) {
+					continue
+				}
+
+				attackerEntry := w.Entry(attackerEntity)
+				if !attackerEntry.HasComponent(components.Position) {
+					continue
+				}
+
+				attackerPos := components.Position.Get(attackerEntry)
+				dist := distance(aiPos.X, aiPos.Y, attackerPos.X, attackerPos.Y)
+
+				if dist < minDistance {
+					minDistance = dist
+					nearestAttacker = attackerEntity
+				}
+			}
+
+			if w.Valid(nearestAttacker) {
+				return nearestAttacker
+			}
+		}
+	}
+
+	// Priority-based targeting: Testudons > Destroyers > Fighters
+	// We'll search for each class in priority order, selecting the nearest of the highest priority class found
+
+	var bestTarget donburi.Entity
+	var bestDistance float64 = math.MaxFloat64
+	bestPriority := -1
+
+	enemyQuery := donburi.NewQuery(filter.Contains(
+		components.IsShip,
+		components.Position,
+		components.Faction,
+		components.Ship,
+	))
+
+	for enemyEntry := range enemyQuery.Iter(w) {
+		enemyFaction := components.Faction.Get(enemyEntry)
+
+		// Skip friendlies
+		if enemyFaction.ID == aiFaction.ID {
+			continue
+		}
+
+		enemyShip := components.Ship.Get(enemyEntry)
+		enemyPos := components.Position.Get(enemyEntry)
+
+		// Determine priority based on ship class
+		var priority int
+		switch enemyShip.Class {
+		case components.Testudon:
+			priority = 3 // Highest priority
+		case components.Destroyer:
+			priority = 2
+		case components.Fighter:
+			priority = 1
+		default:
+			priority = 0
+		}
+
+		dist := distance(aiPos.X, aiPos.Y, enemyPos.X, enemyPos.Y)
+
+		// Update best target if this is higher priority, or same priority but closer
+		if priority > bestPriority || (priority == bestPriority && dist < bestDistance) {
+			bestPriority = priority
+			bestDistance = dist
+			bestTarget = enemyEntry.Entity()
+		}
+	}
+
+	return bestTarget
+}
+
 // SelectNearestEnemy finds the nearest enemy ship for an AI entity
 // Returns the nearest enemy entity, or an invalid entity if no enemies found
 func SelectNearestEnemy(w donburi.World, aiEntity donburi.Entity) donburi.Entity {
@@ -104,9 +201,25 @@ func UpdateAIMovement(w donburi.World) {
 		if aiState.RetargetTimer <= 0 || !w.Valid(aiTarget.TargetEntity) {
 			aiState.RetargetTimer = aiRetargetInterval
 
-			// Find nearest enemy
-			newTarget := SelectNearestEnemy(w, entry.Entity())
+			// Use appropriate targeting logic based on ship class
+			var newTarget donburi.Entity
+			if shipData.Class == components.Testudon {
+				// Testudons use priority-based targeting
+				newTarget = SelectTestudonTarget(w, entry.Entity())
+			} else {
+				// Fighters and Destroyers use nearest-enemy targeting
+				newTarget = SelectNearestEnemy(w, entry.Entity())
+			}
 			aiTarget.TargetEntity = newTarget
+
+			// Update beam weapon target if this is a Testudon
+			if shipData.Class == components.Testudon && entry.HasComponent(components.BeamWeapon) {
+				if w.Valid(newTarget) {
+					SetBeamTarget(entry, newTarget)
+				} else {
+					ClearBeamTarget(entry)
+				}
+			}
 		}
 
 		// Behavior based on whether we have a valid target

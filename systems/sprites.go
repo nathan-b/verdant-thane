@@ -22,6 +22,7 @@ type ShipClassSprites struct {
 type FactionSprites struct {
 	Fighter   *ShipClassSprites
 	Destroyer *ShipClassSprites
+	Testudon  *ShipClassSprites
 }
 
 // loadShipClassSprites loads and generates faction sprites for a ship class
@@ -66,9 +67,16 @@ func LoadFactionSpritesWithBasePath(basePath string) (*FactionSprites, error) {
 		return nil, fmt.Errorf("failed to load destroyer sprites: %w", err)
 	}
 
+	// Load testudon sprites
+	testudonSprites, err := loadShipClassSprites(basePath + "/testudon_gray.png")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load testudon sprites: %w", err)
+	}
+
 	return &FactionSprites{
 		Fighter:   fighterSprites,
 		Destroyer: destroyerSprites,
+		Testudon:  testudonSprites,
 	}, nil
 }
 
@@ -82,6 +90,8 @@ func (fs *FactionSprites) GetSpriteForShip(shipClass components.ShipClass, facti
 		classSprites = fs.Fighter
 	case components.Destroyer:
 		classSprites = fs.Destroyer
+	case components.Testudon:
+		classSprites = fs.Testudon
 	default:
 		// Fallback to fighter
 		classSprites = fs.Fighter

@@ -28,6 +28,12 @@ func createTestFactionSprites() *systems.FactionSprites {
 			Red:    testSprite,
 			Yellow: testSprite,
 		},
+		Testudon: &systems.ShipClassSprites{
+			Green:  testSprite,
+			Blue:   testSprite,
+			Red:    testSprite,
+			Yellow: testSprite,
+		},
 	}
 }
 

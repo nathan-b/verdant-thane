@@ -30,6 +30,7 @@ var (
 	showFPS      = flag.Bool("fps", false, "Show FPS/TPS counter")
 	showProfile  = flag.Bool("profile", false, "Show detailed performance profiling data")
 	useDestroyer = flag.Bool("destroyer", false, "Spawn player and opponents as destroyers instead of fighters")
+	useTestudon  = flag.Bool("testudon", false, "Guarantee each faction spawns with one AI-controlled testudon")
 )
 
 const (
@@ -104,6 +105,7 @@ type ProfileData struct {
 	PlayerInput       time.Duration
 	AIMovement        time.Duration
 	WeaponsUpdate     time.Duration
+	BeamWeapons       time.Duration
 	Movement          time.Duration
 	MissileTracking   time.Duration
 	ProjectileLife    time.Duration
@@ -112,6 +114,7 @@ type ProfileData struct {
 	AIFiring          time.Duration
 	RenderStars       time.Duration
 	RenderShips       time.Duration
+	RenderBeams       time.Duration
 	RenderProjectiles time.Duration
 	RenderExplosions  time.Duration
 	RenderMinimap     time.Duration
@@ -124,6 +127,7 @@ func (p *ProfileData) Reset() {
 	p.PlayerInput = 0
 	p.AIMovement = 0
 	p.WeaponsUpdate = 0
+	p.BeamWeapons = 0
 	p.Movement = 0
 	p.MissileTracking = 0
 	p.ProjectileLife = 0
@@ -132,6 +136,7 @@ func (p *ProfileData) Reset() {
 	p.AIFiring = 0
 	p.RenderStars = 0
 	p.RenderShips = 0
+	p.RenderBeams = 0
 	p.RenderProjectiles = 0
 	p.RenderExplosions = 0
 	p.RenderMinimap = 0
@@ -308,9 +313,14 @@ func (g *Game) StartGame(fleetConfig FleetConfig) error {
 			// First ship of faction 0 is player-controlled
 			isPlayerControlled := (factionID == 0 && shipIndex == 0)
 
-			// Determine ship class based on -destroyer flag
+			// Determine ship class based on command-line flags
 			shipClass := components.Fighter
-			if *useDestroyer {
+			if *useTestudon && shipIndex == 1 {
+				// Second ship of each faction is an AI-controlled Testudon when -testudon flag is set
+				// (Player is always first ship of faction 0, so they remain Fighter/Destroyer)
+				shipClass = components.Testudon
+			} else if *useDestroyer {
+				// All other ships are destroyers when -destroyer flag is set
 				shipClass = components.Destroyer
 			}
 
@@ -430,6 +440,10 @@ func (g *Game) Update() error {
 		g.profileData.WeaponsUpdate += time.Since(t)
 
 		t = time.Now()
+		systems.UpdateBeamWeapons(g.world)
+		g.profileData.BeamWeapons += time.Since(t)
+
+		t = time.Now()
 		systems.UpdateMovement(g.world)
 		g.profileData.Movement += time.Since(t)
 
@@ -460,7 +474,7 @@ func (g *Game) Update() error {
 			if g.world.Valid(g.playerEntity) {
 				playerEntry := g.world.Entry(g.playerEntity)
 
-				// Check if cursor is within main weapon firing arc
+				// Determine which weapon to fire based on cursor position
 				if systems.IsTargetInFiringArc(playerEntry, worldMouseX, worldMouseY) {
 					// Cursor in front arc - fire main weapon (laser)
 					systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
@@ -469,7 +483,15 @@ func (g *Game) Update() error {
 					// Try to fire missile at nearest enemy in rear arc
 					if nearestEnemy, found := systems.FindNearestEnemyInRearArc(g.world, playerEntry); found {
 						systems.FireMissile(g.world, playerEntry, nearestEnemy, g.missileSprite)
+					} else {
+						// No rear enemy for missile - fire main weapon toward cursor instead
+						// (projectile will be constrained to firing cone edge)
+						systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
 					}
+				} else {
+					// Ship has no missiles, fire main weapon toward cursor
+					// (projectile will be constrained to firing cone edge)
+					systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
 				}
 			}
 		}
@@ -597,6 +619,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		t := time.Now()
 		systems.RenderShips(g.world, screen, g.cameraX, g.cameraY)
 		g.profileData.RenderShips += time.Since(t)
+
+		// Draw beams from Testudons
+		t = time.Now()
+		systems.RenderBeams(g.world, screen, g.cameraX, g.cameraY)
+		g.profileData.RenderBeams += time.Since(t)
 
 		// Draw projectiles using ECS render system
 		t = time.Now()

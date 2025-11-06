@@ -79,7 +79,8 @@ func SpawnShip(w donburi.World, config ShipConfig) (donburi.Entity, error) {
 		return emptyEntity, fmt.Errorf("faction %d not found", config.FactionID)
 	}
 
-	// Create ship entity with all necessary components
+	// Create ship entity with base components
+	// Note: Weapon component is added conditionally based on ship class
 	ship := w.Create(
 		components.IsShip,
 		components.Position,
@@ -88,7 +89,6 @@ func SpawnShip(w donburi.World, config ShipConfig) (donburi.Entity, error) {
 		components.Ship,
 		components.Faction,
 		components.Health,
-		components.Weapon,
 		components.Sprite,
 	)
 
@@ -124,15 +124,20 @@ func SpawnShip(w donburi.World, config ShipConfig) (donburi.Entity, error) {
 	})
 	components.Faction.SetValue(entry, components.FactionData{ID: config.FactionID})
 	components.Health.SetValue(entry, components.HealthData{Current: config.MaxHealth, Max: config.MaxHealth})
-	components.Weapon.SetValue(entry, components.WeaponData{
-		Capacitor:  1.0, // Start fully charged
-		ChargeRate: config.CapacitorRate,
-		FiringCone: config.FiringCone,
-	})
 
 	// Get the correct sprite for this ship's class and faction
 	sprite := config.FactionSprites.GetSpriteForShip(config.Class, config.FactionID)
 	components.Sprite.SetValue(entry, components.SpriteData{Image: sprite})
+
+	// Add primary weapon component for Fighters and Destroyers (not Testudons)
+	if config.Class != components.Testudon {
+		entry.AddComponent(components.Weapon)
+		components.Weapon.SetValue(entry, components.WeaponData{
+			Capacitor:  1.0, // Start fully charged
+			ChargeRate: config.CapacitorRate,
+			FiringCone: config.FiringCone,
+		})
+	}
 
 	// Add SecondaryWeapon component for destroyers (missiles)
 	if config.Class == components.Destroyer {
@@ -143,6 +148,22 @@ func SpawnShip(w donburi.World, config ShipConfig) (donburi.Entity, error) {
 			Capacitor:  1.0, // Start fully charged
 			ChargeRate: missileChargeRate,
 			FiringArc:  math.Pi, // 180° rear arc
+		})
+	}
+
+	// Add BeamWeapon component for Testudons
+	if config.Class == components.Testudon {
+		entry.AddComponent(components.BeamWeapon)
+		entry.AddComponent(components.UnderAttack)
+		var emptyEntity donburi.Entity
+		components.BeamWeapon.SetValue(entry, components.BeamWeaponData{
+			TargetEntity:      emptyEntity, // No initial target
+			Range:             200.0,       // 200 pixel range
+			DamagePerTick:     0.1,         // 1 damage per 10 ticks
+			DamageAccumulator: 0.0,
+		})
+		components.UnderAttack.SetValue(entry, components.UnderAttackData{
+			Attackers: []donburi.Entity{},
 		})
 	}
 

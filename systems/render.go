@@ -231,6 +231,91 @@ func RenderExplosions(w donburi.World, screen *ebiten.Image, cameraX, cameraY fl
 	}
 }
 
+// RenderBeams draws laser beams from Testudons to their targets
+func RenderBeams(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64) {
+	query := donburi.NewQuery(filter.Contains(
+		components.BeamWeapon,
+		components.Position,
+		components.Faction,
+	))
+
+	for entry := range query.Iter(w) {
+		beamWeapon := components.BeamWeapon.Get(entry)
+
+		// Only draw beam if there's an active target
+		if !w.Valid(beamWeapon.TargetEntity) {
+			continue
+		}
+
+		// Get attacker and target positions
+		attackerPos := components.Position.Get(entry)
+		targetEntry := w.Entry(beamWeapon.TargetEntity)
+
+		if !targetEntry.HasComponent(components.Position) {
+			continue
+		}
+
+		targetPos := components.Position.Get(targetEntry)
+		faction := components.Faction.Get(entry)
+
+		// Get beam color based on faction
+		beamColor, ok := factionColors[faction.ID]
+		if !ok {
+			beamColor = color.White
+		}
+
+		// Helper function to draw beam line at specific world positions
+		drawBeamLine := func(fromX, fromY, toX, toY float64) {
+			// Convert world coordinates to screen coordinates
+			screenFromX := float32(fromX - cameraX)
+			screenFromY := float32(fromY - cameraY)
+			screenToX := float32(toX - cameraX)
+			screenToY := float32(toY - cameraY)
+
+			// Only draw if either endpoint is visible on screen
+			margin := float32(100.0)
+			onScreen := (screenFromX > -margin && screenFromX < float32(ScreenWidth)+margin && screenFromY > -margin && screenFromY < float32(ScreenHeight)+margin) ||
+				(screenToX > -margin && screenToX < float32(ScreenWidth)+margin && screenToY > -margin && screenToY < float32(ScreenHeight)+margin)
+
+			if !onScreen {
+				return
+			}
+
+			// Draw the beam as a thick line
+			vector.StrokeLine(screen, screenFromX, screenFromY, screenToX, screenToY, 2.0, beamColor, false)
+		}
+
+		// Draw beam at primary positions
+		drawBeamLine(attackerPos.X, attackerPos.Y, targetPos.X, targetPos.Y)
+
+		// Handle world wrapping: draw beam accounting for toroidal topology
+		// Calculate shortest distance (might wrap)
+		dx := targetPos.X - attackerPos.X
+		dy := targetPos.Y - attackerPos.Y
+
+		// Wrap X if needed
+		wrappedTargetX := targetPos.X
+		if dx > float64(GameWidth)/2 {
+			wrappedTargetX = targetPos.X - float64(GameWidth)
+		} else if dx < -float64(GameWidth)/2 {
+			wrappedTargetX = targetPos.X + float64(GameWidth)
+		}
+
+		// Wrap Y if needed
+		wrappedTargetY := targetPos.Y
+		if dy > float64(GameHeight)/2 {
+			wrappedTargetY = targetPos.Y - float64(GameHeight)
+		} else if dy < -float64(GameHeight)/2 {
+			wrappedTargetY = targetPos.Y + float64(GameHeight)
+		}
+
+		// Draw wrapped beam if coordinates changed
+		if wrappedTargetX != targetPos.X || wrappedTargetY != targetPos.Y {
+			drawBeamLine(attackerPos.X, attackerPos.Y, wrappedTargetX, wrappedTargetY)
+		}
+	}
+}
+
 // RenderMinimap draws the minimap showing all ships in the game world
 func RenderMinimap(w donburi.World, screen *ebiten.Image, playerEntity donburi.Entity) {
 	// Draw minimap background (dark semi-transparent box)
@@ -258,15 +343,22 @@ func RenderMinimap(w donburi.World, screen *ebiten.Image, playerEntity donburi.E
 	}
 
 	// Draw all ships on minimap
-	query := donburi.NewQuery(filter.Contains(components.IsShip, components.Position, components.Faction))
+	query := donburi.NewQuery(filter.Contains(components.IsShip, components.Position, components.Faction, components.Ship))
 	for entry := range query.Iter(w) {
 		pos := components.Position.Get(entry)
 		faction := components.Faction.Get(entry)
+		ship := components.Ship.Get(entry)
 
 		screenX, screenY := worldToMinimap(pos.X, pos.Y)
 
 		// Check if this is the player ship
 		isPlayer := entry.Entity() == playerEntity
+
+		// Get faction color
+		c, ok := factionColors[faction.ID]
+		if !ok {
+			c = color.White // Fallback color
+		}
 
 		if isPlayer {
 			// Draw player as a light green plus sign (5 pixels high × 5 wide)
@@ -274,12 +366,11 @@ func RenderMinimap(w donburi.World, screen *ebiten.Image, playerEntity donburi.E
 			vector.FillRect(screen, screenX, screenY-2, 1, 5, playerMarkerColor, false)
 			// Horizontal line (5 pixels wide)
 			vector.FillRect(screen, screenX-2, screenY, 5, 1, playerMarkerColor, false)
+		} else if ship.Class == components.Testudon {
+			// Draw Testudons as 3x3 squares (centered on position)
+			vector.FillRect(screen, screenX-1, screenY-1, 3, 3, c, false)
 		} else {
-			// Draw regular ships as a single pixel in their faction color
-			c, ok := factionColors[faction.ID]
-			if !ok {
-				c = color.White // Fallback color
-			}
+			// Draw regular ships (Fighters, Destroyers) as a single pixel
 			vector.FillRect(screen, screenX, screenY, 1, 1, c, false)
 		}
 	}
