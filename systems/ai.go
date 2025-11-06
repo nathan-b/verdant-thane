@@ -9,27 +9,8 @@ import (
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 )
-
-const (
-	aiDecisionInterval = 60                    // Ticks between decisions (~1 second at 60 TPS)
-	aiRetargetInterval = 60                    // Ticks between target re-evaluation (~1 second at 60 TPS)
-	aiRotationSpeed    = 3.0 * math.Pi / 180.0 // 3 degrees per tick rotation toward target
-	aiPursuitSpeedMin  = 0.80                  // Minimum speed when pursuing (80% of max)
-	aiPursuitSpeedMax  = 1.00                  // Maximum speed when pursuing (100% of max)
-	aiPatrolSpeed      = 0.50                  // Speed when no target (50% of max)
-)
-
-// normalizeAngle brings an angle into the range [-π, π] (defined in weapons.go but needed here too)
-func normalizeAngleAI(angle float64) float64 {
-	for angle > math.Pi {
-		angle -= 2 * math.Pi
-	}
-	for angle < -math.Pi {
-		angle += 2 * math.Pi
-	}
-	return angle
-}
 
 // SelectTestudonTarget finds the best target for a Testudon using priority-based targeting
 // Priority: 1. Attackers (defensive), 2. Enemy Testudons, 3. Enemy Destroyers, 4. Enemy Fighters
@@ -199,7 +180,7 @@ func UpdateAIMovement(w donburi.World) {
 
 		// Re-evaluate target when timer expires or current target is invalid
 		if aiState.RetargetTimer <= 0 || !w.Valid(aiTarget.TargetEntity) {
-			aiState.RetargetTimer = aiRetargetInterval
+			aiState.RetargetTimer = config.AIRetargetInterval
 
 			// Use appropriate targeting logic based on ship class
 			var newTarget donburi.Entity
@@ -235,30 +216,30 @@ func UpdateAIMovement(w donburi.World) {
 			dy := targetPos.Y - aiPos.Y
 
 			// Handle world wrapping for shortest path
-			if math.Abs(dx) > float64(GameWidth)/2 {
+			if math.Abs(dx) > float64(config.GameWidth)/2 {
 				if dx > 0 {
-					dx = dx - float64(GameWidth)
+					dx = dx - float64(config.GameWidth)
 				} else {
-					dx = dx + float64(GameWidth)
+					dx = dx + float64(config.GameWidth)
 				}
 			}
-			if math.Abs(dy) > float64(GameHeight)/2 {
+			if math.Abs(dy) > float64(config.GameHeight)/2 {
 				if dy > 0 {
-					dy = dy - float64(GameHeight)
+					dy = dy - float64(config.GameHeight)
 				} else {
-					dy = dy + float64(GameHeight)
+					dy = dy + float64(config.GameHeight)
 				}
 			}
 
 			targetAngle := math.Atan2(dx, -dy)
-			angleDiff := normalizeAngleAI(targetAngle - rotation.Angle)
+			angleDiff := NormalizeAngle(targetAngle - rotation.Angle)
 
 			// Smoothly rotate toward target
-			if math.Abs(angleDiff) > aiRotationSpeed {
+			if math.Abs(angleDiff) > config.AIRotationSpeed {
 				if angleDiff > 0 {
-					rotation.Angle += aiRotationSpeed
+					rotation.Angle += config.AIRotationSpeed
 				} else {
-					rotation.Angle -= aiRotationSpeed
+					rotation.Angle -= config.AIRotationSpeed
 				}
 			} else {
 				// Close enough, snap to target angle
@@ -266,12 +247,12 @@ func UpdateAIMovement(w donburi.World) {
 			}
 
 			// Set speed for pursuit (randomized slightly for variety)
-			speedVariation := rand.Float64()*(aiPursuitSpeedMax-aiPursuitSpeedMin) + aiPursuitSpeedMin
+			speedVariation := rand.Float64()*(config.AIPursuitSpeedMax-config.AIPursuitSpeedMin) + config.AIPursuitSpeedMin
 			shipData.Speed = shipData.MaxSpeed * speedVariation
 
 		} else {
 			// PATROL BEHAVIOR: No target, maintain heading and reduce speed
-			shipData.Speed = shipData.MaxSpeed * aiPatrolSpeed
+			shipData.Speed = shipData.MaxSpeed * config.AIPatrolSpeed
 		}
 
 		// Update velocity based on rotation and speed
@@ -313,23 +294,23 @@ func UpdateAIFiring(w donburi.World, playerEntity donburi.Entity, laserSprite, m
 		dy := targetPos.Y - aiPos.Y
 
 		// Handle world wrapping for shortest distance
-		if math.Abs(dx) > float64(GameWidth)/2 {
+		if math.Abs(dx) > float64(config.GameWidth)/2 {
 			if dx > 0 {
-				dx = dx - float64(GameWidth)
+				dx = dx - float64(config.GameWidth)
 			} else {
-				dx = dx + float64(GameWidth)
+				dx = dx + float64(config.GameWidth)
 			}
 		}
-		if math.Abs(dy) > float64(GameHeight)/2 {
+		if math.Abs(dy) > float64(config.GameHeight)/2 {
 			if dy > 0 {
-				dy = dy - float64(GameHeight)
+				dy = dy - float64(config.GameHeight)
 			} else {
-				dy = dy + float64(GameHeight)
+				dy = dy + float64(config.GameHeight)
 			}
 		}
 
 		targetAngle := math.Atan2(dx, -dy)
-		angleDiff := normalizeAngleAI(targetAngle - aiRot.Angle)
+		angleDiff := NormalizeAngle(targetAngle - aiRot.Angle)
 
 		// Check if target is within firing cone (front)
 		halfCone := aiWeapon.FiringCone / 2
@@ -356,7 +337,7 @@ func UpdateAIFiring(w donburi.World, playerEntity donburi.Entity, laserSprite, m
 		if aiEntry.HasComponent(components.SecondaryWeapon) {
 			// Check if target is in rear 180° arc
 			// Rear arc is centered at 180° from facing direction
-			rearAngleDiff := normalizeAngleAI(angleDiff)
+			rearAngleDiff := NormalizeAngle(angleDiff)
 
 			// Target is in rear arc if angle difference is > 90° (π/2)
 			if math.Abs(rearAngleDiff) > math.Pi/2 {

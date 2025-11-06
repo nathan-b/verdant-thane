@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"github.com/nathan/verdant-thane/components"
@@ -37,11 +37,11 @@ var ShipDatabase = map[components.ShipClass]ShipCharacteristics{
 	},
 	components.Testudon: {
 		Class:               components.Testudon,
-		MaxSpeed:            3.0,      // Very slow battleship
+		MaxSpeed:            3.0,        // Very slow battleship
 		Acceleration:        2.0 / 60.0, // Slow acceleration
-		MaxShield:           100,      // Heavy armor (12.5x fighter)
-		CapacitorChargeRate: 0.0,      // No projectile weapon
-		FiringCone:          0.0,      // No firing cone (360° beam weapon)
+		MaxShield:           100,        // Heavy armor (12.5x fighter)
+		CapacitorChargeRate: 0.0,        // No projectile weapon
+		FiringCone:          0.0,        // No firing cone (360° beam weapon)
 		BaseSpritePath:      "assets/testudon_gray.png",
 	},
 }

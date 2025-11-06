@@ -2,6 +2,8 @@ package ui
 
 import (
 	"testing"
+
+	"github.com/nathan/verdant-thane/config"
 )
 
 func TestCheckButtonClick_HitButton(t *testing.T) {
@@ -203,20 +205,20 @@ func TestCreateTitleScreen_DialogProperties(t *testing.T) {
 		t.Errorf("Expected title 'Verdant Thane', got '%s'", titleDialog.Title)
 	}
 
-	if titleDialog.Width != dialogWidth {
-		t.Errorf("Expected width %f, got %f", dialogWidth, titleDialog.Width)
+	if titleDialog.Width != config.DialogWidth {
+		t.Errorf("Expected width %f, got %f", config.DialogWidth, titleDialog.Width)
 	}
 
 	// Calculate expected dialog height based on button layout
 	numButtons := len(titleDialog.Buttons)
-	expectedHeight := float64(numButtons)*buttonHeight + float64(numButtons-1)*buttonSpacing + 2*internalMargin
+	expectedHeight := float64(numButtons)*config.ButtonHeight + float64(numButtons-1)*config.ButtonSpacing + 2*config.InternalMargin
 	if titleDialog.Height != expectedHeight {
 		t.Errorf("Expected height %f, got %f", expectedHeight, titleDialog.Height)
 	}
 
 	// Dialog should be centered
-	expectedX := (float64(screenWidth) - dialogWidth) / 2
-	expectedY := (float64(screenHeight) - titleDialog.Height) / 2
+	expectedX := (float64(config.ScreenWidth) - config.DialogWidth) / 2
+	expectedY := (float64(config.ScreenHeight) - titleDialog.Height) / 2
 
 	if titleDialog.X != expectedX {
 		t.Errorf("Expected X %f (centered), got %f", expectedX, titleDialog.X)
@@ -242,18 +244,18 @@ func TestCreateTitleScreen_ButtonLayout(t *testing.T) {
 		}
 
 		// Check that button has expected dimensions
-		if button.Width != buttonWidth {
-			t.Errorf("Button %d: expected width %f, got %f", i, buttonWidth, button.Width)
+		if button.Width != config.ButtonWidth {
+			t.Errorf("Button %d: expected width %f, got %f", i, config.ButtonWidth, button.Width)
 		}
 
-		if button.Height != buttonHeight {
-			t.Errorf("Button %d: expected height %f, got %f", i, buttonHeight, button.Height)
+		if button.Height != config.ButtonHeight {
+			t.Errorf("Button %d: expected height %f, got %f", i, config.ButtonHeight, button.Height)
 		}
 
 		// Check vertical spacing (except for first button which has its own offset)
 		if i > 0 {
 			prevButton := titleDialog.Buttons[i-1]
-			expectedY := prevButton.Y + prevButton.Height + buttonSpacing
+			expectedY := prevButton.Y + prevButton.Height + config.ButtonSpacing
 			if button.Y != expectedY {
 				t.Errorf("Button %d: expected Y %f (with spacing), got %f", i, expectedY, button.Y)
 			}
@@ -263,7 +265,7 @@ func TestCreateTitleScreen_ButtonLayout(t *testing.T) {
 
 func TestGetTitleY(t *testing.T) {
 	y := GetTitleY()
-	if y != titleY {
-		t.Errorf("Expected title Y %f, got %f", titleY, y)
+	if y != config.TitleY {
+		t.Errorf("Expected title Y %f, got %f", config.TitleY, y)
 	}
 }

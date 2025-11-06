@@ -1,68 +1,58 @@
 package ui
 
-import "github.com/nathan/verdant-thane/systems"
-
-const (
-	// Title screen layout
-	titleY         = 150.0 // Y position of title text
-	dialogWidth    = 300.0
-	buttonWidth    = 250.0
-	buttonHeight   = 40.0
-	buttonSpacing  = 15.0              // Vertical spacing between buttons
-	internalMargin = 2 * buttonSpacing // Distance from top/bottom of dialog to first/last button
-)
+import "github.com/nathan/verdant-thane/config"
 
 // CreateTitleScreen creates and returns a Dialog for the title screen
 func CreateTitleScreen() *Dialog {
 	// Create buttons centered within dialog
-	buttonX := (dialogWidth - buttonWidth) / 2
-	buttonStartY := internalMargin // Start buttons with top margin
+	buttonX := (config.DialogWidth - config.ButtonWidth) / 2
+	buttonStartY := config.InternalMargin // Start buttons with top margin
 
 	buttons := []Button{
 		{
 			Label:  "Play Game",
 			X:      buttonX,
 			Y:      buttonStartY,
-			Width:  buttonWidth,
-			Height: buttonHeight,
+			Width:  config.ButtonWidth,
+			Height: config.ButtonHeight,
 		},
 		{
 			Label:  "Settings",
 			X:      buttonX,
-			Y:      buttonStartY + buttonHeight + buttonSpacing,
-			Width:  buttonWidth,
-			Height: buttonHeight,
+			Y:      buttonStartY + config.ButtonHeight + config.ButtonSpacing,
+			Width:  config.ButtonWidth,
+			Height: config.ButtonHeight,
 		},
 		{
 			Label:  "Instructions",
 			X:      buttonX,
-			Y:      buttonStartY + 2*(buttonHeight+buttonSpacing),
-			Width:  buttonWidth,
-			Height: buttonHeight,
+			Y:      buttonStartY + 2*(config.ButtonHeight+config.ButtonSpacing),
+			Width:  config.ButtonWidth,
+			Height: config.ButtonHeight,
 		},
 		{
 			Label:  "High Scores",
 			X:      buttonX,
-			Y:      buttonStartY + 3*(buttonHeight+buttonSpacing),
-			Width:  buttonWidth,
-			Height: buttonHeight,
+			Y:      buttonStartY + 3*(config.ButtonHeight+config.ButtonSpacing),
+			Width:  config.ButtonWidth,
+			Height: config.ButtonHeight,
 		},
 	}
 
 	// Calculate dialog height based on buttons
-	totalButtonHeight := float64(len(buttons)) * buttonHeight
-	totalSpacing := float64(len(buttons)-1)*buttonSpacing + (2 * internalMargin)
+	totalButtonHeight := float64(len(buttons)) * config.ButtonHeight
+	totalSpacing := float64(len(buttons)-1)*config.ButtonSpacing + (2 * config.InternalMargin)
 	dialogHeight := totalButtonHeight + totalSpacing
 
 	// Center the dialog
-	dialogX := (float64(systems.ScreenWidth) - dialogWidth) / 2
-	dialogY := (float64(systems.ScreenHeight) - dialogHeight) / 2
+	dialogX := (float64(config.ScreenWidth) - config.DialogWidth) / 2
+	dialogY := (float64(config.ScreenHeight) - dialogHeight) / 2
 
 	return &Dialog{
 		Title:   "Verdant Thane",
 		X:       dialogX,
 		Y:       dialogY,
-		Width:   dialogWidth,
+		Width:   config.DialogWidth,
 		Height:  dialogHeight,
 		Buttons: buttons,
 	}
@@ -70,5 +60,5 @@ func CreateTitleScreen() *Dialog {
 
 // GetTitleY returns the Y position where the title should be drawn
 func GetTitleY() float64 {
-	return titleY
+	return config.TitleY
 }

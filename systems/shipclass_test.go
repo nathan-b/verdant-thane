@@ -118,8 +118,8 @@ func TestTestudonComponents(t *testing.T) {
 		MaxSpeed:           3.0,
 		Acceleration:       0.033,
 		MaxHealth:          100,
-		CapacitorRate:      0.0,   // No projectile weapon
-		FiringCone:         0.0,   // No firing cone
+		CapacitorRate:      0.0, // No projectile weapon
+		FiringCone:         0.0, // No firing cone
 		FactionSprites:     factionSprites,
 		IsPlayerControlled: false,
 	})

@@ -8,16 +8,17 @@ import (
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 )
 
-// Note: Projectile characteristics are now defined in projectiledata.go
-// Access them via GetProjectileCharacteristics()
+// Note: Projectile characteristics are now defined in config/projectiles.go
+// Access them via config.GetProjectileCharacteristics()
 
 // UpdateWeapons charges weapon capacitors for all ships with weapons
 func UpdateWeapons(w donburi.World) {
 	// Get charge rates from projectile database
-	laserChars := GetProjectileCharacteristics(LaserProjectile)
-	missileChars := GetProjectileCharacteristics(MissileProjectile)
+	laserChars := config.GetProjectileCharacteristics(config.LaserProjectile)
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
 
 	laserChargeRate := 1.0 / (laserChars.ChargeTime * 60.0)
 	missileChargeRate := 1.0 / (missileChars.ChargeTime * 60.0)
@@ -47,17 +48,6 @@ func UpdateWeapons(w donburi.World) {
 	}
 }
 
-// normalizeAngle brings an angle into the range [-π, π]
-func normalizeAngle(angle float64) float64 {
-	for angle > math.Pi {
-		angle -= 2 * math.Pi
-	}
-	for angle < -math.Pi {
-		angle += 2 * math.Pi
-	}
-	return angle
-}
-
 // IsTargetInFiringArc checks if the target coordinates are within the ship's firing arc
 func IsTargetInFiringArc(shipEntry *donburi.Entry, targetX, targetY float64) bool {
 	if !shipEntry.HasComponent(components.Position) || !shipEntry.HasComponent(components.Rotation) || !shipEntry.HasComponent(components.Weapon) {
@@ -74,7 +64,7 @@ func IsTargetInFiringArc(shipEntry *donburi.Entry, targetX, targetY float64) boo
 	targetAngle := math.Atan2(dx, -dy)
 
 	// Calculate angle difference from ship's facing direction
-	angleDiff := normalizeAngle(targetAngle - rot.Angle)
+	angleDiff := NormalizeAngle(targetAngle - rot.Angle)
 
 	// Check if within firing cone
 	halfCone := weapon.FiringCone / 2
@@ -99,7 +89,7 @@ func FireWeapon(w donburi.World, shipEntry *donburi.Entry, targetX, targetY floa
 	faction := components.Faction.Get(shipEntry)
 
 	// Get laser projectile characteristics
-	laserChars := GetProjectileCharacteristics(LaserProjectile)
+	laserChars := config.GetProjectileCharacteristics(config.LaserProjectile)
 
 	// Calculate angle to target
 	dx := targetX - pos.X
@@ -108,7 +98,7 @@ func FireWeapon(w donburi.World, shipEntry *donburi.Entry, targetX, targetY floa
 	targetAngle := math.Atan2(dx, -dy)
 
 	// Calculate angle difference from ship's facing direction
-	angleDiff := normalizeAngle(targetAngle - rot.Angle)
+	angleDiff := NormalizeAngle(targetAngle - rot.Angle)
 
 	// Constrain to firing cone
 	firingAngle := rot.Angle
@@ -176,7 +166,7 @@ func FireMissile(w donburi.World, shipEntry *donburi.Entry, targetEntity donburi
 	faction := components.Faction.Get(shipEntry)
 
 	// Get missile projectile characteristics
-	missileChars := GetProjectileCharacteristics(MissileProjectile)
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
 
 	// Calculate initial missile velocity based on ship's facing direction
 	// Missile launches from rear of ship (180° from facing)
@@ -257,20 +247,20 @@ func FindNearestEnemyInRearArc(w donburi.World, shipEntry *donburi.Entry) (donbu
 		dy := enemyPos.Y - shipPos.Y
 
 		// Handle world wrapping - choose shortest path
-		if dx > GameWidth/2 {
-			dx -= GameWidth
-		} else if dx < -GameWidth/2 {
-			dx += GameWidth
+		if dx > config.GameWidth/2 {
+			dx -= config.GameWidth
+		} else if dx < -config.GameWidth/2 {
+			dx += config.GameWidth
 		}
-		if dy > GameHeight/2 {
-			dy -= GameHeight
-		} else if dy < -GameHeight/2 {
-			dy += GameHeight
+		if dy > config.GameHeight/2 {
+			dy -= config.GameHeight
+		} else if dy < -config.GameHeight/2 {
+			dy += config.GameHeight
 		}
 
 		// Calculate angle to enemy
 		enemyAngle := math.Atan2(dx, -dy)
-		angleDiff := normalizeAngle(enemyAngle - shipRot.Angle)
+		angleDiff := NormalizeAngle(enemyAngle - shipRot.Angle)
 
 		// Check if enemy is in rear arc (> 90° from facing direction)
 		if math.Abs(angleDiff) > math.Pi/2 {
@@ -290,7 +280,7 @@ func FindNearestEnemyInRearArc(w donburi.World, shipEntry *donburi.Entry) (donbu
 // UpdateMissileTracking updates all missiles to accelerate toward their targets
 func UpdateMissileTracking(w donburi.World) {
 	// Get missile characteristics for turn rate
-	missileChars := GetProjectileCharacteristics(MissileProjectile)
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
 
 	query := donburi.NewQuery(filter.Contains(components.IsMissile, components.Missile, components.Velocity, components.Position, components.Rotation))
 
@@ -319,15 +309,15 @@ func UpdateMissileTracking(w donburi.World) {
 		dy := targetPos.Y - missilePos.Y
 
 		// Handle world wrapping - choose shortest path
-		if dx > GameWidth/2 {
-			dx -= GameWidth
-		} else if dx < -GameWidth/2 {
-			dx += GameWidth
+		if dx > config.GameWidth/2 {
+			dx -= config.GameWidth
+		} else if dx < -config.GameWidth/2 {
+			dx += config.GameWidth
 		}
-		if dy > GameHeight/2 {
-			dy -= GameHeight
-		} else if dy < -GameHeight/2 {
-			dy += GameHeight
+		if dy > config.GameHeight/2 {
+			dy -= config.GameHeight
+		} else if dy < -config.GameHeight/2 {
+			dy += config.GameHeight
 		}
 
 		// Calculate current velocity direction and desired direction
@@ -340,7 +330,7 @@ func UpdateMissileTracking(w donburi.World) {
 			desiredAngle := math.Atan2(dx, -dy)
 
 			// Calculate angle difference
-			angleDiff := normalizeAngle(desiredAngle - currentAngle)
+			angleDiff := NormalizeAngle(desiredAngle - currentAngle)
 
 			// Constrain turn rate
 			actualTurn := angleDiff

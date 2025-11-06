@@ -9,6 +9,7 @@ import (
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 )
 
 // InitializeFactions creates four faction entities with randomly assigned spawn points
@@ -17,10 +18,10 @@ func InitializeFactions(w donburi.World) {
 	// Calculate spawn point positions
 	// Each spawn is halfway between center and edge in each cardinal direction
 	spawnPoints := []struct{ x, y float64 }{
-		{float64(GameWidth) / 2, float64(GameHeight) / 4},     // North
-		{float64(GameWidth) / 2, 3 * float64(GameHeight) / 4}, // South
-		{3 * float64(GameWidth) / 4, float64(GameHeight) / 2}, // East
-		{float64(GameWidth) / 4, float64(GameHeight) / 2},     // West
+		{float64(config.GameWidth) / 2, float64(config.GameHeight) / 4},     // North
+		{float64(config.GameWidth) / 2, 3 * float64(config.GameHeight) / 4}, // South
+		{3 * float64(config.GameWidth) / 4, float64(config.GameHeight) / 2}, // East
+		{float64(config.GameWidth) / 4, float64(config.GameHeight) / 2},     // West
 	}
 
 	// Shuffle spawn points to randomly assign them to factions

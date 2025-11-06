@@ -6,6 +6,7 @@ import (
 	"github.com/yohamta/donburi"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 )
 
 func TestSelectNearestEnemy_SingleEnemy(t *testing.T) {
@@ -121,7 +122,7 @@ func TestSelectNearestEnemy_WorldWrapping(t *testing.T) {
 		components.Faction,
 	)
 	aiEntry := world.Entry(aiShip)
-	components.Position.SetValue(aiEntry, components.PositionData{X: float64(GameWidth - 100), Y: 100})
+	components.Position.SetValue(aiEntry, components.PositionData{X: float64(config.GameWidth - 100), Y: 100})
 	components.Faction.SetValue(aiEntry, components.FactionData{ID: 0})
 
 	// Create enemy at far left edge (should be close due to wrapping)
@@ -141,7 +142,7 @@ func TestSelectNearestEnemy_WorldWrapping(t *testing.T) {
 		components.Faction,
 	)
 	middleEntry := world.Entry(middleEnemy)
-	components.Position.SetValue(middleEntry, components.PositionData{X: float64(GameWidth / 2), Y: 100})
+	components.Position.SetValue(middleEntry, components.PositionData{X: float64(config.GameWidth / 2), Y: 100})
 	components.Faction.SetValue(middleEntry, components.FactionData{ID: 1})
 
 	// Select nearest enemy (should prefer wrapped enemy)
@@ -199,8 +200,8 @@ func TestAIRetargeting_TimerExpires(t *testing.T) {
 
 	// Check that timer was reset
 	aiStateAfter := components.AIState.Get(aiEntry)
-	if aiStateAfter.RetargetTimer != aiRetargetInterval {
-		t.Errorf("RetargetTimer should be reset to %d, got %d", aiRetargetInterval, aiStateAfter.RetargetTimer)
+	if aiStateAfter.RetargetTimer != config.AIRetargetInterval {
+		t.Errorf("RetargetTimer should be reset to %d, got %d", config.AIRetargetInterval, aiStateAfter.RetargetTimer)
 	}
 }
 
@@ -309,7 +310,7 @@ func TestAIMovement_PursuitBehavior(t *testing.T) {
 
 	// AI should increase speed for pursuit
 	shipData := components.Ship.Get(aiEntry)
-	minExpected := shipData.MaxSpeed * aiPursuitSpeedMin
+	minExpected := shipData.MaxSpeed * config.AIPursuitSpeedMin
 	if shipData.Speed < minExpected {
 		t.Errorf("AI speed should be at least %f for pursuit, got %f", minExpected, shipData.Speed)
 	}
@@ -346,7 +347,7 @@ func TestAIMovement_NoTarget(t *testing.T) {
 
 	// AI should reduce to patrol speed when no target
 	shipData := components.Ship.Get(aiEntry)
-	expectedSpeed := shipData.MaxSpeed * aiPatrolSpeed
+	expectedSpeed := shipData.MaxSpeed * config.AIPatrolSpeed
 	if shipData.Speed != expectedSpeed {
 		t.Errorf("AI speed should be patrol speed %f when no target, got %f", expectedSpeed, shipData.Speed)
 	}

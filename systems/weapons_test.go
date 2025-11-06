@@ -9,6 +9,7 @@ import (
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 )
 
 func TestUpdateWeapons_ChargesCapacitor(t *testing.T) {
@@ -20,7 +21,7 @@ func TestUpdateWeapons_ChargesCapacitor(t *testing.T) {
 	// Start with empty capacitor
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  0.0,
-		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
+		ChargeRate: 1.0 / (config.GetProjectileCharacteristics(config.LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -48,7 +49,7 @@ func TestUpdateWeapons_DoesNotOvercharge(t *testing.T) {
 	// Start nearly full
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  0.99,
-		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
+		ChargeRate: 1.0 / (config.GetProjectileCharacteristics(config.LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -82,7 +83,7 @@ func TestFireWeapon_FailsWhenNotCharged(t *testing.T) {
 	components.Faction.SetValue(entry, components.FactionData{ID: 0})
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  0.5, // Not fully charged
-		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
+		ChargeRate: 1.0 / (config.GetProjectileCharacteristics(config.LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -113,7 +114,7 @@ func TestFireWeapon_SucceedsWhenCharged(t *testing.T) {
 	components.Faction.SetValue(entry, components.FactionData{ID: 0})
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  1.0, // Fully charged
-		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
+		ChargeRate: 1.0 / (config.GetProjectileCharacteristics(config.LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -149,7 +150,7 @@ func TestFireWeapon_CreatesProjectile(t *testing.T) {
 	components.Faction.SetValue(entry, components.FactionData{ID: 0})
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  1.0,
-		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
+		ChargeRate: 1.0 / (config.GetProjectileCharacteristics(config.LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -192,7 +193,7 @@ func TestFireWeapon_ProjectileHasCorrectComponents(t *testing.T) {
 	components.Faction.SetValue(entry, components.FactionData{ID: 1})
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  1.0,
-		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
+		ChargeRate: 1.0 / (config.GetProjectileCharacteristics(config.LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180,
 	})
 
@@ -258,7 +259,7 @@ func TestFireWeapon_FiringConeConstraint(t *testing.T) {
 	components.Faction.SetValue(entry, components.FactionData{ID: 0})
 	components.Weapon.SetValue(entry, components.WeaponData{
 		Capacitor:  1.0,
-		ChargeRate: 1.0 / (GetProjectileCharacteristics(LaserProjectile).ChargeTime * 60.0),
+		ChargeRate: 1.0 / (config.GetProjectileCharacteristics(config.LaserProjectile).ChargeTime * 60.0),
 		FiringCone: 30 * math.Pi / 180, // 30 degree cone
 	})
 
@@ -278,7 +279,7 @@ func TestFireWeapon_FiringConeConstraint(t *testing.T) {
 
 	// Calculate angle of projectile velocity
 	velAngle := math.Atan2(projVel.X, -projVel.Y)
-	angleDiff := math.Abs(normalizeAngle(velAngle - 0)) // Difference from ship facing (0)
+	angleDiff := math.Abs(NormalizeAngle(velAngle - 0)) // Difference from ship facing (0)
 
 	// Should be within or at cone edge (15 degrees = 30/2)
 	maxAllowedAngle := (30 * math.Pi / 180) / 2

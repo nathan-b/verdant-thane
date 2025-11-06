@@ -8,10 +8,7 @@ import (
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
-)
-
-const (
-	rotationSpeed = 3.0 * math.Pi / 180.0 // 3 degrees per tick
+	"github.com/nathan/verdant-thane/config"
 )
 
 // UpdatePlayerInput handles keyboard input for the player-controlled ship
@@ -37,10 +34,10 @@ func UpdatePlayerInput(w donburi.World) {
 
 	// Handle rotation
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		rot.Angle -= rotationSpeed
+		rot.Angle -= config.RotationSpeed
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		rot.Angle += rotationSpeed
+		rot.Angle += config.RotationSpeed
 	}
 
 	// Handle acceleration/deceleration

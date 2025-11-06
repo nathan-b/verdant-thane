@@ -8,13 +8,7 @@ import (
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
-)
-
-// CollisionRadius defines the collision radius for different entity types
-const (
-	ShipCollisionRadius       = 16.0 // Half the approximate sprite size
-	ProjectileCollisionRadius = 2.0  // Small collision for projectiles
-	CollisionGridSize         = 128  // Spatial grid cell size for broad-phase collision
+	"github.com/nathan/verdant-thane/config"
 )
 
 // Spatial grid for collision detection
@@ -28,9 +22,9 @@ type spatialGrid struct {
 // newSpatialGrid creates a new spatial grid for the game world
 func newSpatialGrid() *spatialGrid {
 	return &spatialGrid{
-		cellSize:   CollisionGridSize,
-		gridWidth:  (GameWidth + CollisionGridSize - 1) / CollisionGridSize,
-		gridHeight: (GameHeight + CollisionGridSize - 1) / CollisionGridSize,
+		cellSize:   config.CollisionGridSize,
+		gridWidth:  (config.GameWidth + config.CollisionGridSize - 1) / config.CollisionGridSize,
+		gridHeight: (config.GameHeight + config.CollisionGridSize - 1) / config.CollisionGridSize,
 		cells:      make(map[int][]*donburi.Entry),
 	}
 }
@@ -38,13 +32,13 @@ func newSpatialGrid() *spatialGrid {
 // getCellIndex returns the grid cell index for a position
 func (g *spatialGrid) getCellIndex(x, y float64) int {
 	// Wrap coordinates to world bounds
-	wx := int(x) % GameWidth
-	wy := int(y) % GameHeight
+	wx := int(x) % config.GameWidth
+	wy := int(y) % config.GameHeight
 	if wx < 0 {
-		wx += GameWidth
+		wx += config.GameWidth
 	}
 	if wy < 0 {
-		wy += GameHeight
+		wy += config.GameHeight
 	}
 
 	cellX := wx / g.cellSize
@@ -62,13 +56,13 @@ func (g *spatialGrid) insert(entry *donburi.Entry, x, y float64) {
 // getNearbyShips returns all ships in the same cell and adjacent cells
 func (g *spatialGrid) getNearbyShips(x, y float64) []*donburi.Entry {
 	// Wrap coordinates
-	wx := int(x) % GameWidth
-	wy := int(y) % GameHeight
+	wx := int(x) % config.GameWidth
+	wy := int(y) % config.GameHeight
 	if wx < 0 {
-		wx += GameWidth
+		wx += config.GameWidth
 	}
 	if wy < 0 {
-		wy += GameHeight
+		wy += config.GameHeight
 	}
 
 	cellX := wx / g.cellSize
@@ -108,18 +102,18 @@ func distance(x1, y1, x2, y2 float64) float64 {
 	dy := y2 - y1
 
 	// Account for world wrapping - find shortest distance considering wrap-around
-	if math.Abs(dx) > float64(GameWidth)/2 {
+	if math.Abs(dx) > float64(config.GameWidth)/2 {
 		if dx > 0 {
-			dx = dx - float64(GameWidth)
+			dx = dx - float64(config.GameWidth)
 		} else {
-			dx = dx + float64(GameWidth)
+			dx = dx + float64(config.GameWidth)
 		}
 	}
-	if math.Abs(dy) > float64(GameHeight)/2 {
+	if math.Abs(dy) > float64(config.GameHeight)/2 {
 		if dy > 0 {
-			dy = dy - float64(GameHeight)
+			dy = dy - float64(config.GameHeight)
 		} else {
-			dy = dy + float64(GameHeight)
+			dy = dy + float64(config.GameHeight)
 		}
 	}
 
@@ -134,18 +128,18 @@ func distanceSquared(x1, y1, x2, y2 float64) float64 {
 	dy := y2 - y1
 
 	// Account for world wrapping - find shortest distance considering wrap-around
-	if math.Abs(dx) > float64(GameWidth)/2 {
+	if math.Abs(dx) > float64(config.GameWidth)/2 {
 		if dx > 0 {
-			dx = dx - float64(GameWidth)
+			dx = dx - float64(config.GameWidth)
 		} else {
-			dx = dx + float64(GameWidth)
+			dx = dx + float64(config.GameWidth)
 		}
 	}
-	if math.Abs(dy) > float64(GameHeight)/2 {
+	if math.Abs(dy) > float64(config.GameHeight)/2 {
 		if dy > 0 {
-			dy = dy - float64(GameHeight)
+			dy = dy - float64(config.GameHeight)
 		} else {
-			dy = dy + float64(GameHeight)
+			dy = dy + float64(config.GameHeight)
 		}
 	}
 
@@ -159,7 +153,7 @@ func distanceSquared(x1, y1, x2, y2 float64) float64 {
 // OPTIMIZED: Uses spatial grid partitioning to reduce collision checks from O(n*m) to O(n*k)
 func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 	// Pre-calculate collision distance squared (avoids sqrt in inner loop)
-	collisionDistSq := (ShipCollisionRadius + ProjectileCollisionRadius) * (ShipCollisionRadius + ProjectileCollisionRadius)
+	collisionDistSq := (config.ShipCollisionRadius + config.ProjectileCollisionRadius) * (config.ShipCollisionRadius + config.ProjectileCollisionRadius)
 
 	// Build spatial grid of ships
 	grid := newSpatialGrid()

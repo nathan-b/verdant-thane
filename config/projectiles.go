@@ -1,4 +1,4 @@
-package systems
+package config
 
 // ProjectileType identifies different projectile types
 type ProjectileType int

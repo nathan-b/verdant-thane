@@ -5,10 +5,7 @@ import (
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
-)
-
-const (
-	explosionFrameCount = 4 // Total number of explosion animation frames
+	"github.com/nathan/verdant-thane/config"
 )
 
 // UpdateExplosions advances explosion animations and removes completed explosions
@@ -31,7 +28,7 @@ func UpdateExplosions(w donburi.World) {
 			explosion.CurrentFrame++
 
 			// Check if animation is complete
-			if explosion.CurrentFrame >= explosionFrameCount {
+			if explosion.CurrentFrame >= config.ExplosionFrameCount {
 				// Mark for removal
 				explosionsToRemove = append(explosionsToRemove, entry.Entity())
 			} else {

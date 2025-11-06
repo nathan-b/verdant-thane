@@ -7,6 +7,7 @@ import (
 	"github.com/yohamta/donburi"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 )
 
 func TestMissile_CanDoUTurnInOneSecond(t *testing.T) {
@@ -31,7 +32,7 @@ func TestMissile_CanDoUTurnInOneSecond(t *testing.T) {
 	components.Velocity.SetValue(missileEntry, components.VelocityData{X: 0.0, Y: -4.0}) // Heading up/north
 	components.Rotation.SetValue(missileEntry, components.RotationData{Angle: 0})
 
-	missileChars := GetProjectileCharacteristics(MissileProjectile)
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
 	components.Missile.SetValue(missileEntry, components.MissileData{
 		TargetEntity: target,
 		Acceleration: missileChars.Acceleration,
@@ -52,7 +53,7 @@ func TestMissile_CanDoUTurnInOneSecond(t *testing.T) {
 	finalVel := components.Velocity.Get(missileEntry)
 	finalAngle := math.Atan2(finalVel.X, -finalVel.Y)
 
-	totalTurn := math.Abs(normalizeAngle(finalAngle - initialAngle))
+	totalTurn := math.Abs(NormalizeAngle(finalAngle - initialAngle))
 	t.Logf("Initial angle: %.4f radians (%.1f degrees)", initialAngle, initialAngle*180/math.Pi)
 	t.Logf("Final angle: %.4f radians (%.1f degrees)", finalAngle, finalAngle*180/math.Pi)
 	t.Logf("Total turn: %.4f radians (%.1f degrees)", totalTurn, totalTurn*180/math.Pi)

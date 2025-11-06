@@ -112,35 +112,6 @@ func TrackAttacker(w donburi.World, targetEntry *donburi.Entry, attackerEntity d
 	underAttack.Attackers = validAttackers
 }
 
-// IsInRange checks if two positions are within a given range, accounting for toroidal wrapping
-func IsInRange(x1, y1, x2, y2, maxRange float64) bool {
-	dx, dy := GetWrappedDistance(x1, y1, x2, y2)
-	distance := math.Sqrt(dx*dx + dy*dy)
-	return distance <= maxRange
-}
-
-// GetWrappedDistance returns the shortest distance components accounting for wrapping
-func GetWrappedDistance(x1, y1, x2, y2 float64) (float64, float64) {
-	dx := x2 - x1
-	dy := y2 - y1
-
-	// Wrap X coordinate
-	if dx > float64(GameWidth)/2 {
-		dx -= float64(GameWidth)
-	} else if dx < -float64(GameWidth)/2 {
-		dx += float64(GameWidth)
-	}
-
-	// Wrap Y coordinate
-	if dy > float64(GameHeight)/2 {
-		dy -= float64(GameHeight)
-	} else if dy < -float64(GameHeight)/2 {
-		dy += float64(GameHeight)
-	}
-
-	return dx, dy
-}
-
 // SetBeamTarget assigns a target to a beam weapon
 // This is called by AI systems to direct beam weapons at specific targets
 func SetBeamTarget(attackerEntry *donburi.Entry, targetEntity donburi.Entity) {

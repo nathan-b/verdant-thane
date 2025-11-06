@@ -10,6 +10,7 @@ import (
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 )
 
 // Faction colors for minimap
@@ -43,8 +44,8 @@ func RenderShips(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64
 		screenY := pos.Y - cameraY
 
 		// Quick rejection test before loading sprite data
-		farFromScreen := (screenX < -GameWidth/2-roughMargin || screenX > GameWidth/2+roughMargin) &&
-			(screenY < -GameHeight/2-roughMargin || screenY > GameHeight/2+roughMargin)
+		farFromScreen := (screenX < -config.GameWidth/2-roughMargin || screenX > config.GameWidth/2+roughMargin) &&
+			(screenY < -config.GameHeight/2-roughMargin || screenY > config.GameHeight/2+roughMargin)
 
 		if farFromScreen {
 			continue // Skip this ship entirely
@@ -68,8 +69,8 @@ func RenderShips(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64
 			if height > margin {
 				margin = height
 			}
-			if screenX < -margin || screenX > float64(ScreenWidth)+margin ||
-				screenY < -margin || screenY > float64(ScreenHeight)+margin {
+			if screenX < -margin || screenX > float64(config.ScreenWidth)+margin ||
+				screenY < -margin || screenY > float64(config.ScreenHeight)+margin {
 				return
 			}
 
@@ -94,19 +95,19 @@ func RenderShips(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64
 		// Handle world wrapping: draw at wrapped positions if near edges
 		if pos.X < cameraX {
 			// Ship is to the left of camera, try drawing wrapped to the right
-			drawShipAtPosition(pos.X+float64(GameWidth), pos.Y)
+			drawShipAtPosition(pos.X+float64(config.GameWidth), pos.Y)
 		}
-		if pos.X > cameraX+float64(ScreenWidth) {
+		if pos.X > cameraX+float64(config.ScreenWidth) {
 			// Ship is to the right of camera, try drawing wrapped to the left
-			drawShipAtPosition(pos.X-float64(GameWidth), pos.Y)
+			drawShipAtPosition(pos.X-float64(config.GameWidth), pos.Y)
 		}
 		if pos.Y < cameraY {
 			// Ship is above camera, try drawing wrapped below
-			drawShipAtPosition(pos.X, pos.Y+float64(GameHeight))
+			drawShipAtPosition(pos.X, pos.Y+float64(config.GameHeight))
 		}
-		if pos.Y > cameraY+float64(ScreenHeight) {
+		if pos.Y > cameraY+float64(config.ScreenHeight) {
 			// Ship is below camera, try drawing wrapped above
-			drawShipAtPosition(pos.X, pos.Y-float64(GameHeight))
+			drawShipAtPosition(pos.X, pos.Y-float64(config.GameHeight))
 		}
 	}
 }
@@ -148,8 +149,8 @@ func RenderProjectiles(w donburi.World, screen *ebiten.Image, cameraX, cameraY f
 			if height > margin {
 				margin = height
 			}
-			if screenX < -margin || screenX > float64(ScreenWidth)+margin ||
-				screenY < -margin || screenY > float64(ScreenHeight)+margin {
+			if screenX < -margin || screenX > float64(config.ScreenWidth)+margin ||
+				screenY < -margin || screenY > float64(config.ScreenHeight)+margin {
 				return
 			}
 
@@ -177,19 +178,19 @@ func RenderProjectiles(w donburi.World, screen *ebiten.Image, cameraX, cameraY f
 		// Handle world wrapping: draw at wrapped positions if near edges
 		if pos.X < cameraX {
 			// Projectile is to the left of camera, try drawing wrapped to the right
-			drawProjectileAtPosition(pos.X+float64(GameWidth), pos.Y)
+			drawProjectileAtPosition(pos.X+float64(config.GameWidth), pos.Y)
 		}
-		if pos.X > cameraX+float64(ScreenWidth) {
+		if pos.X > cameraX+float64(config.ScreenWidth) {
 			// Projectile is to the right of camera, try drawing wrapped to the left
-			drawProjectileAtPosition(pos.X-float64(GameWidth), pos.Y)
+			drawProjectileAtPosition(pos.X-float64(config.GameWidth), pos.Y)
 		}
 		if pos.Y < cameraY {
 			// Projectile is above camera, try drawing wrapped below
-			drawProjectileAtPosition(pos.X, pos.Y+float64(GameHeight))
+			drawProjectileAtPosition(pos.X, pos.Y+float64(config.GameHeight))
 		}
-		if pos.Y > cameraY+float64(ScreenHeight) {
+		if pos.Y > cameraY+float64(config.ScreenHeight) {
 			// Projectile is below camera, try drawing wrapped above
-			drawProjectileAtPosition(pos.X, pos.Y-float64(GameHeight))
+			drawProjectileAtPosition(pos.X, pos.Y-float64(config.GameHeight))
 		}
 	}
 }
@@ -281,8 +282,8 @@ func RenderBeams(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64
 
 			// Only draw if either endpoint is visible on screen
 			margin := float32(100.0)
-			onScreen := (screenFromX > -margin && screenFromX < float32(ScreenWidth)+margin && screenFromY > -margin && screenFromY < float32(ScreenHeight)+margin) ||
-				(screenToX > -margin && screenToX < float32(ScreenWidth)+margin && screenToY > -margin && screenToY < float32(ScreenHeight)+margin)
+			onScreen := (screenFromX > -margin && screenFromX < float32(config.ScreenWidth)+margin && screenFromY > -margin && screenFromY < float32(config.ScreenHeight)+margin) ||
+				(screenToX > -margin && screenToX < float32(config.ScreenWidth)+margin && screenToY > -margin && screenToY < float32(config.ScreenHeight)+margin)
 
 			if !onScreen {
 				return
@@ -302,18 +303,18 @@ func RenderBeams(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64
 
 		// Wrap X if needed
 		wrappedTargetX := targetPos.X
-		if dx > float64(GameWidth)/2 {
-			wrappedTargetX = targetPos.X - float64(GameWidth)
-		} else if dx < -float64(GameWidth)/2 {
-			wrappedTargetX = targetPos.X + float64(GameWidth)
+		if dx > float64(config.GameWidth)/2 {
+			wrappedTargetX = targetPos.X - float64(config.GameWidth)
+		} else if dx < -float64(config.GameWidth)/2 {
+			wrappedTargetX = targetPos.X + float64(config.GameWidth)
 		}
 
 		// Wrap Y if needed
 		wrappedTargetY := targetPos.Y
-		if dy > float64(GameHeight)/2 {
-			wrappedTargetY = targetPos.Y - float64(GameHeight)
-		} else if dy < -float64(GameHeight)/2 {
-			wrappedTargetY = targetPos.Y + float64(GameHeight)
+		if dy > float64(config.GameHeight)/2 {
+			wrappedTargetY = targetPos.Y - float64(config.GameHeight)
+		} else if dy < -float64(config.GameHeight)/2 {
+			wrappedTargetY = targetPos.Y + float64(config.GameHeight)
 		}
 
 		// Draw wrapped beam if coordinates changed
@@ -327,25 +328,25 @@ func RenderBeams(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64
 func RenderMinimap(w donburi.World, screen *ebiten.Image, playerEntity donburi.Entity) {
 	// Draw minimap background (dark semi-transparent box)
 	vector.FillRect(screen,
-		float32(MinimapX), float32(MinimapY),
-		float32(MinimapSize), float32(MinimapSize),
+		float32(config.MinimapX), float32(config.MinimapY),
+		float32(config.MinimapSize), float32(config.MinimapSize),
 		color.RGBA{0, 0, 0, 180}, true)
 
 	// Draw minimap border
 	vector.StrokeRect(screen,
-		float32(MinimapX), float32(MinimapY),
-		float32(MinimapSize), float32(MinimapSize),
+		float32(config.MinimapX), float32(config.MinimapY),
+		float32(config.MinimapSize), float32(config.MinimapSize),
 		2, color.RGBA{100, 100, 100, 255}, false)
 
 	// Scale factor: minimap pixels per world units
-	scale := float64(MinimapSize) / float64(GameWidth)
+	scale := float64(config.MinimapSize) / float64(config.GameWidth)
 
 	// Helper function to convert world coordinates to minimap screen coordinates
 	worldToMinimap := func(worldX, worldY float64) (float32, float32) {
 		minimapLocalX := worldX * scale
 		minimapLocalY := worldY * scale
-		screenX := float32(MinimapX) + float32(minimapLocalX)
-		screenY := float32(MinimapY) + float32(minimapLocalY)
+		screenX := float32(config.MinimapX) + float32(minimapLocalX)
+		screenY := float32(config.MinimapY) + float32(minimapLocalY)
 		return screenX, screenY
 	}
 

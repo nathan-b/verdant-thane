@@ -5,6 +5,7 @@ import (
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 )
 
 // UpdateMovement applies velocity to position and handles world wrapping
@@ -26,14 +27,14 @@ func UpdateMovement(w donburi.World) {
 
 		// World wrapping (toroidal topology)
 		if pos.X < 0 {
-			pos.X += GameWidth
-		} else if pos.X >= GameWidth {
-			pos.X -= GameWidth
+			pos.X += config.GameWidth
+		} else if pos.X >= config.GameWidth {
+			pos.X -= config.GameWidth
 		}
 		if pos.Y < 0 {
-			pos.Y += GameHeight
-		} else if pos.Y >= GameHeight {
-			pos.Y -= GameHeight
+			pos.Y += config.GameHeight
+		} else if pos.Y >= config.GameHeight {
+			pos.Y -= config.GameHeight
 		}
 	}
 }

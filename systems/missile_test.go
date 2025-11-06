@@ -7,6 +7,7 @@ import (
 	"github.com/yohamta/donburi"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 )
 
 func TestMissileTurnRate_RespectsTurnLimit(t *testing.T) {
@@ -34,7 +35,7 @@ func TestMissileTurnRate_RespectsTurnLimit(t *testing.T) {
 	components.Rotation.SetValue(missileEntry, components.RotationData{Angle: math.Pi / 2})
 
 	// Set missile to track the target
-	missileChars := GetProjectileCharacteristics(MissileProjectile)
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
 	components.Missile.SetValue(missileEntry, components.MissileData{
 		TargetEntity: target,
 		Acceleration: missileChars.Acceleration,
@@ -52,7 +53,7 @@ func TestMissileTurnRate_RespectsTurnLimit(t *testing.T) {
 	newAngle := math.Atan2(newVel.X, -newVel.Y)
 
 	// Calculate how much the angle changed
-	angleDiff := math.Abs(normalizeAngle(newAngle - initialAngle))
+	angleDiff := math.Abs(NormalizeAngle(newAngle - initialAngle))
 
 	// The angle should have changed, but not more than TurnRate
 	maxTurnRate := missileChars.TurnRate
@@ -89,7 +90,7 @@ func TestMissileTurnRate_GradualTurning(t *testing.T) {
 	components.Velocity.SetValue(missileEntry, components.VelocityData{X: 0.0, Y: -4.0}) // Heading up
 	components.Rotation.SetValue(missileEntry, components.RotationData{Angle: 0})
 
-	missileChars := GetProjectileCharacteristics(MissileProjectile)
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
 	components.Missile.SetValue(missileEntry, components.MissileData{
 		TargetEntity: target,
 		Acceleration: missileChars.Acceleration,
@@ -109,7 +110,7 @@ func TestMissileTurnRate_GradualTurning(t *testing.T) {
 
 	// Verify that the missile is gradually turning (each step respects turn rate)
 	for i := 1; i < len(angles); i++ {
-		angleDiff := math.Abs(normalizeAngle(angles[i] - angles[i-1]))
+		angleDiff := math.Abs(NormalizeAngle(angles[i] - angles[i-1]))
 		if angleDiff > missileChars.TurnRate+0.001 {
 			t.Errorf("Turn %d: Missile turned too fast: %.4f radians (max: %.4f)", i, angleDiff, missileChars.TurnRate)
 		}
@@ -118,7 +119,7 @@ func TestMissileTurnRate_GradualTurning(t *testing.T) {
 	// Verify that the missile has turned significantly toward the target (should be turning around)
 	finalAngle := angles[len(angles)-1]
 	initialAngle := angles[0]
-	totalTurn := math.Abs(normalizeAngle(finalAngle - initialAngle))
+	totalTurn := math.Abs(NormalizeAngle(finalAngle - initialAngle))
 
 	// With slower initial velocity, should turn noticeably over time
 	// The acceleration (0.15) relative to velocity (4.0) means gradual turning
@@ -155,7 +156,7 @@ func TestMissileTurnRate_NoInstantSnap(t *testing.T) {
 	components.Velocity.SetValue(missileEntry, components.VelocityData{X: 0.0, Y: -10.0}) // Heading up
 	components.Rotation.SetValue(missileEntry, components.RotationData{Angle: 0})
 
-	missileChars := GetProjectileCharacteristics(MissileProjectile)
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
 	components.Missile.SetValue(missileEntry, components.MissileData{
 		TargetEntity: target,
 		Acceleration: missileChars.Acceleration,
@@ -180,7 +181,7 @@ func TestMissileTurnRate_NoInstantSnap(t *testing.T) {
 	targetAngle := math.Atan2(dx, -dy)
 
 	// The missile should NOT be pointing directly at the target after one tick
-	angleToTarget := math.Abs(normalizeAngle(newAngle - targetAngle))
+	angleToTarget := math.Abs(NormalizeAngle(newAngle - targetAngle))
 
 	// Should still be significantly off from target direction
 	if angleToTarget < 0.1 { // Less than ~6 degrees off
@@ -188,7 +189,7 @@ func TestMissileTurnRate_NoInstantSnap(t *testing.T) {
 	}
 
 	// But it should be closer than before
-	initialAngleToTarget := math.Abs(normalizeAngle(initialAngle - targetAngle))
+	initialAngleToTarget := math.Abs(NormalizeAngle(initialAngle - targetAngle))
 	if angleToTarget >= initialAngleToTarget {
 		t.Error("Missile didn't turn toward target at all")
 	}
@@ -213,7 +214,7 @@ func TestMissileTurnRate_NoTurningWhenNoTarget(t *testing.T) {
 
 	// Invalid target entity
 	var invalidTarget donburi.Entity
-	missileChars := GetProjectileCharacteristics(MissileProjectile)
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
 	components.Missile.SetValue(missileEntry, components.MissileData{
 		TargetEntity: invalidTarget,
 		Acceleration: missileChars.Acceleration,
@@ -256,7 +257,7 @@ func TestMissileTurnRate_AccelerationInTurnDirection(t *testing.T) {
 	components.Velocity.SetValue(missileEntry, components.VelocityData{X: 0.0, Y: -4.0}) // Heading up
 	components.Rotation.SetValue(missileEntry, components.RotationData{Angle: 0})
 
-	missileChars := GetProjectileCharacteristics(MissileProjectile)
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
 	components.Missile.SetValue(missileEntry, components.MissileData{
 		TargetEntity: target,
 		Acceleration: missileChars.Acceleration,

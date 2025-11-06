@@ -18,6 +18,7 @@ import (
 	"github.com/yohamta/donburi"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 	"github.com/nathan/verdant-thane/systems"
 	"github.com/nathan/verdant-thane/ui"
 )
@@ -31,12 +32,6 @@ var (
 	showProfile  = flag.Bool("profile", false, "Show detailed performance profiling data")
 	useDestroyer = flag.Bool("destroyer", false, "Spawn player and opponents as destroyers instead of fighters")
 	useTestudon  = flag.Bool("testudon", false, "Guarantee each faction spawns with one AI-controlled testudon")
-)
-
-const (
-	// Starfield constants
-	starDensity  = 0.0003 // stars per pixel
-	starGridSize = 200    // grid size for deterministic star generation
 )
 
 // FactionComposition defines the ship class breakdown for a single faction
@@ -254,8 +249,8 @@ func modulo(a, b int) int {
 // Wraps grid coordinates to ensure consistent stars across world boundaries
 func hashPosition(gridX, gridY int) int {
 	// Calculate number of grid cells in the game world
-	gridCountX := systems.GameWidth / starGridSize
-	gridCountY := systems.GameHeight / starGridSize
+	gridCountX := config.GameWidth / config.StarGridSize
+	gridCountY := config.GameHeight / config.StarGridSize
 
 	// Wrap grid coordinates to ensure tiling
 	wrappedX := modulo(gridX, gridCountX)
@@ -277,21 +272,21 @@ func generateStarsForGrid(gridX, gridY int) []struct{ x, y float64 } {
 	seed := hashPosition(gridX, gridY)
 
 	// Determine number of stars in this grid cell
-	area := float64(starGridSize * starGridSize)
-	numStars := int(area * starDensity)
+	area := float64(config.StarGridSize * config.StarGridSize)
+	numStars := int(area * config.StarDensity)
 
 	// Generate deterministic "random" positions within this grid
 	for i := 0; i < numStars; i++ {
 		// Simple LCG (Linear Congruential Generator) for deterministic randomness
 		seed = (seed*1103515245 + 12345) & 0x7fffffff
-		offsetX := float64(seed % starGridSize)
+		offsetX := float64(seed % config.StarGridSize)
 
 		seed = (seed*1103515245 + 12345) & 0x7fffffff
-		offsetY := float64(seed % starGridSize)
+		offsetY := float64(seed % config.StarGridSize)
 
 		// Calculate base position for this grid cell
-		baseX := float64(gridX * starGridSize)
-		baseY := float64(gridY * starGridSize)
+		baseX := float64(gridX * config.StarGridSize)
+		baseY := float64(gridY * config.StarGridSize)
 
 		// Star position in world coordinates
 		x := baseX + offsetX
@@ -416,7 +411,7 @@ func (g *Game) StartGame(fleetConfig FleetConfig) error {
 			isPlayerControlled := (factionID == 0 && shipIndex == 0)
 
 			// Get ship characteristics from database
-			shipChars := GetShipCharacteristics(shipClass)
+			shipChars := config.GetShipCharacteristics(shipClass)
 
 			// Spawn ship at faction spawn point
 			ship, err := systems.SpawnShip(g.world, systems.ShipConfig{
@@ -478,8 +473,8 @@ func (g *Game) StartGame(fleetConfig FleetConfig) error {
 	// Set game state
 	g.playerEntity = playerShip
 	g.playerStateEntity = playerState
-	g.cameraX = playerPos.X - float64(systems.ScreenWidth)/2
-	g.cameraY = playerPos.Y - float64(systems.ScreenHeight)/2
+	g.cameraX = playerPos.X - float64(config.ScreenWidth)/2
+	g.cameraY = playerPos.Y - float64(config.ScreenHeight)/2
 	g.currentState = InGame
 
 	return nil
@@ -596,8 +591,8 @@ func (g *Game) Update() error {
 		if g.world.Valid(g.playerEntity) {
 			playerEntry := g.world.Entry(g.playerEntity)
 			pos := components.Position.Get(playerEntry)
-			g.cameraX = pos.X - float64(systems.ScreenWidth)/2
-			g.cameraY = pos.Y - float64(systems.ScreenHeight)/2
+			g.cameraX = pos.X - float64(config.ScreenWidth)/2
+			g.cameraY = pos.Y - float64(config.ScreenHeight)/2
 		}
 
 		g.profileData.TotalUpdate += time.Since(updateStart)
@@ -616,10 +611,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case TitleScreen:
 		// Draw stars background (static, camera at origin)
 		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(cameraX) / starGridSize
-		maxGridX := int(cameraX+float64(systems.ScreenWidth)) / starGridSize
-		minGridY := int(cameraY) / starGridSize
-		maxGridY := int(cameraY+float64(systems.ScreenHeight)) / starGridSize
+		minGridX := int(cameraX) / config.StarGridSize
+		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
+		minGridY := int(cameraY) / config.StarGridSize
+		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
 
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
 			for gridY := minGridY; gridY <= maxGridY; gridY++ {
@@ -627,7 +622,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				for _, star := range stars {
 					screenX := star.x - cameraX
 					screenY := star.y - cameraY
-					if screenX >= 0 && screenX < float64(systems.ScreenWidth) && screenY >= 0 && screenY < float64(systems.ScreenHeight) {
+					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
 						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
 					}
 				}
@@ -641,7 +636,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			Size:   36,
 		}
 		titleWidth, _ := text.Measure(titleText, titleFont, 0)
-		titleX := (float64(systems.ScreenWidth) - titleWidth) / 2
+		titleX := (float64(config.ScreenWidth) - titleWidth) / 2
 		titleY := ui.GetTitleY()
 
 		titleOp := &text.DrawOptions{}
@@ -658,10 +653,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		// Draw stars
 		starsStart := time.Now()
 		// Determine which grid cells are visible
-		minGridX := int(g.cameraX) / starGridSize
-		maxGridX := int(g.cameraX+float64(systems.ScreenWidth)) / starGridSize
-		minGridY := int(g.cameraY) / starGridSize
-		maxGridY := int(g.cameraY+float64(systems.ScreenHeight)) / starGridSize
+		minGridX := int(g.cameraX) / config.StarGridSize
+		maxGridX := int(g.cameraX+float64(config.ScreenWidth)) / config.StarGridSize
+		minGridY := int(g.cameraY) / config.StarGridSize
+		maxGridY := int(g.cameraY+float64(config.ScreenHeight)) / config.StarGridSize
 
 		// Draw stars for visible grid cells
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
@@ -675,7 +670,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 						screenY := worldY - g.cameraY
 
 						// Only draw if on screen
-						if screenX >= 0 && screenX < float64(systems.ScreenWidth) && screenY >= 0 && screenY < float64(systems.ScreenHeight) {
+						if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
 							vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
 						}
 					}
@@ -687,19 +682,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 					// This handles the case where the camera is near world boundaries
 					if star.x < g.cameraX {
 						// Star is to the left of camera, try drawing wrapped to the right
-						drawStarAtPosition(star.x+float64(systems.GameWidth), star.y)
+						drawStarAtPosition(star.x+float64(config.GameWidth), star.y)
 					}
-					if star.x > g.cameraX+float64(systems.ScreenWidth) {
+					if star.x > g.cameraX+float64(config.ScreenWidth) {
 						// Star is to the right of camera, try drawing wrapped to the left
-						drawStarAtPosition(star.x-float64(systems.GameWidth), star.y)
+						drawStarAtPosition(star.x-float64(config.GameWidth), star.y)
 					}
 					if star.y < g.cameraY {
 						// Star is above camera, try drawing wrapped below
-						drawStarAtPosition(star.x, star.y+float64(systems.GameHeight))
+						drawStarAtPosition(star.x, star.y+float64(config.GameHeight))
 					}
-					if star.y > g.cameraY+float64(systems.ScreenHeight) {
+					if star.y > g.cameraY+float64(config.ScreenHeight) {
 						// Star is below camera, try drawing wrapped above
-						drawStarAtPosition(star.x, star.y-float64(systems.GameHeight))
+						drawStarAtPosition(star.x, star.y-float64(config.GameHeight))
 					}
 				}
 			}
@@ -761,7 +756,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		shieldText := fmt.Sprintf("Shield: %d", playerShield)
 		shieldWidth, _ := text.Measure(shieldText, g.hudFont, 0)
 		shieldOp := &text.DrawOptions{}
-		shieldOp.GeoM.Translate(float64(systems.ScreenWidth)-shieldWidth-10, 10)
+		shieldOp.GeoM.Translate(float64(config.ScreenWidth)-shieldWidth-10, 10)
 		shieldOp.ColorScale.ScaleWithColor(textColor)
 		text.Draw(screen, shieldText, g.hudFont, shieldOp)
 
@@ -769,7 +764,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		killsText := fmt.Sprintf("Kills: %d", playerKills)
 		killsWidth, _ := text.Measure(killsText, g.hudFont, 0)
 		killsOp := &text.DrawOptions{}
-		killsOp.GeoM.Translate(float64(systems.ScreenWidth)-killsWidth-10, 27)
+		killsOp.GeoM.Translate(float64(config.ScreenWidth)-killsWidth-10, 27)
 		killsOp.ColorScale.ScaleWithColor(textColor)
 		text.Draw(screen, killsText, g.hudFont, killsOp)
 
@@ -777,7 +772,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if *showFPS {
 			fpsText := fmt.Sprintf("FPS: %.1f  TPS: %.1f", g.currentFPS, g.currentTPS)
 			fpsOp := &text.DrawOptions{}
-			fpsOp.GeoM.Translate(10, float64(systems.ScreenHeight)-20)
+			fpsOp.GeoM.Translate(10, float64(config.ScreenHeight)-20)
 			fpsOp.ColorScale.ScaleWithColor(textColor)
 			text.Draw(screen, fpsText, g.hudFont, fpsOp)
 		}
@@ -830,13 +825,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 // Layout returns the game's screen dimensions
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return systems.ScreenWidth, systems.ScreenHeight
+	return config.ScreenWidth, config.ScreenHeight
 }
 
 func main() {
 	flag.Parse()
 
-	ebiten.SetWindowSize(systems.ScreenWidth, systems.ScreenHeight)
+	ebiten.SetWindowSize(config.ScreenWidth, config.ScreenHeight)
 	ebiten.SetWindowTitle("Verdant Thane")
 
 	game, err := NewGame()
