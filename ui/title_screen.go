@@ -1,10 +1,8 @@
 package ui
 
-const (
-	// Screen dimensions (should match systems.ScreenWidth/ScreenHeight)
-	screenWidth  = 1024
-	screenHeight = 768
+import "github.com/nathan/verdant-thane/systems"
 
+const (
 	// Title screen layout
 	titleY         = 150.0 // Y position of title text
 	dialogWidth    = 300.0
@@ -57,8 +55,8 @@ func CreateTitleScreen() *Dialog {
 	dialogHeight := totalButtonHeight + totalSpacing
 
 	// Center the dialog
-	dialogX := (float64(screenWidth) - dialogWidth) / 2
-	dialogY := (float64(screenHeight) - dialogHeight) / 2
+	dialogX := (float64(systems.ScreenWidth) - dialogWidth) / 2
+	dialogY := (float64(systems.ScreenHeight) - dialogHeight) / 2
 
 	return &Dialog{
 		Title:   "Verdant Thane",
