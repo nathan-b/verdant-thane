@@ -85,7 +85,8 @@ var SecondaryWeapon = donburi.NewComponentType[SecondaryWeaponData]()
 
 // BeamWeapon for testudons (instantaneous beam attack)
 type BeamWeaponData struct {
-	TargetEntity      donburi.Entity // Current target being attacked
+	TargetEntity      donburi.Entity // AI navigation target (high-priority target for movement)
+	FiringAtEntity    donburi.Entity // Target currently being fired at (for rendering beam graphic)
 	Range             float64        // Maximum range of beam
 	DamagePerTick     float64        // Damage dealt per tick (0.1 = 1 damage per 10 ticks)
 	DamageAccumulator float64        // Accumulates partial damage

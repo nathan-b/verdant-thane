@@ -387,7 +387,7 @@ func (g *Game) Update() error {
 		g.profileData.WeaponsUpdate += time.Since(t)
 
 		t = time.Now()
-		systems.UpdateBeamWeapons(g.world)
+		systems.UpdateBeamWeapons(g.world, g.explosionSprite)
 		g.profileData.BeamWeapons += time.Since(t)
 
 		t = time.Now()
@@ -932,6 +932,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
 		minGridY := int(cameraY) / config.StarGridSize
 		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+		centerX := float64(config.ScreenWidth) / 2.0
+		centerY := float64(config.ScreenHeight) / 2.0
 
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
 			for gridY := minGridY; gridY <= maxGridY; gridY++ {
@@ -950,19 +952,54 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		textColor := color.RGBA{255, 255, 255, 255}
 		goldColor := color.RGBA{255, 215, 0, 255}
 
-		victoryText := fmt.Sprintf("BATTLE %d COMPLETE - VICTORY!", g.battleNumber)
+		victoryText := fmt.Sprintf("BATTLE %d VICTORY!", g.battleNumber)
 		victoryWidth, _ := text.Measure(victoryText, g.hudFont, 0)
 		victoryOp := &text.DrawOptions{}
-		victoryOp.GeoM.Translate(float64(config.ScreenWidth/2)-victoryWidth/2, float64(config.ScreenHeight/2)-40)
+		victoryOp.GeoM.Translate(centerX-victoryWidth/2, centerY-40)
 		victoryOp.ColorScale.ScaleWithColor(goldColor)
 		text.Draw(screen, victoryText, g.hudFont, victoryOp)
 
 		continueText := "Press ENTER to continue"
 		continueWidth, _ := text.Measure(continueText, g.hudFont, 0)
 		continueOp := &text.DrawOptions{}
-		continueOp.GeoM.Translate(float64(config.ScreenWidth/2)-continueWidth/2, float64(config.ScreenHeight/2)+20)
+		continueOp.GeoM.Translate(centerX-continueWidth/2, centerY+20)
 		continueOp.ColorScale.ScaleWithColor(textColor)
 		text.Draw(screen, continueText, g.hudFont, continueOp)
+
+		// Stats
+		statsY := centerY + 50
+		var playerScore, playerKills, playerDeaths int
+		if g.world.Valid(g.playerStateEntity) {
+			stateEntry := g.world.Entry(g.playerStateEntity)
+			state := components.PlayerState.Get(stateEntry)
+			playerScore = state.Score
+			playerKills = state.Kills
+			playerDeaths = state.Deaths
+		}
+
+		// Score
+		scoreText := fmt.Sprintf("Score: %d", playerScore)
+		scoreWidth, _ := text.Measure(scoreText, g.hudFont, 0)
+		scoreOp := &text.DrawOptions{}
+		scoreOp.GeoM.Translate(centerX-scoreWidth/2, statsY)
+		scoreOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, scoreText, g.hudFont, scoreOp)
+
+		// Kills
+		killsText := fmt.Sprintf("Kills: %d", playerKills)
+		killsWidth, _ := text.Measure(killsText, g.hudFont, 0)
+		killsOp := &text.DrawOptions{}
+		killsOp.GeoM.Translate(centerX-killsWidth/2, statsY+30)
+		killsOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, killsText, g.hudFont, killsOp)
+
+		// Deaths
+		deathsText := fmt.Sprintf("Deaths: %d", playerDeaths)
+		deathsWidth, _ := text.Measure(deathsText, g.hudFont, 0)
+		deathsOp := &text.DrawOptions{}
+		deathsOp.GeoM.Translate(centerX-deathsWidth/2, statsY+60)
+		deathsOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, deathsText, g.hudFont, deathsOp)
 
 	case GameOver:
 		// Draw stars background

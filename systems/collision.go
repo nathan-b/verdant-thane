@@ -125,11 +125,11 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 		components.Owner,
 	))
 
-	// Track which entities to remove, who killed whom, and where explosions should be
+	// Track which entities to remove and ship destruction info
 	projectilesToRemove := make([]donburi.Entity, 0, 64)
-	shipsToRemove := make([]donburi.Entity, 0, 16)
-	explosionPositions := make([]struct{ x, y float64 }, 0, 16)
-	kills := make([]donburi.Entity, 0, 16) // Track which entity (ship) made each kill
+	shipsToDestroy := make([]*donburi.Entry, 0, 16)
+	killerEntities := make([]donburi.Entity, 0, 16)   // Track which entity (ship) made each kill
+	destroyedShipSet := make(map[donburi.Entity]bool) // Prevent double-processing ships hit by multiple projectiles
 
 	// Check each projectile against only nearby ships using spatial grid
 	for projEntry := range projectileQuery.Iter(w) {
@@ -141,6 +141,13 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 		nearbyShips := grid.getNearbyShips(projPos.X, projPos.Y)
 
 		for _, shipEntry := range nearbyShips {
+			shipEntity := shipEntry.Entity()
+
+			// Skip ships that are already marked for destruction
+			if destroyedShipSet[shipEntity] {
+				continue
+			}
+
 			shipPos := components.Position.Get(shipEntry)
 			shipFaction := components.Faction.Get(shipEntry)
 
@@ -164,14 +171,11 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 
 				// Check if ship is destroyed
 				if health.Current <= 0 {
-					shipsToRemove = append(shipsToRemove, shipEntry.Entity())
-					// Record position for explosion
-					explosionPositions = append(explosionPositions, struct{ x, y float64 }{
-						x: shipPos.X,
-						y: shipPos.Y,
-					})
+					// Mark ship for destruction (we already checked destroyedShipSet at loop start)
+					destroyedShipSet[shipEntity] = true
+					shipsToDestroy = append(shipsToDestroy, shipEntry)
 					// Record the kill - track which ship (owner) made the kill
-					kills = append(kills, projOwner.OwnerEntity)
+					killerEntities = append(killerEntities, projOwner.OwnerEntity)
 				}
 
 				// Break out of ship loop since this projectile hit something
@@ -187,73 +191,10 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 		}
 	}
 
-	// Check if player ship was destroyed and handle spectate mode
-	playerStateQuery := donburi.NewQuery(filter.Contains(components.PlayerState))
-	if playerStateEntry, ok := playerStateQuery.First(w); ok {
-		state := components.PlayerState.Get(playerStateEntry)
-		playerShip := state.ControlledShip
-
-		// Check if player's ship is in the list of ships to remove
-		playerShipDestroyed := false
-		for _, entity := range shipsToRemove {
-			if entity == playerShip {
-				playerShipDestroyed = true
-				break
-			}
-		}
-
-		// If player ship was destroyed, enter spectate mode before removing ships
-		if playerShipDestroyed && w.Valid(playerShip) {
-			// Get player faction
-			playerEntry := w.Entry(playerShip)
-			faction := components.Faction.Get(playerEntry)
-
-			// Enter spectate mode (will select an allied ship)
-			EnterSpectateMode(w, playerStateEntry, faction.ID)
-		}
-	}
-
-	// Remove destroyed ships
-	for _, entity := range shipsToRemove {
-		if w.Valid(entity) {
-			w.Remove(entity)
-		}
-	}
-
-	// Create explosion entities at destroyed ship positions
-	for _, pos := range explosionPositions {
-		explosion := w.Create(
-			components.IsExplosion,
-			components.Position,
-			components.Explosion,
-			components.Sprite,
-		)
-		explosionEntry := w.Entry(explosion)
-		components.Position.SetValue(explosionEntry, components.PositionData{X: pos.x, Y: pos.y})
-		components.Explosion.SetValue(explosionEntry, components.ExplosionData{
-			CurrentFrame: 0,
-			FrameTimer:   5, // 5 ticks per frame (~12 FPS)
-		})
-		components.Sprite.SetValue(explosionEntry, components.SpriteData{Image: explosionSprite})
-	}
-
-	// Update player score and kills if player got any kills
-	// Find player state entity (reuse query from above)
-	if playerStateEntry, ok := playerStateQuery.First(w); ok {
-		state := components.PlayerState.Get(playerStateEntry)
-		playerShip := state.ControlledShip
-
-		// Count kills made by the player specifically
-		playerKills := 0
-		for _, killerEntity := range kills {
-			if killerEntity == playerShip {
-				playerKills++
-			}
-		}
-
-		if playerKills > 0 {
-			state.Kills += playerKills
-			state.Score += playerKills * 10 // 10 points per kill
-		}
+	// Destroy all ships marked for destruction
+	// DestroyShip handles: explosion creation, player respawn, score updates, ship removal
+	for i, shipEntry := range shipsToDestroy {
+		killerEntity := killerEntities[i]
+		DestroyShip(w, shipEntry, killerEntity, explosionSprite)
 	}
 }

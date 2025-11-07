@@ -159,6 +159,7 @@ func SpawnShip(w donburi.World, config ShipConfig) (donburi.Entity, error) {
 		var emptyEntity donburi.Entity
 		components.BeamWeapon.SetValue(entry, components.BeamWeaponData{
 			TargetEntity:      emptyEntity, // No initial target
+			FiringAtEntity:    emptyEntity, // No target being fired at initially
 			Range:             200.0,       // 200 pixel range
 			DamagePerTick:     0.1,         // 1 damage per 10 ticks
 			DamageAccumulator: 0.0,

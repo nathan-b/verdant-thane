@@ -3,6 +3,7 @@ package systems
 import (
 	"math"
 
+	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/yohamta/donburi"
 	"github.com/yohamta/donburi/filter"
 
@@ -11,7 +12,7 @@ import (
 
 // UpdateBeamWeapons handles beam weapon targeting and damage application
 // This is called every tick for all Testudons with beam weapons
-func UpdateBeamWeapons(w donburi.World) {
+func UpdateBeamWeapons(w donburi.World, explosionSprite *ebiten.Image) {
 	beamQuery := donburi.NewQuery(filter.Contains(
 		components.BeamWeapon,
 		components.Position,
@@ -54,16 +55,20 @@ func UpdateBeamWeapons(w donburi.World) {
 
 		// Fire at the chosen target (if any)
 		if targetToFire != nil {
-			ApplyBeamDamage(w, entry, targetToFire, beamWeapon)
+			// Update FiringAtEntity for beam rendering
+			beamWeapon.FiringAtEntity = targetToFire.Entity()
+			ApplyBeamDamage(w, entry, targetToFire, beamWeapon, explosionSprite)
 		} else {
-			// No target in range - reset damage accumulator
+			// No target in range - reset damage accumulator and clear firing target
 			beamWeapon.DamageAccumulator = 0.0
+			var emptyEntity donburi.Entity
+			beamWeapon.FiringAtEntity = emptyEntity
 		}
 	}
 }
 
 // ApplyBeamDamage applies damage-over-time to a target entity
-func ApplyBeamDamage(w donburi.World, attackerEntry, targetEntry *donburi.Entry, beamWeapon *components.BeamWeaponData) {
+func ApplyBeamDamage(w donburi.World, attackerEntry, targetEntry *donburi.Entry, beamWeapon *components.BeamWeaponData, explosionSprite *ebiten.Image) {
 	// Accumulate damage
 	beamWeapon.DamageAccumulator += beamWeapon.DamagePerTick
 
@@ -77,6 +82,15 @@ func ApplyBeamDamage(w donburi.World, attackerEntry, targetEntry *donburi.Entry,
 		health.Current -= damageToApply
 		if health.Current < 0 {
 			health.Current = 0
+		}
+
+		// Check if target was destroyed
+		if health.Current <= 0 {
+			// Destroy the ship (creates explosion, handles player respawn, updates score)
+			DestroyShip(w, targetEntry, attackerEntry.Entity(), explosionSprite)
+			// Clear the beam target since it's now destroyed
+			ClearBeamTarget(attackerEntry)
+			return
 		}
 
 		// Track attacker in target's UnderAttack component (if target has it)
@@ -133,6 +147,7 @@ func ClearBeamTarget(attackerEntry *donburi.Entry) {
 	var emptyEntity donburi.Entity
 	beamWeapon := components.BeamWeapon.Get(attackerEntry)
 	beamWeapon.TargetEntity = emptyEntity
+	beamWeapon.FiringAtEntity = emptyEntity
 	beamWeapon.DamageAccumulator = 0.0
 }
 

@@ -243,14 +243,15 @@ func RenderBeams(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64
 	for entry := range query.Iter(w) {
 		beamWeapon := components.BeamWeapon.Get(entry)
 
-		// Only draw beam if there's an active target
-		if !w.Valid(beamWeapon.TargetEntity) {
+		// Only draw beam if there's an active firing target
+		// FiringAtEntity tracks the target currently being fired at (may differ from AI navigation target)
+		if !w.Valid(beamWeapon.FiringAtEntity) {
 			continue
 		}
 
 		// Get attacker and target positions
 		attackerPos := components.Position.Get(entry)
-		targetEntry := w.Entry(beamWeapon.TargetEntity)
+		targetEntry := w.Entry(beamWeapon.FiringAtEntity)
 
 		if !targetEntry.HasComponent(components.Position) {
 			continue
@@ -258,13 +259,6 @@ func RenderBeams(w donburi.World, screen *ebiten.Image, cameraX, cameraY float64
 
 		targetPos := components.Position.Get(targetEntry)
 		faction := components.Faction.Get(entry)
-
-		// CRITICAL: Only render beam if target is within range
-		// The AI may have set a distant target for navigation, but we should only
-		// draw the beam when actually firing (i.e., target is in range)
-		if !IsInRange(attackerPos.X, attackerPos.Y, targetPos.X, targetPos.Y, beamWeapon.Range) {
-			continue
-		}
 
 		// Get beam color based on faction
 		beamColor, ok := factionColors[faction.ID]

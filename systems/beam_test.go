@@ -37,8 +37,10 @@ func TestBeamWeapon_DamageAccumulation(t *testing.T) {
 	components.Health.SetValue(targetEntry, components.HealthData{Current: 100, Max: 100})
 
 	// Set beam weapon to target (use 0.5 damage/tick to avoid floating-point issues)
+	var emptyFiringTarget donburi.Entity
 	components.BeamWeapon.SetValue(attackerEntry, components.BeamWeaponData{
 		TargetEntity:      target,
+		FiringAtEntity:    emptyFiringTarget, // Will be set when UpdateBeamWeapons runs
 		Range:             200.0,
 		DamagePerTick:     0.5, // 1 damage per 2 ticks (avoids 0.1 float precision issues)
 		DamageAccumulator: 0.0,
@@ -46,7 +48,7 @@ func TestBeamWeapon_DamageAccumulation(t *testing.T) {
 
 	// Run for 2 ticks - should accumulate to 1.0 damage exactly
 	for i := 0; i < 2; i++ {
-		UpdateBeamWeapons(world)
+		UpdateBeamWeapons(world, nil)
 	}
 
 	// Check that exactly 1 damage was applied
@@ -90,8 +92,10 @@ func TestBeamWeapon_RangeCheck(t *testing.T) {
 	components.Health.SetValue(targetEntry, components.HealthData{Current: 100, Max: 100})
 
 	// Set beam weapon to target (initially out of range)
+	var emptyFiringTarget donburi.Entity
 	components.BeamWeapon.SetValue(attackerEntry, components.BeamWeaponData{
 		TargetEntity:      target,
+		FiringAtEntity:    emptyFiringTarget, // Will be set when UpdateBeamWeapons runs (if in range)
 		Range:             200.0,
 		DamagePerTick:     0.1,
 		DamageAccumulator: 0.0,
@@ -99,7 +103,7 @@ func TestBeamWeapon_RangeCheck(t *testing.T) {
 
 	// Run update - beam should not damage target since out of range
 	// (With new opportunistic targeting, target is kept for AI navigation)
-	UpdateBeamWeapons(world)
+	UpdateBeamWeapons(world, nil)
 
 	// Target reference is kept (for AI navigation purposes)
 	beamWeapon := components.BeamWeapon.Get(attackerEntry)
@@ -147,8 +151,10 @@ func TestBeamWeapon_FriendlyFirePrevention(t *testing.T) {
 	components.Health.SetValue(targetEntry, components.HealthData{Current: 100, Max: 100})
 
 	// Set beam weapon to friendly target
+	var emptyFiringTarget donburi.Entity
 	components.BeamWeapon.SetValue(attackerEntry, components.BeamWeaponData{
 		TargetEntity:      target,
+		FiringAtEntity:    emptyFiringTarget, // Won't fire at friendly
 		Range:             200.0,
 		DamagePerTick:     0.1,
 		DamageAccumulator: 0.0,
@@ -156,7 +162,7 @@ func TestBeamWeapon_FriendlyFirePrevention(t *testing.T) {
 
 	// Run for 20 ticks
 	for i := 0; i < 20; i++ {
-		UpdateBeamWeapons(world)
+		UpdateBeamWeapons(world, nil)
 	}
 
 	// Friendly target should take no damage
@@ -173,6 +179,7 @@ func TestBeamWeapon_FriendlyFirePrevention(t *testing.T) {
 }
 
 // TestBeamWeapon_DeadTargetClearing verifies beam clears target when it dies
+// and the destroyed ship is removed from the world
 func TestBeamWeapon_DeadTargetClearing(t *testing.T) {
 	world := donburi.NewWorld()
 
@@ -188,8 +195,9 @@ func TestBeamWeapon_DeadTargetClearing(t *testing.T) {
 	components.Faction.SetValue(attackerEntry, components.FactionData{ID: 0})
 	components.Health.SetValue(attackerEntry, components.HealthData{Current: 100, Max: 100})
 
-	// Create target with 1 HP
+	// Create target with 1 HP (also needs IsShip tag for ship destruction to work properly)
 	target := world.Create(
+		components.IsShip,
 		components.Position,
 		components.Faction,
 		components.Health,
@@ -200,8 +208,10 @@ func TestBeamWeapon_DeadTargetClearing(t *testing.T) {
 	components.Health.SetValue(targetEntry, components.HealthData{Current: 1, Max: 100})
 
 	// Set beam weapon to target (use 0.5 damage/tick to avoid floating-point issues)
+	var emptyFiringTarget donburi.Entity
 	components.BeamWeapon.SetValue(attackerEntry, components.BeamWeaponData{
 		TargetEntity:      target,
+		FiringAtEntity:    emptyFiringTarget, // Will be set when UpdateBeamWeapons runs
 		Range:             200.0,
 		DamagePerTick:     0.5, // Avoid 0.1 floating-point precision issues
 		DamageAccumulator: 0.0,
@@ -209,30 +219,23 @@ func TestBeamWeapon_DeadTargetClearing(t *testing.T) {
 
 	// Run for 2 ticks - should kill target (1 HP, needs 1 damage)
 	for i := 0; i < 2; i++ {
-		UpdateBeamWeapons(world)
+		UpdateBeamWeapons(world, nil)
 	}
 
-	// Target should be dead
-	health := components.Health.Get(targetEntry)
-	if health.Current != 0 {
-		t.Errorf("Target should be dead, got health %d", health.Current)
+	// Target should be destroyed and removed from world
+	if world.Valid(target) {
+		t.Error("Target should be removed from world after destruction")
 	}
 
-	// Run several more updates - dead target should not receive further damage
-	for i := 0; i < 10; i++ {
-		UpdateBeamWeapons(world)
-	}
-
-	// Health should still be 0 (no negative damage)
-	health = components.Health.Get(targetEntry)
-	if health.Current != 0 {
-		t.Errorf("Dead target should remain at 0 health, got %d", health.Current)
-	}
-
-	// Damage accumulator should be reset (no firing at dead target)
+	// Beam target should be cleared after target destruction
 	beamWeapon := components.BeamWeapon.Get(attackerEntry)
+	if world.Valid(beamWeapon.TargetEntity) {
+		t.Error("Beam target should be cleared after target destruction")
+	}
+
+	// Damage accumulator should be reset
 	if beamWeapon.DamageAccumulator != 0.0 {
-		t.Errorf("Should not accumulate damage against dead target, got %f", beamWeapon.DamageAccumulator)
+		t.Errorf("Damage accumulator should be reset, got %f", beamWeapon.DamageAccumulator)
 	}
 }
 
@@ -283,8 +286,10 @@ func TestBeamWeapon_OpportunisticTargeting(t *testing.T) {
 
 	// Set beam weapon to high-priority target (out of range)
 	// This simulates AI choosing distant Testudon as navigation target
+	var emptyFiringTarget donburi.Entity
 	components.BeamWeapon.SetValue(attackerEntry, components.BeamWeaponData{
 		TargetEntity:      primaryTarget,
+		FiringAtEntity:    emptyFiringTarget, // Will be set to opportunistic target when firing
 		Range:             200.0,
 		DamagePerTick:     0.5,
 		DamageAccumulator: 0.0,
@@ -292,7 +297,7 @@ func TestBeamWeapon_OpportunisticTargeting(t *testing.T) {
 
 	// Run for several ticks
 	for i := 0; i < 10; i++ {
-		UpdateBeamWeapons(world)
+		UpdateBeamWeapons(world, nil)
 	}
 
 	// Primary target (out of range) should NOT be damaged
@@ -363,14 +368,15 @@ func TestBeamWeapon_RangeConstraint(t *testing.T) {
 	var emptyEntity donburi.Entity
 	components.BeamWeapon.SetValue(attackerEntry, components.BeamWeaponData{
 		TargetEntity:      emptyEntity,
-		Range:             200.0, // Exactly 200 range
+		FiringAtEntity:    emptyEntity, // Will be set to nearest in-range enemy
+		Range:             200.0,       // Exactly 200 range
 		DamagePerTick:     0.5,
 		DamageAccumulator: 0.0,
 	})
 
 	// Run for 10 ticks
 	for i := 0; i < 10; i++ {
-		UpdateBeamWeapons(world)
+		UpdateBeamWeapons(world, nil)
 	}
 
 	// Enemy at exactly max range (200) should be damaged
@@ -567,6 +573,7 @@ func TestSetBeamTarget_SetsTarget(t *testing.T) {
 	var emptyEntity donburi.Entity
 	components.BeamWeapon.SetValue(shipEntry, components.BeamWeaponData{
 		TargetEntity:      emptyEntity,
+		FiringAtEntity:    emptyEntity,
 		Range:             200.0,
 		DamagePerTick:     0.1,
 		DamageAccumulator: 0.5, // Non-zero accumulator
@@ -598,9 +605,11 @@ func TestClearBeamTarget_ClearsTarget(t *testing.T) {
 	)
 	shipEntry := world.Entry(ship)
 	target := world.Create(components.Position)
+	var emptyFiringTarget donburi.Entity
 
 	components.BeamWeapon.SetValue(shipEntry, components.BeamWeaponData{
 		TargetEntity:      target,
+		FiringAtEntity:    emptyFiringTarget,
 		Range:             200.0,
 		DamagePerTick:     0.1,
 		DamageAccumulator: 0.5,
