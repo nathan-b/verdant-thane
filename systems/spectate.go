@@ -163,3 +163,52 @@ func UpdateSpectateMode(w donburi.World, playerStateEntry *donburi.Entry, factio
 		}
 	}
 }
+
+// CanRespawnIntoShip checks if the player can respawn into the spectated ship
+// Returns false if the spectated ship is a testudon
+func CanRespawnIntoShip(w donburi.World, spectatedShip donburi.Entity) bool {
+	if !w.Valid(spectatedShip) {
+		return false
+	}
+
+	// Cannot respawn into testudons
+	entry := w.Entry(spectatedShip)
+	if entry.HasComponent(components.Ship) {
+		shipData := components.Ship.Get(entry)
+		if shipData.Class == components.Testudon {
+			return false
+		}
+	}
+
+	return true
+}
+
+// RespawnIntoShip transfers control from spectate mode to the spectated ship
+// Maxes out the ship's shields upon respawn
+func RespawnIntoShip(w donburi.World, playerStateEntry *donburi.Entry) bool {
+	state := components.PlayerState.Get(playerStateEntry)
+
+	if !state.IsSpectating {
+		return false
+	}
+
+	// Check if we can respawn into this ship
+	if !CanRespawnIntoShip(w, state.SpectatedShip) {
+		return false
+	}
+
+	// Transfer control
+	state.ControlledShip = state.SpectatedShip
+	state.IsSpectating = false
+	var emptyEntity donburi.Entity
+	state.SpectatedShip = emptyEntity
+
+	// Max out shields on the respawned ship
+	entry := w.Entry(state.ControlledShip)
+	if entry.HasComponent(components.Health) {
+		health := components.Health.Get(entry)
+		health.Current = health.Max
+	}
+
+	return true
+}

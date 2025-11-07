@@ -121,6 +121,7 @@ type Game struct {
 	// Input state tracking for spectate mode cycling
 	prevKeyA        bool
 	prevKeyD        bool
+	prevKeySpace    bool
 	lastProfileTime time.Time
 }
 
@@ -397,6 +398,7 @@ func (g *Game) Update() error {
 				// Handle A/D cycling through allied ships (only on key press, not held)
 				keyA := ebiten.IsKeyPressed(ebiten.KeyA)
 				keyD := ebiten.IsKeyPressed(ebiten.KeyD)
+				keySpace := ebiten.IsKeyPressed(ebiten.KeySpace)
 
 				if keyD && !g.prevKeyD {
 					// D key was just pressed - cycle to next allied ship
@@ -412,9 +414,16 @@ func (g *Game) Update() error {
 					}
 				}
 
+				// Handle spacebar respawn (only on key press, not held)
+				if keySpace && !g.prevKeySpace {
+					// Space was just pressed - try to respawn into spectated ship
+					systems.RespawnIntoShip(g.world, playerStateEntry)
+				}
+
 				// Update previous key states
 				g.prevKeyA = keyA
 				g.prevKeyD = keyD
+				g.prevKeySpace = keySpace
 			}
 		}
 
@@ -654,6 +663,37 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		killsOp.GeoM.Translate(float64(config.ScreenWidth)-killsWidth-10, 27)
 		killsOp.ColorScale.ScaleWithColor(textColor)
 		text.Draw(screen, killsText, g.hudFont, killsOp)
+
+		// Spectate mode instructions (centered at bottom)
+		if g.world.Valid(g.playerStateEntity) {
+			stateEntry := g.world.Entry(g.playerStateEntity)
+			state := components.PlayerState.Get(stateEntry)
+
+			if state.IsSpectating {
+				instructionsLine1 := "A / D to switch ships"
+				instructionsLine2 := "SPACE to take control"
+
+				// Check if current ship is a testudon (can't respawn into it)
+				canRespawn := systems.CanRespawnIntoShip(g.world, state.SpectatedShip)
+				if !canRespawn {
+					instructionsLine2 = "Cannot take control of Testudon"
+				}
+
+				// Draw first line
+				line1Width, _ := text.Measure(instructionsLine1, g.hudFont, 0)
+				line1Op := &text.DrawOptions{}
+				line1Op.GeoM.Translate(float64(config.ScreenWidth/2)-line1Width/2, float64(config.ScreenHeight)-50)
+				line1Op.ColorScale.ScaleWithColor(textColor)
+				text.Draw(screen, instructionsLine1, g.hudFont, line1Op)
+
+				// Draw second line
+				line2Width, _ := text.Measure(instructionsLine2, g.hudFont, 0)
+				line2Op := &text.DrawOptions{}
+				line2Op.GeoM.Translate(float64(config.ScreenWidth/2)-line2Width/2, float64(config.ScreenHeight)-35)
+				line2Op.ColorScale.ScaleWithColor(textColor)
+				text.Draw(screen, instructionsLine2, g.hudFont, line2Op)
+			}
+		}
 
 		// FPS/TPS counter (if enabled)
 		if *showFPS {
