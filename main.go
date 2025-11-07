@@ -40,6 +40,11 @@ type GameState int
 const (
 	TitleScreen GameState = iota
 	InGame
+	Victory
+	GameOver
+	Instructions
+	HighScores
+	Interstitial
 )
 
 // ProfileData tracks timing for performance profiling
@@ -465,6 +470,37 @@ func (g *Game) Update() error {
 		systems.UpdateAIFiring(g.world, g.playerEntity, g.laserSprite, g.missileSprite)
 		g.profileData.AIFiring += time.Since(t)
 
+		// Check for battle end conditions
+		if g.world.Valid(g.playerStateEntity) {
+			playerStateEntry := g.world.Entry(g.playerStateEntity)
+			playerState := components.PlayerState.Get(playerStateEntry)
+
+			// Get player faction ID
+			playerFactionID := 0 // Default to faction 0 (green)
+			if g.world.Valid(playerState.ControlledShip) {
+				shipEntry := g.world.Entry(playerState.ControlledShip)
+				if shipEntry.HasComponent(components.Faction) {
+					faction := components.Faction.Get(shipEntry)
+					playerFactionID = faction.ID
+				}
+			} else if g.world.Valid(playerState.SpectatedShip) {
+				shipEntry := g.world.Entry(playerState.SpectatedShip)
+				if shipEntry.HasComponent(components.Faction) {
+					faction := components.Faction.Get(shipEntry)
+					playerFactionID = faction.ID
+				}
+			}
+
+			// Check battle end
+			battleResult := systems.CheckBattleEnd(g.world, playerFactionID)
+			switch battleResult {
+			case systems.PlayerVictory:
+				g.currentState = Victory
+			case systems.PlayerDefeat:
+				g.currentState = GameOver
+			}
+		}
+
 		// Update camera to follow player or spectated ship
 		if g.world.Valid(g.playerStateEntity) {
 			playerStateEntry := g.world.Entry(g.playerStateEntity)
@@ -493,6 +529,39 @@ func (g *Game) Update() error {
 
 		g.profileData.TotalUpdate += time.Since(updateStart)
 		g.profileFrameCount++
+
+	case Victory:
+		// TODO: Handle victory screen (Milestone 5 Phase 6)
+		// For now, return to title screen on any key press
+		if ebiten.IsKeyPressed(ebiten.KeyEnter) || ebiten.IsKeyPressed(ebiten.KeySpace) {
+			g.currentState = TitleScreen
+		}
+
+	case GameOver:
+		// TODO: Handle game over screen (Milestone 5 Phase 3)
+		// For now, return to title screen on any key press
+		if ebiten.IsKeyPressed(ebiten.KeyEnter) || ebiten.IsKeyPressed(ebiten.KeySpace) {
+			g.currentState = TitleScreen
+		}
+
+	case Instructions:
+		// TODO: Handle instructions screen (Milestone 5 Phase 4)
+		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
+			g.currentState = TitleScreen
+		}
+
+	case HighScores:
+		// TODO: Handle high scores screen (Milestone 5 Phase 5)
+		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
+			g.currentState = TitleScreen
+		}
+
+	case Interstitial:
+		// TODO: Handle interstitial screen (Milestone 5 Phase 6)
+		if ebiten.IsKeyPressed(ebiten.KeyEnter) || ebiten.IsKeyPressed(ebiten.KeySpace) {
+			// Continue to next battle
+			g.currentState = TitleScreen
+		}
 	}
 
 	return nil
@@ -747,6 +816,56 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			g.profileFrameCount = 0
 			g.lastProfileTime = time.Now()
 		}
+
+	case Victory:
+		// TODO: Implement victory screen (Milestone 5 Phase 6)
+		textColor := color.RGBA{255, 255, 255, 255}
+		victoryText := "VICTORY! Press ENTER to continue"
+		textWidth, _ := text.Measure(victoryText, g.hudFont, 0)
+		textOp := &text.DrawOptions{}
+		textOp.GeoM.Translate(float64(config.ScreenWidth/2)-textWidth/2, float64(config.ScreenHeight/2))
+		textOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, victoryText, g.hudFont, textOp)
+
+	case GameOver:
+		// TODO: Implement game over screen (Milestone 5 Phase 3)
+		textColor := color.RGBA{255, 255, 255, 255}
+		gameOverText := "GAME OVER - Press ENTER to continue"
+		textWidth, _ := text.Measure(gameOverText, g.hudFont, 0)
+		textOp := &text.DrawOptions{}
+		textOp.GeoM.Translate(float64(config.ScreenWidth/2)-textWidth/2, float64(config.ScreenHeight/2))
+		textOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, gameOverText, g.hudFont, textOp)
+
+	case Instructions:
+		// TODO: Implement instructions screen (Milestone 5 Phase 4)
+		textColor := color.RGBA{255, 255, 255, 255}
+		instructionsText := "Instructions - Press ESC to return"
+		textWidth, _ := text.Measure(instructionsText, g.hudFont, 0)
+		textOp := &text.DrawOptions{}
+		textOp.GeoM.Translate(float64(config.ScreenWidth/2)-textWidth/2, float64(config.ScreenHeight/2))
+		textOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, instructionsText, g.hudFont, textOp)
+
+	case HighScores:
+		// TODO: Implement high scores screen (Milestone 5 Phase 5)
+		textColor := color.RGBA{255, 255, 255, 255}
+		highScoresText := "High Scores - Press ESC to return"
+		textWidth, _ := text.Measure(highScoresText, g.hudFont, 0)
+		textOp := &text.DrawOptions{}
+		textOp.GeoM.Translate(float64(config.ScreenWidth/2)-textWidth/2, float64(config.ScreenHeight/2))
+		textOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, highScoresText, g.hudFont, textOp)
+
+	case Interstitial:
+		// TODO: Implement interstitial screen (Milestone 5 Phase 6)
+		textColor := color.RGBA{255, 255, 255, 255}
+		interstitialText := "Battle Complete! Press ENTER to continue"
+		textWidth, _ := text.Measure(interstitialText, g.hudFont, 0)
+		textOp := &text.DrawOptions{}
+		textOp.GeoM.Translate(float64(config.ScreenWidth/2)-textWidth/2, float64(config.ScreenHeight/2))
+		textOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, interstitialText, g.hudFont, textOp)
 	}
 }
 
