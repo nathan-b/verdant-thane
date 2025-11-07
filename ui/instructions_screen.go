@@ -11,24 +11,13 @@ import (
 
 // CreateInstructionsDialog creates the instructions screen dialog
 func CreateInstructionsDialog() *Dialog {
-	buttons := []Button{
-		{
-			Label:   "Back",
-			X:       float64(config.ScreenWidth)/2 - 50,
-			Y:       float64(config.ScreenHeight) - 80,
-			Width:   100,
-			Height:  40,
-			OnClick: nil, // Will be handled by main game loop
-		},
-	}
-
 	return &Dialog{
 		Title:   "Instructions",
 		X:       float64(config.ScreenWidth)/2 - 300,
-		Y:       60,
+		Y:       80,
 		Width:   600,
-		Height:  float64(config.ScreenHeight) - 120,
-		Buttons: buttons,
+		Height:  350,
+		Buttons: []Button{}, // No buttons, uses X close button
 	}
 }
 

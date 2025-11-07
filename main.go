@@ -629,12 +629,10 @@ func (g *Game) Update() error {
 		}
 
 	case Instructions:
-		// Handle instructions screen Back button
+		// Handle instructions screen close button
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 			mouseX, mouseY := ebiten.CursorPosition()
-			buttonIndex := ui.CheckButtonClick(g.instructionsDialog, mouseX, mouseY)
-
-			if buttonIndex == 0 { // Back button clicked
+			if ui.CheckCloseButtonClick(g.instructionsDialog, mouseX, mouseY) {
 				g.currentState = TitleScreen
 			}
 		}
@@ -645,12 +643,10 @@ func (g *Game) Update() error {
 		}
 
 	case HighScores:
-		// Handle high scores screen Back button
+		// Handle high scores screen close button
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 			mouseX, mouseY := ebiten.CursorPosition()
-			buttonIndex := ui.CheckButtonClick(g.highScoresDialog, mouseX, mouseY)
-
-			if buttonIndex == 0 { // Back button clicked
+			if ui.CheckCloseButtonClick(g.highScoresDialog, mouseX, mouseY) {
 				g.currentState = TitleScreen
 			}
 		}
@@ -1020,6 +1016,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		// Draw instructions dialog and content
 		ui.RenderDialog(screen, g.instructionsDialog, g.hudFont)
+		ui.DrawCloseButton(screen, g.instructionsDialog)
 		ui.DrawInstructionsText(screen, g.hudFont.Source)
 
 	case HighScores:
@@ -1045,6 +1042,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		// Draw high scores dialog and table
 		ui.RenderDialog(screen, g.highScoresDialog, g.hudFont)
+		ui.DrawCloseButton(screen, g.highScoresDialog)
 		ui.DrawHighScoresTable(screen, g.hudFont.Source, g.highScores)
 
 	case Interstitial:

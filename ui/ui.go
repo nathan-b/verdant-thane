@@ -97,3 +97,40 @@ func CheckButtonClick(dialog *Dialog, mouseX, mouseY int) int {
 
 	return -1
 }
+
+// CheckCloseButtonClick checks if a mouse click hit the X close button in the dialog's upper-right corner
+// Returns true if the close button was clicked
+func CheckCloseButtonClick(dialog *Dialog, mouseX, mouseY int) bool {
+	closeButtonSize := 24.0
+	closeButtonX := dialog.X + dialog.Width - closeButtonSize - 8
+	closeButtonY := dialog.Y + 8
+
+	mx := float64(mouseX)
+	my := float64(mouseY)
+
+	return mx >= closeButtonX && mx <= closeButtonX+closeButtonSize &&
+		my >= closeButtonY && my <= closeButtonY+closeButtonSize
+}
+
+// DrawCloseButton draws an X close button in the upper-right corner of the dialog
+func DrawCloseButton(screen *ebiten.Image, dialog *Dialog) {
+	closeButtonSize := 24.0
+	closeButtonX := dialog.X + dialog.Width - closeButtonSize - 8
+	closeButtonY := dialog.Y + 8
+
+	// Draw button background
+	vector.FillRect(screen, float32(closeButtonX), float32(closeButtonY), float32(closeButtonSize), float32(closeButtonSize), color.RGBA{60, 60, 60, 255}, false)
+	// Draw button border
+	vector.StrokeRect(screen, float32(closeButtonX), float32(closeButtonY), float32(closeButtonSize), float32(closeButtonSize), 1, color.RGBA{100, 100, 100, 255}, false)
+
+	// Draw X
+	padding := 6.0
+	x1 := float32(closeButtonX + padding)
+	y1 := float32(closeButtonY + padding)
+	x2 := float32(closeButtonX + closeButtonSize - padding)
+	y2 := float32(closeButtonY + closeButtonSize - padding)
+
+	// Draw two diagonal lines to form X
+	vector.StrokeLine(screen, x1, y1, x2, y2, 2, color.White, false)
+	vector.StrokeLine(screen, x2, y1, x1, y2, 2, color.White, false)
+}

@@ -13,24 +13,13 @@ import (
 
 // CreateHighScoresDialog creates the high scores screen dialog
 func CreateHighScoresDialog() *Dialog {
-	buttons := []Button{
-		{
-			Label:   "Back",
-			X:       float64(config.ScreenWidth)/2 - 50,
-			Y:       float64(config.ScreenHeight) - 80,
-			Width:   100,
-			Height:  40,
-			OnClick: nil, // Will be handled by main game loop
-		},
-	}
-
 	return &Dialog{
 		Title:   "High Scores",
 		X:       float64(config.ScreenWidth)/2 - 350,
 		Y:       80,
 		Width:   700,
-		Height:  float64(config.ScreenHeight) - 160,
-		Buttons: buttons,
+		Height:  500,
+		Buttons: []Button{}, // No buttons, uses X close button
 	}
 }
 
