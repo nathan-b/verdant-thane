@@ -44,7 +44,7 @@ func SelectTestudonTarget(w donburi.World, aiEntity donburi.Entity) donburi.Enti
 				}
 
 				attackerPos := components.Position.Get(attackerEntry)
-				dist := distance(aiPos.X, aiPos.Y, attackerPos.X, attackerPos.Y)
+				dist := Distance(aiPos.X, aiPos.Y, attackerPos.X, attackerPos.Y)
 
 				if dist < minDistance {
 					minDistance = dist
@@ -96,7 +96,7 @@ func SelectTestudonTarget(w donburi.World, aiEntity donburi.Entity) donburi.Enti
 			priority = 0
 		}
 
-		dist := distance(aiPos.X, aiPos.Y, enemyPos.X, enemyPos.Y)
+		dist := Distance(aiPos.X, aiPos.Y, enemyPos.X, enemyPos.Y)
 
 		// Update best target if this is higher priority, or same priority but closer
 		if priority > bestPriority || (priority == bestPriority && dist < bestDistance) {
@@ -141,8 +141,8 @@ func SelectNearestEnemy(w donburi.World, aiEntity donburi.Entity) donburi.Entity
 
 		enemyPos := components.Position.Get(enemyEntry)
 
-		// Calculate distance using world-wrapping distance function from collision.go
-		dist := distance(aiPos.X, aiPos.Y, enemyPos.X, enemyPos.Y)
+		// Calculate distance using world-wrapping distance function
+		dist := Distance(aiPos.X, aiPos.Y, enemyPos.X, enemyPos.Y)
 
 		if dist < minDistance {
 			minDistance = dist
@@ -212,24 +212,7 @@ func UpdateAIMovement(w donburi.World) {
 			targetPos := components.Position.Get(targetEntry)
 
 			// Calculate angle to target (with world wrapping)
-			dx := targetPos.X - aiPos.X
-			dy := targetPos.Y - aiPos.Y
-
-			// Handle world wrapping for shortest path
-			if math.Abs(dx) > float64(config.GameWidth)/2 {
-				if dx > 0 {
-					dx = dx - float64(config.GameWidth)
-				} else {
-					dx = dx + float64(config.GameWidth)
-				}
-			}
-			if math.Abs(dy) > float64(config.GameHeight)/2 {
-				if dy > 0 {
-					dy = dy - float64(config.GameHeight)
-				} else {
-					dy = dy + float64(config.GameHeight)
-				}
-			}
+			dx, dy := GetWrappedDistance(aiPos.X, aiPos.Y, targetPos.X, targetPos.Y)
 
 			targetAngle := math.Atan2(dx, -dy)
 			angleDiff := NormalizeAngle(targetAngle - rotation.Angle)
@@ -290,24 +273,7 @@ func UpdateAIFiring(w donburi.World, playerEntity donburi.Entity, laserSprite, m
 		aiWeapon := components.Weapon.Get(aiEntry)
 
 		// Calculate angle to target (accounting for world wrapping)
-		dx := targetPos.X - aiPos.X
-		dy := targetPos.Y - aiPos.Y
-
-		// Handle world wrapping for shortest distance
-		if math.Abs(dx) > float64(config.GameWidth)/2 {
-			if dx > 0 {
-				dx = dx - float64(config.GameWidth)
-			} else {
-				dx = dx + float64(config.GameWidth)
-			}
-		}
-		if math.Abs(dy) > float64(config.GameHeight)/2 {
-			if dy > 0 {
-				dy = dy - float64(config.GameHeight)
-			} else {
-				dy = dy + float64(config.GameHeight)
-			}
-		}
+		dx, dy := GetWrappedDistance(aiPos.X, aiPos.Y, targetPos.X, targetPos.Y)
 
 		targetAngle := math.Atan2(dx, -dy)
 		angleDiff := NormalizeAngle(targetAngle - aiRot.Angle)

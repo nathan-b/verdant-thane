@@ -243,20 +243,7 @@ func FindNearestEnemyInRearArc(w donburi.World, shipEntry *donburi.Entry) (donbu
 		enemyPos := components.Position.Get(enemyEntry)
 
 		// Calculate direction to enemy (accounting for world wrapping)
-		dx := enemyPos.X - shipPos.X
-		dy := enemyPos.Y - shipPos.Y
-
-		// Handle world wrapping - choose shortest path
-		if dx > config.GameWidth/2 {
-			dx -= config.GameWidth
-		} else if dx < -config.GameWidth/2 {
-			dx += config.GameWidth
-		}
-		if dy > config.GameHeight/2 {
-			dy -= config.GameHeight
-		} else if dy < -config.GameHeight/2 {
-			dy += config.GameHeight
-		}
+		dx, dy := GetWrappedDistance(shipPos.X, shipPos.Y, enemyPos.X, enemyPos.Y)
 
 		// Calculate angle to enemy
 		enemyAngle := math.Atan2(dx, -dy)
@@ -305,20 +292,7 @@ func UpdateMissileTracking(w donburi.World) {
 		rotation := components.Rotation.Get(entry)
 
 		// Calculate direction to target (accounting for world wrapping)
-		dx := targetPos.X - missilePos.X
-		dy := targetPos.Y - missilePos.Y
-
-		// Handle world wrapping - choose shortest path
-		if dx > config.GameWidth/2 {
-			dx -= config.GameWidth
-		} else if dx < -config.GameWidth/2 {
-			dx += config.GameWidth
-		}
-		if dy > config.GameHeight/2 {
-			dy -= config.GameHeight
-		} else if dy < -config.GameHeight/2 {
-			dy += config.GameHeight
-		}
+		dx, dy := GetWrappedDistance(missilePos.X, missilePos.Y, targetPos.X, targetPos.Y)
 
 		// Calculate current velocity direction and desired direction
 		currentSpeed := math.Sqrt(velocity.X*velocity.X + velocity.Y*velocity.Y)

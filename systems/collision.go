@@ -1,8 +1,6 @@
 package systems
 
 import (
-	"math"
-
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/yohamta/donburi"
 	"github.com/yohamta/donburi/filter"
@@ -95,57 +93,6 @@ func (g *spatialGrid) clear() {
 	}
 }
 
-// distance calculates the distance between two points, accounting for world wrapping
-func distance(x1, y1, x2, y2 float64) float64 {
-	// Calculate direct distance
-	dx := x2 - x1
-	dy := y2 - y1
-
-	// Account for world wrapping - find shortest distance considering wrap-around
-	if math.Abs(dx) > float64(config.GameWidth)/2 {
-		if dx > 0 {
-			dx = dx - float64(config.GameWidth)
-		} else {
-			dx = dx + float64(config.GameWidth)
-		}
-	}
-	if math.Abs(dy) > float64(config.GameHeight)/2 {
-		if dy > 0 {
-			dy = dy - float64(config.GameHeight)
-		} else {
-			dy = dy + float64(config.GameHeight)
-		}
-	}
-
-	return math.Sqrt(dx*dx + dy*dy)
-}
-
-// distanceSquared calculates the squared distance between two points, accounting for world wrapping
-// Faster than distance() since it avoids the sqrt() operation
-func distanceSquared(x1, y1, x2, y2 float64) float64 {
-	// Calculate direct distance
-	dx := x2 - x1
-	dy := y2 - y1
-
-	// Account for world wrapping - find shortest distance considering wrap-around
-	if math.Abs(dx) > float64(config.GameWidth)/2 {
-		if dx > 0 {
-			dx = dx - float64(config.GameWidth)
-		} else {
-			dx = dx + float64(config.GameWidth)
-		}
-	}
-	if math.Abs(dy) > float64(config.GameHeight)/2 {
-		if dy > 0 {
-			dy = dy - float64(config.GameHeight)
-		} else {
-			dy = dy + float64(config.GameHeight)
-		}
-	}
-
-	return dx*dx + dy*dy
-}
-
 // UpdateCollisions checks for collisions between projectiles and ships
 // Projectiles damage ships of different factions
 // Updates player score and kill count when player destroys enemy ships
@@ -203,7 +150,7 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 			}
 
 			// Calculate squared distance (avoids expensive sqrt)
-			distSq := distanceSquared(projPos.X, projPos.Y, shipPos.X, shipPos.Y)
+			distSq := DistanceSquared(projPos.X, projPos.Y, shipPos.X, shipPos.Y)
 
 			// Check if collision occurred
 			if distSq < collisionDistSq {
