@@ -101,6 +101,8 @@ type Game struct {
 	instructionsDialog *ui.Dialog              // Instructions screen dialog
 	highScoresDialog   *ui.Dialog              // High scores screen dialog
 	highScores         *persistence.HighScores // High scores loaded at game start
+	battleNumber       int                     // Current battle number (1-indexed)
+	nextFleetConfig    *config.FleetConfig     // Config for next battle (used by interstitial)
 
 	// ECS World (interface, not pointer)
 	world             donburi.World
@@ -329,6 +331,13 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 	g.playerStateEntity = playerState
 	g.cameraX = playerPos.X - float64(config.ScreenWidth)/2
 	g.cameraY = playerPos.Y - float64(config.ScreenHeight)/2
+
+	// Set battle number to 1 if this is a fresh game (coming from title screen)
+	// Otherwise keep the current battle number (continuing from interstitial)
+	if g.battleNumber == 0 {
+		g.battleNumber = 1
+	}
+
 	g.currentState = InGame
 
 	return nil
@@ -557,10 +566,17 @@ func (g *Game) Update() error {
 		g.profileFrameCount++
 
 	case Victory:
-		// TODO: Handle victory screen (Milestone 5 Phase 6)
-		// For now, return to title screen on any key press
+		// Generate next battle configuration on first entry to Victory state
+		if g.nextFleetConfig == nil {
+			// Increment battle number and generate harder fleet
+			g.battleNumber++
+			nextConfig := config.GenerateRandomFleetConfig(rand.Int63())
+			g.nextFleetConfig = &nextConfig
+		}
+
+		// Transition to interstitial on key press
 		if ebiten.IsKeyPressed(ebiten.KeyEnter) || ebiten.IsKeyPressed(ebiten.KeySpace) {
-			g.currentState = TitleScreen
+			g.currentState = Interstitial
 		}
 
 	case GameOver:
@@ -645,10 +661,21 @@ func (g *Game) Update() error {
 		}
 
 	case Interstitial:
-		// TODO: Handle interstitial screen (Milestone 5 Phase 6)
+		// Handle interstitial screen - start next battle
 		if ebiten.IsKeyPressed(ebiten.KeyEnter) || ebiten.IsKeyPressed(ebiten.KeySpace) {
-			// Continue to next battle
-			g.currentState = TitleScreen
+			// Start next battle
+			if g.nextFleetConfig != nil {
+				if err := g.StartGame(*g.nextFleetConfig); err != nil {
+					log.Printf("Error starting next battle: %v", err)
+					g.currentState = TitleScreen
+				} else {
+					// Clear next fleet config after using it
+					g.nextFleetConfig = nil
+				}
+			} else {
+				// Fallback: return to title if no config
+				g.currentState = TitleScreen
+			}
 		}
 	}
 
@@ -906,14 +933,43 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 
 	case Victory:
-		// TODO: Implement victory screen (Milestone 5 Phase 6)
+		// Draw stars background
+		cameraX, cameraY := 0.0, 0.0
+		minGridX := int(cameraX) / config.StarGridSize
+		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
+		minGridY := int(cameraY) / config.StarGridSize
+		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+
+		for gridX := minGridX; gridX <= maxGridX; gridX++ {
+			for gridY := minGridY; gridY <= maxGridY; gridY++ {
+				stars := systems.GenerateStarsForGrid(gridX, gridY)
+				for _, star := range stars {
+					screenX := star.X - cameraX
+					screenY := star.Y - cameraY
+					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
+						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
+					}
+				}
+			}
+		}
+
+		// Display victory message
 		textColor := color.RGBA{255, 255, 255, 255}
-		victoryText := "VICTORY! Press ENTER to continue"
-		textWidth, _ := text.Measure(victoryText, g.hudFont, 0)
-		textOp := &text.DrawOptions{}
-		textOp.GeoM.Translate(float64(config.ScreenWidth/2)-textWidth/2, float64(config.ScreenHeight/2))
-		textOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, victoryText, g.hudFont, textOp)
+		goldColor := color.RGBA{255, 215, 0, 255}
+
+		victoryText := fmt.Sprintf("BATTLE %d COMPLETE - VICTORY!", g.battleNumber)
+		victoryWidth, _ := text.Measure(victoryText, g.hudFont, 0)
+		victoryOp := &text.DrawOptions{}
+		victoryOp.GeoM.Translate(float64(config.ScreenWidth/2)-victoryWidth/2, float64(config.ScreenHeight/2)-40)
+		victoryOp.ColorScale.ScaleWithColor(goldColor)
+		text.Draw(screen, victoryText, g.hudFont, victoryOp)
+
+		continueText := "Press ENTER to continue"
+		continueWidth, _ := text.Measure(continueText, g.hudFont, 0)
+		continueOp := &text.DrawOptions{}
+		continueOp.GeoM.Translate(float64(config.ScreenWidth/2)-continueWidth/2, float64(config.ScreenHeight/2)+20)
+		continueOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, continueText, g.hudFont, continueOp)
 
 	case GameOver:
 		// Draw stars background
@@ -992,14 +1048,77 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		ui.DrawHighScoresTable(screen, g.hudFont.Source, g.highScores)
 
 	case Interstitial:
-		// TODO: Implement interstitial screen (Milestone 5 Phase 6)
+		// Draw stars background
+		cameraX, cameraY := 0.0, 0.0
+		minGridX := int(cameraX) / config.StarGridSize
+		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
+		minGridY := int(cameraY) / config.StarGridSize
+		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+
+		for gridX := minGridX; gridX <= maxGridX; gridX++ {
+			for gridY := minGridY; gridY <= maxGridY; gridY++ {
+				stars := systems.GenerateStarsForGrid(gridX, gridY)
+				for _, star := range stars {
+					screenX := star.X - cameraX
+					screenY := star.Y - cameraY
+					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
+						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
+					}
+				}
+			}
+		}
+
+		// Display interstitial information
 		textColor := color.RGBA{255, 255, 255, 255}
-		interstitialText := "Battle Complete! Press ENTER to continue"
-		textWidth, _ := text.Measure(interstitialText, g.hudFont, 0)
-		textOp := &text.DrawOptions{}
-		textOp.GeoM.Translate(float64(config.ScreenWidth/2)-textWidth/2, float64(config.ScreenHeight/2))
-		textOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, interstitialText, g.hudFont, textOp)
+
+		// Get player stats
+		var score, kills int
+		if g.world.Valid(g.playerStateEntity) {
+			stateEntry := g.world.Entry(g.playerStateEntity)
+			state := components.PlayerState.Get(stateEntry)
+			score = state.Score
+			kills = state.Kills
+		}
+
+		// Display current stats
+		statsY := float64(config.ScreenHeight)/2 - 80
+		statsTitle := fmt.Sprintf("Battle %d Complete!", g.battleNumber)
+		statsTitleWidth, _ := text.Measure(statsTitle, g.hudFont, 0)
+		statsTitleOp := &text.DrawOptions{}
+		statsTitleOp.GeoM.Translate(float64(config.ScreenWidth/2)-statsTitleWidth/2, statsY)
+		statsTitleOp.ColorScale.ScaleWithColor(color.RGBA{255, 215, 0, 255})
+		text.Draw(screen, statsTitle, g.hudFont, statsTitleOp)
+
+		scoreText := fmt.Sprintf("Current Score: %d", score)
+		scoreWidth, _ := text.Measure(scoreText, g.hudFont, 0)
+		scoreOp := &text.DrawOptions{}
+		scoreOp.GeoM.Translate(float64(config.ScreenWidth/2)-scoreWidth/2, statsY+40)
+		scoreOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, scoreText, g.hudFont, scoreOp)
+
+		killsText := fmt.Sprintf("Total Kills: %d", kills)
+		killsWidth, _ := text.Measure(killsText, g.hudFont, 0)
+		killsOp := &text.DrawOptions{}
+		killsOp.GeoM.Translate(float64(config.ScreenWidth/2)-killsWidth/2, statsY+70)
+		killsOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, killsText, g.hudFont, killsOp)
+
+		// Next battle info
+		if g.nextFleetConfig != nil {
+			nextBattleText := fmt.Sprintf("Next Battle: %d factions", g.nextFleetConfig.NumFactions)
+			nextBattleWidth, _ := text.Measure(nextBattleText, g.hudFont, 0)
+			nextBattleOp := &text.DrawOptions{}
+			nextBattleOp.GeoM.Translate(float64(config.ScreenWidth/2)-nextBattleWidth/2, statsY+110)
+			nextBattleOp.ColorScale.ScaleWithColor(textColor)
+			text.Draw(screen, nextBattleText, g.hudFont, nextBattleOp)
+		}
+
+		continueText := "Press ENTER to continue"
+		continueWidth, _ := text.Measure(continueText, g.hudFont, 0)
+		continueOp := &text.DrawOptions{}
+		continueOp.GeoM.Translate(float64(config.ScreenWidth/2)-continueWidth/2, statsY+150)
+		continueOp.ColorScale.ScaleWithColor(textColor)
+		text.Draw(screen, continueText, g.hudFont, continueOp)
 	}
 }
 
