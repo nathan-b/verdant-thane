@@ -19,6 +19,7 @@ import (
 
 	"github.com/nathan/verdant-thane/components"
 	"github.com/nathan/verdant-thane/config"
+	"github.com/nathan/verdant-thane/persistence"
 	"github.com/nathan/verdant-thane/systems"
 	"github.com/nathan/verdant-thane/ui"
 )
@@ -94,8 +95,10 @@ func (p *ProfileData) Reset() {
 // Game represents the main game state
 type Game struct {
 	// Game state
-	currentState GameState
-	titleDialog  *ui.Dialog // Title screen dialog (only used in TitleScreen state)
+	currentState   GameState
+	titleDialog    *ui.Dialog              // Title screen dialog (only used in TitleScreen state)
+	gameOverScreen *ui.GameOverScreen      // Game over screen (only used in GameOver state)
+	highScores     *persistence.HighScores // High scores loaded at game start
 
 	// ECS World (interface, not pointer)
 	world             donburi.World
@@ -174,9 +177,18 @@ func NewGame() (*Game, error) {
 	// Create title screen dialog
 	titleDialog := ui.CreateTitleScreen()
 
+	// Load high scores
+	highScores, err := persistence.LoadHighScores()
+	if err != nil {
+		log.Printf("Warning: Failed to load high scores: %v", err)
+		highScores = &persistence.HighScores{Entries: []persistence.HighScore{}}
+	}
+
 	return &Game{
 		currentState:    TitleScreen,
 		titleDialog:     titleDialog,
+		gameOverScreen:  nil,
+		highScores:      highScores,
 		laserSprite:     laserSprite,
 		missileSprite:   missileSprite,
 		explosionSprite: explosionSprite,
@@ -538,10 +550,52 @@ func (g *Game) Update() error {
 		}
 
 	case GameOver:
-		// TODO: Handle game over screen (Milestone 5 Phase 3)
-		// For now, return to title screen on any key press
-		if ebiten.IsKeyPressed(ebiten.KeyEnter) || ebiten.IsKeyPressed(ebiten.KeySpace) {
-			g.currentState = TitleScreen
+		// Create game over screen if not already created
+		if g.gameOverScreen == nil {
+			// Get player stats
+			var score, kills, deaths int
+			if g.world.Valid(g.playerStateEntity) {
+				stateEntry := g.world.Entry(g.playerStateEntity)
+				state := components.PlayerState.Get(stateEntry)
+				score = state.Score
+				kills = state.Kills
+				deaths = state.Deaths
+			}
+
+			// Check if it's a high score
+			isHighScore := g.highScores.IsHighScore(score)
+
+			// Get default player name
+			playerName := persistence.GetCurrentUsername()
+
+			// Create game over screen
+			g.gameOverScreen = ui.NewGameOverScreen(playerName, score, kills, deaths, isHighScore)
+		}
+
+		// Handle text input for name
+		g.gameOverScreen.HandleInput()
+
+		// Handle Continue button click
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			mouseX, mouseY := ebiten.CursorPosition()
+			buttonIndex := g.gameOverScreen.HandleClick(mouseX, mouseY)
+
+			if buttonIndex == 0 { // Continue button clicked
+				// Save high score
+				playerName := g.gameOverScreen.GetPlayerName()
+				if g.world.Valid(g.playerStateEntity) {
+					stateEntry := g.world.Entry(g.playerStateEntity)
+					state := components.PlayerState.Get(stateEntry)
+					g.highScores.AddScore(playerName, state.Score, state.Kills, state.Deaths)
+					if err := persistence.SaveHighScores(g.highScores); err != nil {
+						log.Printf("Warning: Failed to save high scores: %v", err)
+					}
+				}
+
+				// Return to title screen and clear game over screen
+				g.gameOverScreen = nil
+				g.currentState = TitleScreen
+			}
 		}
 
 	case Instructions:
@@ -828,14 +882,30 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		text.Draw(screen, victoryText, g.hudFont, textOp)
 
 	case GameOver:
-		// TODO: Implement game over screen (Milestone 5 Phase 3)
-		textColor := color.RGBA{255, 255, 255, 255}
-		gameOverText := "GAME OVER - Press ENTER to continue"
-		textWidth, _ := text.Measure(gameOverText, g.hudFont, 0)
-		textOp := &text.DrawOptions{}
-		textOp.GeoM.Translate(float64(config.ScreenWidth/2)-textWidth/2, float64(config.ScreenHeight/2))
-		textOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, gameOverText, g.hudFont, textOp)
+		// Draw stars background
+		cameraX, cameraY := 0.0, 0.0
+		minGridX := int(cameraX) / config.StarGridSize
+		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
+		minGridY := int(cameraY) / config.StarGridSize
+		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+
+		for gridX := minGridX; gridX <= maxGridX; gridX++ {
+			for gridY := minGridY; gridY <= maxGridY; gridY++ {
+				stars := systems.GenerateStarsForGrid(gridX, gridY)
+				for _, star := range stars {
+					screenX := star.X - cameraX
+					screenY := star.Y - cameraY
+					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
+						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
+					}
+				}
+			}
+		}
+
+		// Draw game over screen
+		if g.gameOverScreen != nil {
+			g.gameOverScreen.Draw(screen, g.hudFont.Source)
+		}
 
 	case Instructions:
 		// TODO: Implement instructions screen (Milestone 5 Phase 4)
