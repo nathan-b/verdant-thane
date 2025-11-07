@@ -7,22 +7,23 @@ import (
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 	"github.com/nathan/verdant-thane/systems"
 )
 
 func TestGenerateFleetConfig_Deterministic(t *testing.T) {
 	// Test specific configuration
-	config := GenerateFleetConfig(3, 10)
+	fleetConfig := config.GenerateFleetConfig(3, 10)
 
-	if config.NumFactions != 3 {
-		t.Errorf("Expected 3 factions, got %d", config.NumFactions)
+	if fleetConfig.NumFactions != 3 {
+		t.Errorf("Expected 3 factions, got %d", fleetConfig.NumFactions)
 	}
 
-	if len(config.Compositions) != 3 {
-		t.Errorf("Expected 3 faction entries, got %d", len(config.Compositions))
+	if len(fleetConfig.Compositions) != 3 {
+		t.Errorf("Expected 3 faction entries, got %d", len(fleetConfig.Compositions))
 	}
 
-	for i, comp := range config.Compositions {
+	for i, comp := range fleetConfig.Compositions {
 		if comp.Fighters != 10 {
 			t.Errorf("Expected 10 fighters for faction %d, got %d", i, comp.Fighters)
 		}
@@ -35,20 +36,20 @@ func TestGenerateFleetConfig_Deterministic(t *testing.T) {
 
 func TestGenerateFleetConfig_BoundsChecking(t *testing.T) {
 	// Test lower bound (< 2 factions should be clamped to 2)
-	config := GenerateFleetConfig(1, 5)
-	if config.NumFactions != 2 {
-		t.Errorf("Expected 2 factions (clamped from 1), got %d", config.NumFactions)
+	fleetConfig := config.GenerateFleetConfig(1, 5)
+	if fleetConfig.NumFactions != 2 {
+		t.Errorf("Expected 2 factions (clamped from 1), got %d", fleetConfig.NumFactions)
 	}
 
 	// Test upper bound (> 4 factions should be clamped to 4)
-	config = GenerateFleetConfig(10, 5)
-	if config.NumFactions != 4 {
-		t.Errorf("Expected 4 factions (clamped from 10), got %d", config.NumFactions)
+	fleetConfig = config.GenerateFleetConfig(10, 5)
+	if fleetConfig.NumFactions != 4 {
+		t.Errorf("Expected 4 factions (clamped from 10), got %d", fleetConfig.NumFactions)
 	}
 
 	// Test minimum ships (< 1 should be clamped to 1)
-	config = GenerateFleetConfig(2, 0)
-	for i, comp := range config.Compositions {
+	fleetConfig = config.GenerateFleetConfig(2, 0)
+	for i, comp := range fleetConfig.Compositions {
 		if comp.Fighters != 1 {
 			t.Errorf("Expected 1 fighter (clamped from 0) for faction %d, got %d", i, comp.Fighters)
 		}
@@ -59,8 +60,8 @@ func TestGenerateRandomFleetConfig_SeedDeterminism(t *testing.T) {
 	const seed = int64(42)
 
 	// Generate two configs with same seed
-	config1 := GenerateRandomFleetConfig(seed)
-	config2 := GenerateRandomFleetConfig(seed)
+	config1 := config.GenerateRandomFleetConfig(seed)
+	config2 := config.GenerateRandomFleetConfig(seed)
 
 	// They should be identical
 	if config1.NumFactions != config2.NumFactions {
@@ -84,15 +85,15 @@ func TestGenerateRandomFleetConfig_SeedDeterminism(t *testing.T) {
 func TestGenerateRandomFleetConfig_BoundsChecking(t *testing.T) {
 	// Test multiple random configs to ensure they stay within bounds
 	for i := 0; i < 20; i++ {
-		config := GenerateRandomFleetConfig(int64(i))
+		fleetConfig := config.GenerateRandomFleetConfig(int64(i))
 
 		// Check faction count (2-4)
-		if config.NumFactions < 2 || config.NumFactions > 4 {
-			t.Errorf("Faction count out of bounds: %d (expected 2-4)", config.NumFactions)
+		if fleetConfig.NumFactions < 2 || fleetConfig.NumFactions > 4 {
+			t.Errorf("Faction count out of bounds: %d (expected 2-4)", fleetConfig.NumFactions)
 		}
 
 		// Check total ships per faction (should be <= 16 since fighter budget is 7-16)
-		for factionID, comp := range config.Compositions {
+		for factionID, comp := range fleetConfig.Compositions {
 			totalShips := comp.Total()
 			if totalShips < 1 || totalShips > 16 {
 				t.Errorf("Total ships for faction %d out of bounds: %d (expected 1-16)", factionID, totalShips)
@@ -103,7 +104,7 @@ func TestGenerateRandomFleetConfig_BoundsChecking(t *testing.T) {
 
 func TestSpawnMultipleFactions(t *testing.T) {
 	// Create a test fleet config
-	config := GenerateFleetConfig(3, 5) // 3 factions, 5 ships each
+	config := config.GenerateFleetConfig(3, 5) // 3 factions, 5 ships each
 
 	// Create world
 	world := donburi.NewWorld()
@@ -160,7 +161,7 @@ func TestSpawnMultipleFactions(t *testing.T) {
 
 func TestPlayerShipAssignment(t *testing.T) {
 	// Create a test fleet config
-	config := GenerateFleetConfig(2, 3) // 2 factions, 3 ships each
+	config := config.GenerateFleetConfig(2, 3) // 2 factions, 3 ships each
 
 	// Create world
 	world := donburi.NewWorld()

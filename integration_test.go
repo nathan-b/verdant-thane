@@ -9,6 +9,7 @@ import (
 	"github.com/yohamta/donburi/filter"
 
 	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
 	"github.com/nathan/verdant-thane/systems"
 )
 
@@ -347,7 +348,7 @@ func TestFleetSpawningIntegration(t *testing.T) {
 	factionSprites := createTestFactionSprites()
 
 	// Create a fleet configuration
-	fleetConfig := GenerateFleetConfig(3, 5) // 3 factions, 5 ships each
+	fleetConfig := config.GenerateFleetConfig(3, 5) // 3 factions, 5 ships each
 
 	// Spawn all ships
 	var playerShip donburi.Entity

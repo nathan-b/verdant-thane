@@ -3,6 +3,8 @@ package main
 import (
 	"math/rand"
 	"testing"
+
+	"github.com/nathan/verdant-thane/config"
 )
 
 // TestGetFleetComposition_BalanceEquivalence verifies the balance system
@@ -27,10 +29,10 @@ func TestGetFleetComposition_BalanceEquivalence(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create multiple compositions with same budget
 			rng := rand.New(rand.NewSource(42))
-			compositions := make([]FactionComposition, 5)
+			compositions := make([]config.FactionComposition, 5)
 
 			for i := range compositions {
-				compositions[i] = getFleetComposition(rng, tt.fighterBudget, tt.maxDestroyers, tt.maxTestudons)
+				compositions[i] = config.GetFleetComposition(rng, tt.fighterBudget, tt.maxDestroyers, tt.maxTestudons)
 			}
 
 			// Verify each composition's total "cost" equals the budget
@@ -71,7 +73,7 @@ func TestGetFleetComposition_RespectsLimits(t *testing.T) {
 
 			// Test multiple times to ensure limits are always respected
 			for i := 0; i < 10; i++ {
-				comp := getFleetComposition(rng, 32, tt.maxDestroyers, tt.maxTestudons)
+				comp := config.GetFleetComposition(rng, 32, tt.maxDestroyers, tt.maxTestudons)
 
 				if comp.Destroyers > tt.maxDestroyers {
 					t.Errorf("Destroyers exceed limit: got %d, max %d", comp.Destroyers, tt.maxDestroyers)
@@ -90,13 +92,13 @@ func TestGetFleetComposition_Variety(t *testing.T) {
 	rng := rand.New(rand.NewSource(123))
 
 	// Generate 10 compositions
-	compositions := make([]FactionComposition, 10)
+	compositions := make([]config.FactionComposition, 10)
 	for i := range compositions {
-		compositions[i] = getFleetComposition(rng, fighterBudget, 999, 999)
+		compositions[i] = config.GetFleetComposition(rng, fighterBudget, 999, 999)
 	}
 
 	// Count how many unique compositions we got
-	uniqueComps := make(map[FactionComposition]bool)
+	uniqueComps := make(map[config.FactionComposition]bool)
 	for _, comp := range compositions {
 		uniqueComps[comp] = true
 	}

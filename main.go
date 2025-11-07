@@ -34,126 +34,6 @@ var (
 	useTestudon  = flag.Bool("testudon", false, "Guarantee each faction spawns with one AI-controlled testudon")
 )
 
-// FactionComposition defines the ship class breakdown for a single faction
-type FactionComposition struct {
-	Fighters   int
-	Destroyers int
-	Testudons  int
-}
-
-// Total returns the total number of ships in this composition
-func (fc FactionComposition) Total() int {
-	return fc.Fighters + fc.Destroyers + fc.Testudons
-}
-
-// getFleetComposition converts a fighter budget into a mixed fleet composition
-// using random exchanges at specified equivalence rates:
-//   - 1 Destroyer = 4 Fighters
-//   - 1 Testudon = 8 Fighters
-//
-// Each faction gets a different random composition from the same budget.
-// Respects max limits for each ship type (e.g., no testudons until round 3).
-func getFleetComposition(rng *rand.Rand, numFighters int, maxDestroyers int, maxTestudons int) FactionComposition {
-	const (
-		destroyerCost = 4 // fighters per destroyer
-		testudonCost  = 8 // fighters per testudon
-	)
-
-	remainingFighters := numFighters
-	destroyers := 0
-	testudons := 0
-
-	// First, randomly purchase testudons (most expensive)
-	// Each testudon has a probability of being purchased if we can afford it
-	for testudons < maxTestudons && remainingFighters >= testudonCost {
-		// ~33% chance to purchase a testudon (tunable)
-		if rng.Float64() < 0.33 {
-			testudons++
-			remainingFighters -= testudonCost
-		} else {
-			break // Stop trying to buy testudons
-		}
-	}
-
-	// Next, randomly purchase destroyers
-	// Each destroyer has a probability of being purchased if we can afford it
-	for destroyers < maxDestroyers && remainingFighters >= destroyerCost {
-		// ~50% chance to purchase a destroyer (tunable)
-		if rng.Float64() < 0.50 {
-			destroyers++
-			remainingFighters -= destroyerCost
-		} else {
-			break // Stop trying to buy destroyers
-		}
-	}
-
-	return FactionComposition{
-		Fighters:   remainingFighters,
-		Destroyers: destroyers,
-		Testudons:  testudons,
-	}
-}
-
-// FleetConfig defines the composition of ships across factions
-type FleetConfig struct {
-	// Number of factions participating (2-4)
-	NumFactions int
-	// Ship composition per faction (indexed by faction ID)
-	Compositions []FactionComposition
-}
-
-// GenerateFleetConfig creates a deterministic fleet configuration
-// for testing specific scenarios (all factions get fighters only)
-func GenerateFleetConfig(numFactions, shipsPerFaction int) FleetConfig {
-	if numFactions < 2 {
-		numFactions = 2
-	}
-	if numFactions > 4 {
-		numFactions = 4
-	}
-	if shipsPerFaction < 1 {
-		shipsPerFaction = 1
-	}
-
-	compositions := make([]FactionComposition, numFactions)
-	for i := 0; i < numFactions; i++ {
-		compositions[i] = FactionComposition{
-			Fighters:   shipsPerFaction,
-			Destroyers: 0,
-			Testudons:  0,
-		}
-	}
-
-	return FleetConfig{
-		NumFactions:  numFactions,
-		Compositions: compositions,
-	}
-}
-
-// GenerateRandomFleetConfig creates a randomized fleet configuration
-// using the provided seed for reproducibility
-// Generates 2-4 factions with balanced but varied ship compositions
-func GenerateRandomFleetConfig(seed int64) FleetConfig {
-	rng := rand.New(rand.NewSource(seed))
-
-	// Random number of factions (2-4)
-	numFactions := rng.Intn(3) + 2 // 2, 3, or 4
-
-	// Each faction gets a balanced fleet from a random fighter budget (7-16)
-	// For now, we allow unlimited destroyers and testudons (TODO: add round limits)
-	compositions := make([]FactionComposition, numFactions)
-	for i := 0; i < numFactions; i++ {
-		fighterBudget := rng.Intn(10) + 7 // 7 to 16 inclusive
-		// Unlimited destroyers and testudons for now
-		compositions[i] = getFleetComposition(rng, fighterBudget, 999, 999)
-	}
-
-	return FleetConfig{
-		NumFactions:  numFactions,
-		Compositions: compositions,
-	}
-}
-
 // GameState represents the current state of the game
 type GameState int
 
@@ -240,64 +120,6 @@ type Game struct {
 	lastProfileTime   time.Time
 }
 
-// modulo performs proper modulo operation (handles negatives correctly)
-func modulo(a, b int) int {
-	return ((a % b) + b) % b
-}
-
-// hashPosition creates a deterministic hash for a grid position
-// Wraps grid coordinates to ensure consistent stars across world boundaries
-func hashPosition(gridX, gridY int) int {
-	// Calculate number of grid cells in the game world
-	gridCountX := config.GameWidth / config.StarGridSize
-	gridCountY := config.GameHeight / config.StarGridSize
-
-	// Wrap grid coordinates to ensure tiling
-	wrappedX := modulo(gridX, gridCountX)
-	wrappedY := modulo(gridY, gridCountY)
-
-	// Simple hash function for deterministic random generation
-	h := wrappedX*73856093 ^ wrappedY*19349663
-	if h < 0 {
-		h = -h
-	}
-	return h
-}
-
-// generateStarsForGrid generates stars for a specific grid cell
-func generateStarsForGrid(gridX, gridY int) []struct{ x, y float64 } {
-	stars := []struct{ x, y float64 }{}
-
-	// Use hash as seed for this grid cell (hash handles wrapping internally)
-	seed := hashPosition(gridX, gridY)
-
-	// Determine number of stars in this grid cell
-	area := float64(config.StarGridSize * config.StarGridSize)
-	numStars := int(area * config.StarDensity)
-
-	// Generate deterministic "random" positions within this grid
-	for i := 0; i < numStars; i++ {
-		// Simple LCG (Linear Congruential Generator) for deterministic randomness
-		seed = (seed*1103515245 + 12345) & 0x7fffffff
-		offsetX := float64(seed % config.StarGridSize)
-
-		seed = (seed*1103515245 + 12345) & 0x7fffffff
-		offsetY := float64(seed % config.StarGridSize)
-
-		// Calculate base position for this grid cell
-		baseX := float64(gridX * config.StarGridSize)
-		baseY := float64(gridY * config.StarGridSize)
-
-		// Star position in world coordinates
-		x := baseX + offsetX
-		y := baseY + offsetY
-
-		stars = append(stars, struct{ x, y float64 }{x, y})
-	}
-
-	return stars
-}
-
 // NewGame creates and initializes a new game, starting at the title screen
 func NewGame() (*Game, error) {
 	// Load shared assets
@@ -356,7 +178,7 @@ func NewGame() (*Game, error) {
 }
 
 // StartGame transitions from title screen to in-game state by spawning ships
-func (g *Game) StartGame(fleetConfig FleetConfig) error {
+func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 	// Create ECS world
 	g.world = donburi.NewWorld()
 
@@ -501,7 +323,7 @@ func (g *Game) Update() error {
 
 			if buttonIndex == 0 { // "Play Game" button
 				// Generate random fleet configuration
-				fleetConfig := GenerateRandomFleetConfig(rand.Int63())
+				fleetConfig := config.GenerateRandomFleetConfig(rand.Int63())
 				if err := g.StartGame(fleetConfig); err != nil {
 					return fmt.Errorf("failed to start game: %w", err)
 				}
@@ -618,10 +440,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
 			for gridY := minGridY; gridY <= maxGridY; gridY++ {
-				stars := generateStarsForGrid(gridX, gridY)
+				stars := systems.GenerateStarsForGrid(gridX, gridY)
 				for _, star := range stars {
-					screenX := star.x - cameraX
-					screenY := star.y - cameraY
+					screenX := star.X - cameraX
+					screenY := star.Y - cameraY
 					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
 						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
 					}
@@ -661,7 +483,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		// Draw stars for visible grid cells
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
 			for gridY := minGridY; gridY <= maxGridY; gridY++ {
-				stars := generateStarsForGrid(gridX, gridY)
+				stars := systems.GenerateStarsForGrid(gridX, gridY)
 				for _, star := range stars {
 					// Convert star position to screen coordinates
 					// We need to handle wrapping: stars might need to be drawn at wrapped positions
@@ -676,25 +498,25 @@ func (g *Game) Draw(screen *ebiten.Image) {
 					}
 
 					// Draw star at its primary position
-					drawStarAtPosition(star.x, star.y)
+					drawStarAtPosition(star.X, star.Y)
 
 					// Also check if we should draw the star at wrapped positions
 					// This handles the case where the camera is near world boundaries
-					if star.x < g.cameraX {
+					if star.X < g.cameraX {
 						// Star is to the left of camera, try drawing wrapped to the right
-						drawStarAtPosition(star.x+float64(config.GameWidth), star.y)
+						drawStarAtPosition(star.X+float64(config.GameWidth), star.Y)
 					}
-					if star.x > g.cameraX+float64(config.ScreenWidth) {
+					if star.X > g.cameraX+float64(config.ScreenWidth) {
 						// Star is to the right of camera, try drawing wrapped to the left
-						drawStarAtPosition(star.x-float64(config.GameWidth), star.y)
+						drawStarAtPosition(star.X-float64(config.GameWidth), star.Y)
 					}
-					if star.y < g.cameraY {
+					if star.Y < g.cameraY {
 						// Star is above camera, try drawing wrapped below
-						drawStarAtPosition(star.x, star.y+float64(config.GameHeight))
+						drawStarAtPosition(star.X, star.Y+float64(config.GameHeight))
 					}
-					if star.y > g.cameraY+float64(config.ScreenHeight) {
+					if star.Y > g.cameraY+float64(config.ScreenHeight) {
 						// Star is below camera, try drawing wrapped above
-						drawStarAtPosition(star.x, star.y-float64(config.GameHeight))
+						drawStarAtPosition(star.X, star.Y-float64(config.GameHeight))
 					}
 				}
 			}
@@ -847,21 +669,21 @@ func main() {
 		baseShips := *perfShips / *perfFactions
 		remainder := *perfShips % *perfFactions
 
-		compositions := make([]FactionComposition, *perfFactions)
+		compositions := make([]config.FactionComposition, *perfFactions)
 		for i := 0; i < *perfFactions; i++ {
 			numShips := baseShips
 			if i < remainder {
 				numShips++
 			}
 			// For performance tests, all ships are fighters
-			compositions[i] = FactionComposition{
+			compositions[i] = config.FactionComposition{
 				Fighters:   numShips,
 				Destroyers: 0,
 				Testudons:  0,
 			}
 		}
 
-		fleetConfig := FleetConfig{
+		fleetConfig := config.FleetConfig{
 			NumFactions:  *perfFactions,
 			Compositions: compositions,
 		}
