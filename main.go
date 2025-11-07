@@ -99,6 +99,7 @@ type Game struct {
 	titleDialog        *ui.Dialog              // Title screen dialog (only used in TitleScreen state)
 	gameOverScreen     *ui.GameOverScreen      // Game over screen (only used in GameOver state)
 	instructionsDialog *ui.Dialog              // Instructions screen dialog
+	highScoresDialog   *ui.Dialog              // High scores screen dialog
 	highScores         *persistence.HighScores // High scores loaded at game start
 
 	// ECS World (interface, not pointer)
@@ -181,6 +182,9 @@ func NewGame() (*Game, error) {
 	// Create instructions dialog
 	instructionsDialog := ui.CreateInstructionsDialog()
 
+	// Create high scores dialog
+	highScoresDialog := ui.CreateHighScoresDialog()
+
 	// Load high scores
 	highScores, err := persistence.LoadHighScores()
 	if err != nil {
@@ -193,6 +197,7 @@ func NewGame() (*Game, error) {
 		titleDialog:        titleDialog,
 		gameOverScreen:     nil,
 		instructionsDialog: instructionsDialog,
+		highScoresDialog:   highScoresDialog,
 		highScores:         highScores,
 		laserSprite:        laserSprite,
 		missileSprite:      missileSprite,
@@ -356,8 +361,10 @@ func (g *Game) Update() error {
 				}
 			} else if buttonIndex == 2 { // "Instructions" button
 				g.currentState = Instructions
+			} else if buttonIndex == 3 { // "High Scores" button
+				g.currentState = HighScores
 			}
-			// TODO: Handle other buttons (Settings, High Scores)
+			// TODO: Handle other button (Settings)
 		}
 
 	case InGame:
@@ -622,7 +629,17 @@ func (g *Game) Update() error {
 		}
 
 	case HighScores:
-		// TODO: Handle high scores screen (Milestone 5 Phase 5)
+		// Handle high scores screen Back button
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			mouseX, mouseY := ebiten.CursorPosition()
+			buttonIndex := ui.CheckButtonClick(g.highScoresDialog, mouseX, mouseY)
+
+			if buttonIndex == 0 { // Back button clicked
+				g.currentState = TitleScreen
+			}
+		}
+
+		// Also handle ESC key
 		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 			g.currentState = TitleScreen
 		}
@@ -950,14 +967,29 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		ui.DrawInstructionsText(screen, g.hudFont.Source)
 
 	case HighScores:
-		// TODO: Implement high scores screen (Milestone 5 Phase 5)
-		textColor := color.RGBA{255, 255, 255, 255}
-		highScoresText := "High Scores - Press ESC to return"
-		textWidth, _ := text.Measure(highScoresText, g.hudFont, 0)
-		textOp := &text.DrawOptions{}
-		textOp.GeoM.Translate(float64(config.ScreenWidth/2)-textWidth/2, float64(config.ScreenHeight/2))
-		textOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, highScoresText, g.hudFont, textOp)
+		// Draw stars background
+		cameraX, cameraY := 0.0, 0.0
+		minGridX := int(cameraX) / config.StarGridSize
+		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
+		minGridY := int(cameraY) / config.StarGridSize
+		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+
+		for gridX := minGridX; gridX <= maxGridX; gridX++ {
+			for gridY := minGridY; gridY <= maxGridY; gridY++ {
+				stars := systems.GenerateStarsForGrid(gridX, gridY)
+				for _, star := range stars {
+					screenX := star.X - cameraX
+					screenY := star.Y - cameraY
+					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
+						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
+					}
+				}
+			}
+		}
+
+		// Draw high scores dialog and table
+		ui.RenderDialog(screen, g.highScoresDialog, g.hudFont)
+		ui.DrawHighScoresTable(screen, g.hudFont.Source, g.highScores)
 
 	case Interstitial:
 		// TODO: Implement interstitial screen (Milestone 5 Phase 6)
