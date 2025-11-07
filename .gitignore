@@ -7,6 +7,11 @@ verdant-thane.exe
 *.so
 *.dylib
 
+# Internal documentation, to be cleaned up and checked in after development is complete
+doc/
+WORK.md
+PLAN.md
+
 # Test binary, built with `go test -c`
 *.test
 
