@@ -95,10 +95,11 @@ func (p *ProfileData) Reset() {
 // Game represents the main game state
 type Game struct {
 	// Game state
-	currentState   GameState
-	titleDialog    *ui.Dialog              // Title screen dialog (only used in TitleScreen state)
-	gameOverScreen *ui.GameOverScreen      // Game over screen (only used in GameOver state)
-	highScores     *persistence.HighScores // High scores loaded at game start
+	currentState       GameState
+	titleDialog        *ui.Dialog              // Title screen dialog (only used in TitleScreen state)
+	gameOverScreen     *ui.GameOverScreen      // Game over screen (only used in GameOver state)
+	instructionsDialog *ui.Dialog              // Instructions screen dialog
+	highScores         *persistence.HighScores // High scores loaded at game start
 
 	// ECS World (interface, not pointer)
 	world             donburi.World
@@ -177,6 +178,9 @@ func NewGame() (*Game, error) {
 	// Create title screen dialog
 	titleDialog := ui.CreateTitleScreen()
 
+	// Create instructions dialog
+	instructionsDialog := ui.CreateInstructionsDialog()
+
 	// Load high scores
 	highScores, err := persistence.LoadHighScores()
 	if err != nil {
@@ -185,17 +189,18 @@ func NewGame() (*Game, error) {
 	}
 
 	return &Game{
-		currentState:    TitleScreen,
-		titleDialog:     titleDialog,
-		gameOverScreen:  nil,
-		highScores:      highScores,
-		laserSprite:     laserSprite,
-		missileSprite:   missileSprite,
-		explosionSprite: explosionSprite,
-		factionSprites:  factionSprites,
-		hudFont:         hudFont,
-		lastFPSTime:     time.Now(),
-		lastProfileTime: time.Now(),
+		currentState:       TitleScreen,
+		titleDialog:        titleDialog,
+		gameOverScreen:     nil,
+		instructionsDialog: instructionsDialog,
+		highScores:         highScores,
+		laserSprite:        laserSprite,
+		missileSprite:      missileSprite,
+		explosionSprite:    explosionSprite,
+		factionSprites:     factionSprites,
+		hudFont:            hudFont,
+		lastFPSTime:        time.Now(),
+		lastProfileTime:    time.Now(),
 	}, nil
 }
 
@@ -349,8 +354,10 @@ func (g *Game) Update() error {
 				if err := g.StartGame(fleetConfig); err != nil {
 					return fmt.Errorf("failed to start game: %w", err)
 				}
+			} else if buttonIndex == 2 { // "Instructions" button
+				g.currentState = Instructions
 			}
-			// TODO: Handle other buttons (Settings, Instructions, High Scores)
+			// TODO: Handle other buttons (Settings, High Scores)
 		}
 
 	case InGame:
@@ -599,7 +606,17 @@ func (g *Game) Update() error {
 		}
 
 	case Instructions:
-		// TODO: Handle instructions screen (Milestone 5 Phase 4)
+		// Handle instructions screen Back button
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			mouseX, mouseY := ebiten.CursorPosition()
+			buttonIndex := ui.CheckButtonClick(g.instructionsDialog, mouseX, mouseY)
+
+			if buttonIndex == 0 { // Back button clicked
+				g.currentState = TitleScreen
+			}
+		}
+
+		// Also handle ESC key
 		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 			g.currentState = TitleScreen
 		}
@@ -908,14 +925,29 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 
 	case Instructions:
-		// TODO: Implement instructions screen (Milestone 5 Phase 4)
-		textColor := color.RGBA{255, 255, 255, 255}
-		instructionsText := "Instructions - Press ESC to return"
-		textWidth, _ := text.Measure(instructionsText, g.hudFont, 0)
-		textOp := &text.DrawOptions{}
-		textOp.GeoM.Translate(float64(config.ScreenWidth/2)-textWidth/2, float64(config.ScreenHeight/2))
-		textOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, instructionsText, g.hudFont, textOp)
+		// Draw stars background
+		cameraX, cameraY := 0.0, 0.0
+		minGridX := int(cameraX) / config.StarGridSize
+		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
+		minGridY := int(cameraY) / config.StarGridSize
+		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+
+		for gridX := minGridX; gridX <= maxGridX; gridX++ {
+			for gridY := minGridY; gridY <= maxGridY; gridY++ {
+				stars := systems.GenerateStarsForGrid(gridX, gridY)
+				for _, star := range stars {
+					screenX := star.X - cameraX
+					screenY := star.Y - cameraY
+					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
+						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
+					}
+				}
+			}
+		}
+
+		// Draw instructions dialog and content
+		ui.RenderDialog(screen, g.instructionsDialog, g.hudFont)
+		ui.DrawInstructionsText(screen, g.hudFont.Source)
 
 	case HighScores:
 		// TODO: Implement high scores screen (Milestone 5 Phase 5)
