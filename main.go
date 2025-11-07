@@ -332,12 +332,6 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 	g.cameraX = playerPos.X - float64(config.ScreenWidth)/2
 	g.cameraY = playerPos.Y - float64(config.ScreenHeight)/2
 
-	// Set battle number to 1 if this is a fresh game (coming from title screen)
-	// Otherwise keep the current battle number (continuing from interstitial)
-	if g.battleNumber == 0 {
-		g.battleNumber = 1
-	}
-
 	g.currentState = InGame
 
 	return nil
@@ -457,7 +451,10 @@ func (g *Game) Update() error {
 				// Handle spacebar respawn (only on key press, not held)
 				if keySpace && !g.prevKeySpace {
 					// Space was just pressed - try to respawn into spectated ship
-					systems.RespawnIntoShip(g.world, playerStateEntry)
+					if systems.RespawnIntoShip(g.world, playerStateEntry) {
+						// Successfully respawned - update player entity
+						g.playerEntity = playerState.ControlledShip
+					}
 				}
 
 				// Update previous key states

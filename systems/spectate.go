@@ -203,8 +203,24 @@ func RespawnIntoShip(w donburi.World, playerStateEntry *donburi.Entry) bool {
 	var emptyEntity donburi.Entity
 	state.SpectatedShip = emptyEntity
 
-	// Max out shields on the respawned ship
+	// Update ship control tags and remove AI components
 	entry := w.Entry(state.ControlledShip)
+
+	// Remove AIControlled tag and add PlayerControlled tag
+	if entry.HasComponent(components.AIControlled) {
+		entry.RemoveComponent(components.AIControlled)
+	}
+	entry.AddComponent(components.PlayerControlled)
+
+	// Remove AI-specific components so AI systems don't process this ship
+	if entry.HasComponent(components.AIState) {
+		entry.RemoveComponent(components.AIState)
+	}
+	if entry.HasComponent(components.AITarget) {
+		entry.RemoveComponent(components.AITarget)
+	}
+
+	// Max out shields on the respawned ship
 	if entry.HasComponent(components.Health) {
 		health := components.Health.Get(entry)
 		health.Current = health.Max
