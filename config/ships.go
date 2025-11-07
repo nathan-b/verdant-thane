@@ -33,7 +33,7 @@ var ShipDatabase = map[components.ShipClass]ShipCharacteristics{
 		MaxShield:           32,                              // Heavy armor (4x fighter)
 		CapacitorChargeRate: 1.0 / ((600.0 / 1000.0) * 60.0), // Same as fighter for main gun
 		FiringCone:          30.0 * 0.017453292519943295,     // 30 degrees in radians
-		BaseSpritePath:      "assets/destroyer_gray.png",
+		BaseSpritePath:      "assets/destroyer.png",
 	},
 	components.Testudon: {
 		Class:               components.Testudon,
@@ -42,7 +42,7 @@ var ShipDatabase = map[components.ShipClass]ShipCharacteristics{
 		MaxShield:           100,        // Heavy armor (12.5x fighter)
 		CapacitorChargeRate: 0.0,        // No projectile weapon
 		FiringCone:          0.0,        // No firing cone (360° beam weapon)
-		BaseSpritePath:      "assets/testudon_gray.png",
+		BaseSpritePath:      "assets/testudon.png",
 	},
 }
 

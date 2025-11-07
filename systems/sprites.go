@@ -62,13 +62,13 @@ func LoadFactionSpritesWithBasePath(basePath string) (*FactionSprites, error) {
 	}
 
 	// Load destroyer sprites
-	destroyerSprites, err := loadShipClassSprites(basePath + "/destroyer_gray.png")
+	destroyerSprites, err := loadShipClassSprites(basePath + "/destroyer.png")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load destroyer sprites: %w", err)
 	}
 
 	// Load testudon sprites
-	testudonSprites, err := loadShipClassSprites(basePath + "/testudon_gray.png")
+	testudonSprites, err := loadShipClassSprites(basePath + "/testudon.png")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load testudon sprites: %w", err)
 	}
