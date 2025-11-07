@@ -187,6 +187,32 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 		}
 	}
 
+	// Check if player ship was destroyed and handle spectate mode
+	playerStateQuery := donburi.NewQuery(filter.Contains(components.PlayerState))
+	if playerStateEntry, ok := playerStateQuery.First(w); ok {
+		state := components.PlayerState.Get(playerStateEntry)
+		playerShip := state.ControlledShip
+
+		// Check if player's ship is in the list of ships to remove
+		playerShipDestroyed := false
+		for _, entity := range shipsToRemove {
+			if entity == playerShip {
+				playerShipDestroyed = true
+				break
+			}
+		}
+
+		// If player ship was destroyed, enter spectate mode before removing ships
+		if playerShipDestroyed && w.Valid(playerShip) {
+			// Get player faction
+			playerEntry := w.Entry(playerShip)
+			faction := components.Faction.Get(playerEntry)
+
+			// Enter spectate mode (will select an allied ship)
+			EnterSpectateMode(w, playerStateEntry, faction.ID)
+		}
+	}
+
 	// Remove destroyed ships
 	for _, entity := range shipsToRemove {
 		if w.Valid(entity) {
@@ -212,10 +238,8 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 	}
 
 	// Update player score and kills if player got any kills
-	// Find player state entity
-	playerStateQuery := donburi.NewQuery(filter.Contains(components.PlayerState))
-	playerStateEntry, ok := playerStateQuery.First(w)
-	if ok {
+	// Find player state entity (reuse query from above)
+	if playerStateEntry, ok := playerStateQuery.First(w); ok {
 		state := components.PlayerState.Get(playerStateEntry)
 		playerShip := state.ControlledShip
 

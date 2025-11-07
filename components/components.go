@@ -125,9 +125,12 @@ var Missile = donburi.NewComponentType[MissileData]()
 
 // Player state (singleton component)
 type PlayerStateData struct {
-	ControlledShip donburi.Entity
+	ControlledShip donburi.Entity // Ship the player is controlling (invalid if dead/spectating)
 	Score          int
 	Kills          int
+	Deaths         int            // Track number of player deaths
+	IsSpectating   bool           // True when player is in spectate mode
+	SpectatedShip  donburi.Entity // Ship being spectated (only valid when IsSpectating=true)
 }
 
 var PlayerState = donburi.NewComponentType[PlayerStateData]()

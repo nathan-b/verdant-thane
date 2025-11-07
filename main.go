@@ -117,7 +117,11 @@ type Game struct {
 	// Performance profiling
 	profileData       ProfileData
 	profileFrameCount int
-	lastProfileTime   time.Time
+
+	// Input state tracking for spectate mode cycling
+	prevKeyA        bool
+	prevKeyD        bool
+	lastProfileTime time.Time
 }
 
 // NewGame creates and initializes a new game, starting at the title screen
@@ -371,6 +375,49 @@ func (g *Game) Update() error {
 		systems.UpdateExplosions(g.world)
 		g.profileData.Explosions += time.Since(t)
 
+		// Update spectate mode (check if spectated ship is still valid)
+		if g.world.Valid(g.playerStateEntity) {
+			playerStateEntry := g.world.Entry(g.playerStateEntity)
+			playerState := components.PlayerState.Get(playerStateEntry)
+
+			if playerState.IsSpectating {
+				// Get player faction for spectate functions
+				var factionID int
+				if g.world.Valid(playerState.SpectatedShip) {
+					spectatedEntry := g.world.Entry(playerState.SpectatedShip)
+					if spectatedEntry.HasComponent(components.Faction) {
+						faction := components.Faction.Get(spectatedEntry)
+						factionID = faction.ID
+					}
+				}
+
+				// Update spectate mode (auto-switch if spectated ship died)
+				systems.UpdateSpectateMode(g.world, playerStateEntry, factionID)
+
+				// Handle A/D cycling through allied ships (only on key press, not held)
+				keyA := ebiten.IsKeyPressed(ebiten.KeyA)
+				keyD := ebiten.IsKeyPressed(ebiten.KeyD)
+
+				if keyD && !g.prevKeyD {
+					// D key was just pressed - cycle to next allied ship
+					nextShip := systems.GetNextAlliedShip(g.world, factionID, playerState.SpectatedShip)
+					if g.world.Valid(nextShip) {
+						playerState.SpectatedShip = nextShip
+					}
+				} else if keyA && !g.prevKeyA {
+					// A key was just pressed - cycle to previous allied ship
+					prevShip := systems.GetPreviousAlliedShip(g.world, factionID, playerState.SpectatedShip)
+					if g.world.Valid(prevShip) {
+						playerState.SpectatedShip = prevShip
+					}
+				}
+
+				// Update previous key states
+				g.prevKeyA = keyA
+				g.prevKeyD = keyD
+			}
+		}
+
 		// Handle player firing
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 			// Get mouse position in world coordinates
@@ -409,12 +456,30 @@ func (g *Game) Update() error {
 		systems.UpdateAIFiring(g.world, g.playerEntity, g.laserSprite, g.missileSprite)
 		g.profileData.AIFiring += time.Since(t)
 
-		// Update camera to follow player
-		if g.world.Valid(g.playerEntity) {
-			playerEntry := g.world.Entry(g.playerEntity)
-			pos := components.Position.Get(playerEntry)
-			g.cameraX = pos.X - float64(config.ScreenWidth)/2
-			g.cameraY = pos.Y - float64(config.ScreenHeight)/2
+		// Update camera to follow player or spectated ship
+		if g.world.Valid(g.playerStateEntity) {
+			playerStateEntry := g.world.Entry(g.playerStateEntity)
+			playerState := components.PlayerState.Get(playerStateEntry)
+
+			// Determine which ship to follow
+			var shipToFollow donburi.Entity
+			if playerState.IsSpectating && g.world.Valid(playerState.SpectatedShip) {
+				// Follow spectated ship
+				shipToFollow = playerState.SpectatedShip
+			} else if g.world.Valid(playerState.ControlledShip) {
+				// Follow controlled ship
+				shipToFollow = playerState.ControlledShip
+			}
+
+			// Update camera if we have a ship to follow
+			if g.world.Valid(shipToFollow) {
+				shipEntry := g.world.Entry(shipToFollow)
+				if shipEntry.HasComponent(components.Position) {
+					pos := components.Position.Get(shipEntry)
+					g.cameraX = pos.X - float64(config.ScreenWidth)/2
+					g.cameraY = pos.Y - float64(config.ScreenHeight)/2
+				}
+			}
 		}
 
 		g.profileData.TotalUpdate += time.Since(updateStart)
