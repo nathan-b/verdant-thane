@@ -121,6 +121,15 @@ func GenerateRandomFleetConfig(seed int64) FleetConfig {
 		compositions[i] = GetFleetComposition(rng, fighterBudget, 999, 999)
 	}
 
+	// CRITICAL: Ensure faction 0 (player faction) has at least one controllable ship
+	// Players cannot control testudons (AI-only), so faction 0 must have fighters or destroyers
+	playerComp := &compositions[0]
+	if playerComp.Fighters == 0 && playerComp.Destroyers == 0 && playerComp.Testudons > 0 {
+		// Player faction has only testudons - convert one testudon to fighters
+		playerComp.Testudons--
+		playerComp.Fighters = TestudonCost // Give back the fighter equivalent (8 fighters)
+	}
+
 	return FleetConfig{
 		NumFactions:  numFactions,
 		Compositions: compositions,

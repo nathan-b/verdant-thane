@@ -114,3 +114,25 @@ func TestGetFleetComposition_Variety(t *testing.T) {
 		t.Logf("  %d fighters, %d destroyers, %d testudons", comp.Fighters, comp.Destroyers, comp.Testudons)
 	}
 }
+
+// TestGenerateRandomFleetConfig_PlayerFactionControllable verifies that faction 0
+// (player faction) always has at least one controllable ship (fighter or destroyer).
+// Players cannot control testudons (AI-only), so this test ensures the game doesn't
+// spawn the player into a testudon.
+func TestGenerateRandomFleetConfig_PlayerFactionControllable(t *testing.T) {
+	// Test with many different seeds to catch edge cases
+	for seed := int64(0); seed < 1000; seed++ {
+		fleetConfig := config.GenerateRandomFleetConfig(seed)
+
+		// Faction 0 is always the player faction
+		playerComp := fleetConfig.Compositions[0]
+
+		// Player faction must have at least one fighter or destroyer
+		hasControllableShip := playerComp.Fighters > 0 || playerComp.Destroyers > 0
+
+		if !hasControllableShip {
+			t.Errorf("Seed %d: Player faction has no controllable ships! Composition: %d fighters, %d destroyers, %d testudons",
+				seed, playerComp.Fighters, playerComp.Destroyers, playerComp.Testudons)
+		}
+	}
+}
