@@ -12,6 +12,7 @@ type ShipCharacteristics struct {
 	MaxShield           int     // Hit points
 	CapacitorChargeRate float64 // Charge per tick (1.0 = fully charged)
 	FiringCone          float64 // Radians (for main weapon)
+	CollisionRadius     float64 // Collision detection radius in pixels
 	BaseSpritePath      string  // Path to grayscale base sprite
 }
 
@@ -24,6 +25,7 @@ var ShipDatabase = map[components.ShipClass]ShipCharacteristics{
 		MaxShield:           8,                               // Light armor
 		CapacitorChargeRate: 1.0 / ((600.0 / 1000.0) * 60.0), // 600ms charge time
 		FiringCone:          30.0 * 0.017453292519943295,     // 30 degrees in radians
+		CollisionRadius:     14.0,                            // 24x24 sprite, slightly larger than half-width for better gameplay
 		BaseSpritePath:      "assets/fighter.png",
 	},
 	components.Destroyer: {
@@ -33,6 +35,7 @@ var ShipDatabase = map[components.ShipClass]ShipCharacteristics{
 		MaxShield:           32,                              // Heavy armor (4x fighter)
 		CapacitorChargeRate: 1.0 / ((600.0 / 1000.0) * 60.0), // Same as fighter for main gun
 		FiringCone:          30.0 * 0.017453292519943295,     // 30 degrees in radians
+		CollisionRadius:     30.0,                            // 40x60 sprite, approximate average radius
 		BaseSpritePath:      "assets/destroyer.png",
 	},
 	components.Testudon: {
@@ -42,6 +45,7 @@ var ShipDatabase = map[components.ShipClass]ShipCharacteristics{
 		MaxShield:           100,        // Heavy armor (12.5x fighter)
 		CapacitorChargeRate: 0.0,        // No projectile weapon
 		FiringCone:          0.0,        // No firing cone (360° beam weapon)
+		CollisionRadius:     50.0,       // 100x100 sprite, half-width for circular hitbox
 		BaseSpritePath:      "assets/testudon.png",
 	},
 }

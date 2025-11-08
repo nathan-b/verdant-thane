@@ -129,6 +129,7 @@ func TestSpawnMultipleFactions(t *testing.T) {
 				MaxHealth:          8,
 				CapacitorRate:      0.027,
 				FiringCone:         0.524,
+				CollisionRadius:    14.0,
 				FactionSprites:     factionSprites,
 				IsPlayerControlled: isPlayerControlled,
 			})
@@ -187,6 +188,7 @@ func TestPlayerShipAssignment(t *testing.T) {
 				MaxHealth:          8,
 				CapacitorRate:      0.027,
 				FiringCone:         0.524,
+				CollisionRadius:    14.0,
 				FactionSprites:     factionSprites,
 				IsPlayerControlled: isPlayerControlled,
 			})

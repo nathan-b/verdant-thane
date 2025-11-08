@@ -60,6 +60,7 @@ func TestFullGameFlowWithCombat(t *testing.T) {
 		MaxHealth:          8,
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523, // ~30 degrees
+		CollisionRadius:    14.0,
 		FactionSprites:     testFactionSprites,
 		IsPlayerControlled: true,
 	})
@@ -75,6 +76,7 @@ func TestFullGameFlowWithCombat(t *testing.T) {
 		MaxHealth:          1, // Low health for easy kill
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523,
+		CollisionRadius:    14.0,
 		FactionSprites:     testFactionSprites,
 		IsPlayerControlled: false,
 	})
@@ -175,6 +177,7 @@ func TestMultiFactionBattle(t *testing.T) {
 		MaxHealth:          8,
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523,
+		CollisionRadius:    14.0,
 		FactionSprites:     factionSprites,
 		IsPlayerControlled: true,
 	})
@@ -187,6 +190,7 @@ func TestMultiFactionBattle(t *testing.T) {
 		MaxHealth:          8,
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523,
+		CollisionRadius:    14.0,
 		FactionSprites:     factionSprites,
 		IsPlayerControlled: false,
 	})
@@ -199,6 +203,7 @@ func TestMultiFactionBattle(t *testing.T) {
 		MaxHealth:          8,
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523,
+		CollisionRadius:    14.0,
 		FactionSprites:     factionSprites,
 		IsPlayerControlled: false,
 	})
@@ -498,6 +503,7 @@ func TestExplosionLifecycleIntegration(t *testing.T) {
 		MaxHealth:          8,
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523,
+		CollisionRadius:    14.0,
 		FactionSprites:     createTestFactionSprites(),
 		IsPlayerControlled: true,
 	})
@@ -510,6 +516,7 @@ func TestExplosionLifecycleIntegration(t *testing.T) {
 		MaxHealth:          1, // Low health
 		CapacitorRate:      1.0 / 36.0,
 		FiringCone:         0.523,
+		CollisionRadius:    14.0,
 		FactionSprites:     createTestFactionSprites(),
 		IsPlayerControlled: false,
 	})

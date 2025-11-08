@@ -99,9 +99,6 @@ func (g *spatialGrid) clear() {
 // Creates explosion entities for destroyed ships
 // OPTIMIZED: Uses spatial grid partitioning to reduce collision checks from O(n*m) to O(n*k)
 func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
-	// Pre-calculate collision distance squared (avoids sqrt in inner loop)
-	collisionDistSq := (config.ShipCollisionRadius + config.ProjectileCollisionRadius) * (config.ShipCollisionRadius + config.ProjectileCollisionRadius)
-
 	// Build spatial grid of ships
 	grid := newSpatialGrid()
 	shipQuery := donburi.NewQuery(filter.Contains(
@@ -109,6 +106,7 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 		components.Position,
 		components.Health,
 		components.Faction,
+		components.CollisionRadius,
 	))
 
 	// Populate grid with all ships
@@ -150,11 +148,17 @@ func UpdateCollisions(w donburi.World, explosionSprite *ebiten.Image) {
 
 			shipPos := components.Position.Get(shipEntry)
 			shipFaction := components.Faction.Get(shipEntry)
+			shipCollisionRadius := components.CollisionRadius.Get(shipEntry)
 
 			// Don't check friendly fire
 			if projFaction.ID == shipFaction.ID {
 				continue
 			}
+
+			// Calculate collision distance squared using ship's actual collision radius
+			// (avoids expensive sqrt in inner loop)
+			collisionDist := shipCollisionRadius.Radius + config.ProjectileCollisionRadius
+			collisionDistSq := collisionDist * collisionDist
 
 			// Calculate squared distance (avoids expensive sqrt)
 			distSq := DistanceSquared(projPos.X, projPos.Y, shipPos.X, shipPos.Y)

@@ -278,6 +278,7 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 				MaxHealth:          shipChars.MaxShield,
 				CapacitorRate:      shipChars.CapacitorChargeRate,
 				FiringCone:         shipChars.FiringCone,
+				CollisionRadius:    shipChars.CollisionRadius,
 				FactionSprites:     g.factionSprites,
 				IsPlayerControlled: isPlayerControlled,
 			})

@@ -26,6 +26,7 @@ func TestFighterComponents(t *testing.T) {
 		MaxHealth:          8,
 		CapacitorRate:      0.028,
 		FiringCone:         0.524,
+		CollisionRadius:    14.0,
 		FactionSprites:     factionSprites,
 		IsPlayerControlled: false,
 	})
@@ -73,6 +74,7 @@ func TestDestroyerComponents(t *testing.T) {
 		MaxHealth:          32,
 		CapacitorRate:      0.028,
 		FiringCone:         0.524,
+		CollisionRadius:    30.0,
 		FactionSprites:     factionSprites,
 		IsPlayerControlled: false,
 	})
@@ -120,6 +122,7 @@ func TestTestudonComponents(t *testing.T) {
 		MaxHealth:          100,
 		CapacitorRate:      0.0, // No projectile weapon
 		FiringCone:         0.0, // No firing cone
+		CollisionRadius:    50.0,
 		FactionSprites:     factionSprites,
 		IsPlayerControlled: false,
 	})
@@ -215,6 +218,7 @@ func TestShipClassCharacteristics(t *testing.T) {
 				MaxHealth:          tt.maxShield,
 				CapacitorRate:      0.028,
 				FiringCone:         0.524,
+				CollisionRadius:    14.0, // Use fighter radius for all in this test
 				FactionSprites:     factionSprites,
 				IsPlayerControlled: false,
 			})

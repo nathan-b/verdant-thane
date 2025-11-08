@@ -66,6 +66,7 @@ type ShipConfig struct {
 	MaxHealth          int
 	CapacitorRate      float64
 	FiringCone         float64
+	CollisionRadius    float64
 	FactionSprites     *FactionSprites
 	IsPlayerControlled bool
 }
@@ -90,6 +91,7 @@ func SpawnShip(w donburi.World, config ShipConfig) (donburi.Entity, error) {
 		components.Ship,
 		components.Faction,
 		components.Health,
+		components.CollisionRadius,
 		components.Sprite,
 	)
 
@@ -125,6 +127,7 @@ func SpawnShip(w donburi.World, config ShipConfig) (donburi.Entity, error) {
 	})
 	components.Faction.SetValue(entry, components.FactionData{ID: config.FactionID})
 	components.Health.SetValue(entry, components.HealthData{Current: config.MaxHealth, Max: config.MaxHealth})
+	components.CollisionRadius.SetValue(entry, components.CollisionRadiusData{Radius: config.CollisionRadius})
 
 	// Get the correct sprite for this ship's class and faction
 	sprite := config.FactionSprites.GetSpriteForShip(config.Class, config.FactionID)

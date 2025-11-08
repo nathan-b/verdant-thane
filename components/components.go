@@ -66,6 +66,12 @@ type HealthData struct {
 
 var Health = donburi.NewComponentType[HealthData]()
 
+type CollisionRadiusData struct {
+	Radius float64 // Collision detection radius in pixels
+}
+
+var CollisionRadius = donburi.NewComponentType[CollisionRadiusData]()
+
 type WeaponData struct {
 	Capacitor  float64 // 0.0 to 1.0
 	ChargeRate float64

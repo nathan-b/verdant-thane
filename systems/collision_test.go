@@ -18,11 +18,13 @@ func TestUpdateCollisions_PlayerScoreAndKills(t *testing.T) {
 		components.Position,
 		components.Health,
 		components.Faction,
+		components.CollisionRadius,
 	)
 	playerEntry := world.Entry(playerShip)
 	components.Position.SetValue(playerEntry, components.PositionData{X: 100, Y: 100})
 	components.Health.SetValue(playerEntry, components.HealthData{Current: 8, Max: 8})
 	components.Faction.SetValue(playerEntry, components.FactionData{ID: 0})
+	components.CollisionRadius.SetValue(playerEntry, components.CollisionRadiusData{Radius: 14.0})
 
 	// Create enemy ship (faction 1)
 	enemyShip := world.Create(
@@ -30,11 +32,13 @@ func TestUpdateCollisions_PlayerScoreAndKills(t *testing.T) {
 		components.Position,
 		components.Health,
 		components.Faction,
+		components.CollisionRadius,
 	)
 	enemyEntry := world.Entry(enemyShip)
 	components.Position.SetValue(enemyEntry, components.PositionData{X: 105, Y: 100})
 	components.Health.SetValue(enemyEntry, components.HealthData{Current: 1, Max: 8}) // Only 1 HP left
 	components.Faction.SetValue(enemyEntry, components.FactionData{ID: 1})
+	components.CollisionRadius.SetValue(enemyEntry, components.CollisionRadiusData{Radius: 14.0})
 
 	// Create player projectile (faction 0) near enemy
 	projectile := world.Create(
@@ -94,11 +98,13 @@ func TestUpdateCollisions_NoScoreForFriendlyFire(t *testing.T) {
 		components.Position,
 		components.Health,
 		components.Faction,
+		components.CollisionRadius,
 	)
 	ship1Entry := world.Entry(ship1)
 	components.Position.SetValue(ship1Entry, components.PositionData{X: 100, Y: 100})
 	components.Health.SetValue(ship1Entry, components.HealthData{Current: 1, Max: 8})
 	components.Faction.SetValue(ship1Entry, components.FactionData{ID: 0})
+	components.CollisionRadius.SetValue(ship1Entry, components.CollisionRadiusData{Radius: 14.0})
 
 	// Create player state
 	playerState := world.Create(components.PlayerState)
@@ -150,10 +156,12 @@ func TestUpdateCollisions_MultipleKills(t *testing.T) {
 		components.IsShip,
 		components.Position,
 		components.Faction,
+		components.CollisionRadius,
 	)
 	playerEntry := world.Entry(playerShip)
 	components.Position.SetValue(playerEntry, components.PositionData{X: 50, Y: 50})
 	components.Faction.SetValue(playerEntry, components.FactionData{ID: 0})
+	components.CollisionRadius.SetValue(playerEntry, components.CollisionRadiusData{Radius: 14.0})
 
 	// Create player state
 	playerState := world.Create(components.PlayerState)
@@ -171,11 +179,13 @@ func TestUpdateCollisions_MultipleKills(t *testing.T) {
 			components.Position,
 			components.Health,
 			components.Faction,
+			components.CollisionRadius,
 		)
 		enemyEntry := world.Entry(enemyShip)
 		components.Position.SetValue(enemyEntry, components.PositionData{X: 100, Y: 100})
 		components.Health.SetValue(enemyEntry, components.HealthData{Current: 1, Max: 8})
 		components.Faction.SetValue(enemyEntry, components.FactionData{ID: 1})
+		components.CollisionRadius.SetValue(enemyEntry, components.CollisionRadiusData{Radius: 14.0})
 	}
 
 	// Create 3 player projectiles at same location
