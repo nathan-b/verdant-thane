@@ -595,19 +595,8 @@ func (g *Game) Update() error {
 			// Get default player name
 			playerName := persistence.GetCurrentUsername()
 
-			// Create game over screen
-			g.gameOverScreen = ui.NewGameOverScreen(playerName, score, kills, deaths, isHighScore)
-		}
-
-		// Handle text input for name
-		g.gameOverScreen.HandleInput()
-
-		// Handle Continue button click
-		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-			mouseX, mouseY := ebiten.CursorPosition()
-			buttonIndex := g.gameOverScreen.HandleClick(mouseX, mouseY)
-
-			if buttonIndex == 0 { // Continue button clicked
+			// Create game over screen with ebitenui and button callback
+			g.gameOverScreen = ui.NewGameOverScreen(playerName, score, kills, deaths, isHighScore, g.hudFont.Source, func() {
 				// Save high score
 				playerName := g.gameOverScreen.GetPlayerName()
 				if g.world.Valid(g.playerStateEntity) {
@@ -622,8 +611,11 @@ func (g *Game) Update() error {
 				// Return to title screen and clear game over screen
 				g.gameOverScreen = nil
 				g.currentState = TitleScreen
-			}
+			})
 		}
+
+		// Update UI (handles text input and button interactions)
+		g.gameOverScreen.Update()
 
 	case Instructions:
 		// Handle instructions screen close button
@@ -1024,7 +1016,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		// Draw game over screen
 		if g.gameOverScreen != nil {
-			g.gameOverScreen.Draw(screen, g.hudFont.Source)
+			g.gameOverScreen.Draw(screen)
 		}
 
 	case Instructions:
