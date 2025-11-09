@@ -1,0 +1,184 @@
+package entity
+
+import (
+	"math"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/nathan/verdant-thane/components"
+	"github.com/nathan/verdant-thane/config"
+)
+
+// Destroyer is a heavy fighter with rear-facing missiles
+type Destroyer struct {
+	*BaseShip
+	// Secondary weapon (missiles)
+	MissileCapacitor  float64
+	MissileChargeRate float64
+	MissileFiringArc  float64 // Rear 180° arc
+}
+
+// NewDestroyer creates a new destroyer ship
+func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *Destroyer {
+	chars := config.GetShipCharacteristics(components.Destroyer)
+
+	// Get missile characteristics for charge rate
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
+	missileChargeRate := 1.0 / (missileChars.ChargeTime * 60.0)
+
+	base := &BaseShip{
+		ID:               id,
+		FactionID:        factionID,
+		Class:            ClassDestroyer,
+		X:                x,
+		Y:                y,
+		VelocityX:        0,
+		VelocityY:        0,
+		Rotation:         0,
+		Health:           chars.MaxShield,
+		MaxHealth:        chars.MaxShield,
+		Speed:            0,
+		MaxSpeed:         chars.MaxSpeed,
+		Accel:            chars.Acceleration,
+		CollisionRadius:  chars.CollisionRadius,
+		PlayerControlled: false,
+		WeaponCapacitor:  1.0,
+		WeaponChargeRate: chars.CapacitorChargeRate,
+		FiringCone:       chars.FiringCone,
+		AITargetID:       -1,
+		AIRetargetTimer:  config.AIRetargetInterval,
+		Sprite:           sprite,
+		Alive:            true,
+	}
+
+	return &Destroyer{
+		BaseShip:          base,
+		MissileCapacitor:  1.0, // Start fully charged
+		MissileChargeRate: missileChargeRate,
+		MissileFiringArc:  math.Pi, // 180° rear arc
+	}
+}
+
+// ============================================================================
+// Override Update Methods
+// ============================================================================
+
+// Update handles all per-frame logic for the destroyer
+func (d *Destroyer) Update(ctx GameContext) error {
+	if !d.Alive {
+		return nil
+	}
+
+	// Update both weapons
+	d.UpdateWeapons()
+	d.UpdateMissileWeapon()
+
+	// Update control (AI or player)
+	if d.PlayerControlled {
+		d.UpdatePlayerInput(ctx)
+	} else {
+		d.UpdateAI(ctx)
+	}
+
+	// Update movement
+	d.UpdateMovement()
+
+	return nil
+}
+
+// UpdateAI handles AI decision-making for destroyers (includes missile firing)
+func (d *Destroyer) UpdateAI(ctx GameContext) {
+	// Use base fighter AI for movement and main gun
+	// (We need to convert *Destroyer to *Fighter temporarily)
+	fighter := &Fighter{BaseShip: d.BaseShip}
+	fighter.UpdateAI(ctx)
+
+	// Additional destroyer behavior: Fire missiles at rear targets
+	if d.CanFireMissile() {
+		rearTarget, _ := ctx.FindNearestEnemyInArc(d, d.MissileFiringArc, 2000.0, true) // 2000px range, rear-facing
+		if rearTarget != nil {
+			d.FireMissile(rearTarget.GetID(), ctx)
+		}
+	}
+}
+
+// ============================================================================
+// Ship Interface Implementation (Missile-specific)
+// ============================================================================
+
+// FireMissile fires a homing missile at a target
+func (d *Destroyer) FireMissile(targetID int, ctx GameContext) {
+	if !d.CanFireMissile() {
+		return
+	}
+
+	// Check if target exists
+	target := ctx.GetShip(targetID)
+	if target == nil || !target.IsAlive() {
+		return
+	}
+
+	// Check if target is in rear arc
+	targetX, targetY := target.GetPosition()
+	dx, dy := GetWrappedDistance(d.X, d.Y, targetX, targetY)
+	angleToTarget := math.Atan2(dy, dx)
+
+	// Rear arc is 180° behind ship (±90° from rear direction)
+	rearAngle := NormalizeAngle(d.Rotation + math.Pi)
+	angleFromRear := math.Abs(NormalizeAngle(angleToTarget - rearAngle))
+
+	if angleFromRear > d.MissileFiringArc/2 {
+		return // Target not in rear arc
+	}
+
+	// Consume capacitor
+	d.MissileCapacitor = 0.0
+
+	// Get missile characteristics
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
+
+	// Launch from rear of ship
+	launchAngle := rearAngle
+	spawnOffset := 25.0
+	spawnX := d.X + math.Cos(launchAngle)*spawnOffset
+	spawnY := d.Y + math.Sin(launchAngle)*spawnOffset
+
+	// Initial velocity (launches from rear)
+	missileVX := math.Cos(launchAngle) * missileChars.Speed
+	missileVY := math.Sin(launchAngle) * missileChars.Speed
+
+	// Add ship velocity
+	missileVX += d.VelocityX
+	missileVY += d.VelocityY
+
+	// Spawn missile via context
+	ctx.SpawnMissile(MissileConfig{
+		X:         spawnX,
+		Y:         spawnY,
+		VelocityX: missileVX,
+		VelocityY: missileVY,
+		Rotation:  launchAngle,
+		OwnerID:   d.ID,
+		FactionID: d.FactionID,
+		TargetID:  targetID,
+		Sprite:    nil, // Will be set by spawner
+	})
+}
+
+// CanFireMissile returns whether missiles can be fired
+func (d *Destroyer) CanFireMissile() bool {
+	return d.Alive && d.MissileCapacitor >= 1.0
+}
+
+// ============================================================================
+// Weapon Update Methods
+// ============================================================================
+
+// UpdateMissileWeapon charges the missile capacitor
+func (d *Destroyer) UpdateMissileWeapon() {
+	if d.MissileCapacitor < 1.0 {
+		d.MissileCapacitor += d.MissileChargeRate
+		if d.MissileCapacitor > 1.0 {
+			d.MissileCapacitor = 1.0
+		}
+	}
+}

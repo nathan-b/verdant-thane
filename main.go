@@ -19,6 +19,7 @@ import (
 
 	"github.com/nathan/verdant-thane/components"
 	"github.com/nathan/verdant-thane/config"
+	"github.com/nathan/verdant-thane/entity"
 	"github.com/nathan/verdant-thane/persistence"
 	"github.com/nathan/verdant-thane/systems"
 	"github.com/nathan/verdant-thane/ui"
@@ -104,10 +105,13 @@ type Game struct {
 	battleNumber       int                     // Current battle number (1-indexed)
 	nextFleetConfig    *config.FleetConfig     // Config for next battle (used by interstitial)
 
-	// ECS World (interface, not pointer)
+	// ECS World (interface, not pointer) - will be removed after migration
 	world             donburi.World
 	playerEntity      donburi.Entity
 	playerStateEntity donburi.Entity
+
+	// New entity system (replaces donburi)
+	entityManager *EntityManager
 
 	// Shared resources
 	laserSprite     *ebiten.Image           // Shared sprite for all laser projectiles
@@ -194,6 +198,9 @@ func NewGame() (*Game, error) {
 		highScores = &persistence.HighScores{Entries: []persistence.HighScore{}}
 	}
 
+	// Create entity manager
+	entityManager := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+
 	return &Game{
 		currentState:       TitleScreen,
 		titleDialog:        titleDialog,
@@ -201,6 +208,7 @@ func NewGame() (*Game, error) {
 		instructionsDialog: instructionsDialog,
 		highScoresDialog:   highScoresDialog,
 		highScores:         highScores,
+		entityManager:      entityManager,
 		laserSprite:        laserSprite,
 		missileSprite:      missileSprite,
 		explosionSprite:    explosionSprite,
@@ -213,15 +221,22 @@ func NewGame() (*Game, error) {
 
 // StartGame transitions from title screen to in-game state by spawning ships
 func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
-	// Create ECS world
+	// Create ECS world (will be removed after migration)
 	g.world = donburi.NewWorld()
 
-	// Initialize factions and spawn points
+	// Clear entity manager for new game
+	g.entityManager.Clear()
+
+	// Initialize factions and spawn points (new system)
+	g.entityManager.InitializeFactions()
+
+	// Initialize factions (old system, will be removed)
 	systems.InitializeFactions(g.world)
 
 	// Spawn ships according to fleet configuration
 	const spawnRadius = 75.0 // Radius for circular spawn pattern
 	var playerShip donburi.Entity
+	var playerShipNew entity.Ship
 	var playerFound bool
 
 	for factionID := 0; factionID < fleetConfig.NumFactions; factionID++ {
@@ -261,6 +276,9 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 			}
 		}
 
+		// Get faction spawn point for offset calculations
+		spawnX, spawnY, _ := g.entityManager.GetFactionSpawnPoint(factionID)
+
 		// Spawn all ships for this faction
 		for shipIndex, shipClass := range shipClasses {
 			// First ship of faction 0 is player-controlled
@@ -269,7 +287,36 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 			// Get ship characteristics from database
 			shipChars := config.GetShipCharacteristics(shipClass)
 
-			// Spawn ship at faction spawn point
+			// Calculate position with circular offset
+			x, y := spawnX, spawnY
+			if shipIndex > 0 {
+				angleStep := 2.0 * math.Pi / float64(len(shipClasses)-1)
+				angle := float64(shipIndex-1) * angleStep
+				x += spawnRadius * math.Cos(angle)
+				y += spawnRadius * math.Sin(angle)
+			}
+
+			// Spawn ship in NEW system
+			var newShipClass entity.ShipClass
+			switch shipClass {
+			case components.Fighter:
+				newShipClass = entity.ClassFighter
+			case components.Destroyer:
+				newShipClass = entity.ClassDestroyer
+			case components.Testudon:
+				newShipClass = entity.ClassTestudon
+			default:
+				newShipClass = entity.ClassFighter
+			}
+
+			newShip := g.entityManager.SpawnShip(newShipClass, factionID, x, y)
+			if isPlayerControlled {
+				newShip.SetPlayerControlled(true)
+				g.entityManager.SetPlayerShip(newShip.GetID())
+				playerShipNew = newShip
+			}
+
+			// Spawn ship in OLD system (will be removed)
 			ship, err := systems.SpawnShip(g.world, systems.ShipConfig{
 				Class:              shipClass,
 				FactionID:          factionID,
@@ -286,17 +333,12 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 				return fmt.Errorf("failed to spawn ship for faction %d: %w", factionID, err)
 			}
 
-			// Apply position offset for ships after the first in this faction
-			// Arrange in circular pattern around spawn point
+			// Apply position offset for OLD system
 			if shipIndex > 0 {
 				entry := g.world.Entry(ship)
 				pos := components.Position.Get(entry)
-
-				// Calculate angle for this ship in the circle
 				angleStep := 2.0 * math.Pi / float64(len(shipClasses)-1)
 				angle := float64(shipIndex-1) * angleStep
-
-				// Apply offset
 				pos.X += spawnRadius * math.Cos(angle)
 				pos.Y += spawnRadius * math.Sin(angle)
 			}
@@ -314,7 +356,7 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 		return fmt.Errorf("no player ship spawned (faction 0 must have at least 1 ship)")
 	}
 
-	// Create player state entity (singleton for score/kills tracking)
+	// Create player state entity (singleton for score/kills tracking - OLD system)
 	playerState := g.world.Create(components.PlayerState)
 	playerStateEntry := g.world.Entry(playerState)
 	components.PlayerState.SetValue(playerStateEntry, components.PlayerStateData{
@@ -332,6 +374,13 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 	g.playerStateEntity = playerState
 	g.cameraX = playerPos.X - float64(config.ScreenWidth)/2
 	g.cameraY = playerPos.Y - float64(config.ScreenHeight)/2
+
+	// Also set camera from NEW system (to keep them in sync)
+	if playerShipNew != nil {
+		newX, newY := playerShipNew.GetPosition()
+		g.cameraX = newX - float64(config.ScreenWidth)/2
+		g.cameraY = newY - float64(config.ScreenHeight)/2
+	}
 
 	g.currentState = InGame
 
