@@ -2,15 +2,18 @@ package entity
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
+
+	"github.com/nathan/verdant-thane/config"
 )
 
-// ShipClass defines the type of ship
-type ShipClass int
+// ShipClass is an alias to avoid import cycles
+type ShipClass = config.ShipClass
 
+// Re-export ship class constants for convenience
 const (
-	ClassFighter ShipClass = iota
-	ClassDestroyer
-	ClassTestudon
+	ClassFighter  = config.ClassFighter
+	ClassDestroyer = config.ClassDestroyer
+	ClassTestudon  = config.ClassTestudon
 )
 
 // Entity is the base interface that all game entities implement
@@ -44,10 +47,8 @@ type Ship interface {
 	IsPlayerControlled() bool
 
 	// Weapons
-	FireWeapon(targetX, targetY float64, ctx GameContext)
-	FireMissile(targetID int, ctx GameContext)
+	FireWeapon(mouseX, mouseY float64, ctx GameContext)
 	CanFireWeapon() bool
-	CanFireMissile() bool
 }
 
 // Projectile extends Entity with projectile-specific methods

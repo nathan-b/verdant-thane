@@ -15,9 +15,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"github.com/yohamta/donburi"
 
-	"github.com/nathan/verdant-thane/components"
 	"github.com/nathan/verdant-thane/config"
 	"github.com/nathan/verdant-thane/entity"
 	"github.com/nathan/verdant-thane/persistence"
@@ -59,6 +57,7 @@ type ProfileData struct {
 	MissileTracking   time.Duration
 	ProjectileLife    time.Duration
 	Collisions        time.Duration
+	EntityUpdate      time.Duration
 	Explosions        time.Duration
 	AIFiring          time.Duration
 	RenderStars       time.Duration
@@ -105,12 +104,7 @@ type Game struct {
 	battleNumber       int                     // Current battle number (1-indexed)
 	nextFleetConfig    *config.FleetConfig     // Config for next battle (used by interstitial)
 
-	// ECS World (interface, not pointer) - will be removed after migration
-	world             donburi.World
-	playerEntity      donburi.Entity
-	playerStateEntity donburi.Entity
-
-	// New entity system (replaces donburi)
+	// Entity system
 	entityManager *EntityManager
 
 	// Shared resources
@@ -120,7 +114,7 @@ type Game struct {
 	factionSprites  *systems.FactionSprites // Ship sprites for all factions
 	hudFont         *text.GoTextFace        // Font for HUD rendering
 
-	// Camera (could be moved to ECS later)
+	// Camera
 	cameraX float64 // Camera position (follows player)
 	cameraY float64
 
@@ -221,50 +215,42 @@ func NewGame() (*Game, error) {
 
 // StartGame transitions from title screen to in-game state by spawning ships
 func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
-	// Create ECS world (will be removed after migration)
-	g.world = donburi.NewWorld()
-
 	// Clear entity manager for new game
 	g.entityManager.Clear()
 
-	// Initialize factions and spawn points (new system)
+	// Initialize factions and spawn points
 	g.entityManager.InitializeFactions()
-
-	// Initialize factions (old system, will be removed)
-	systems.InitializeFactions(g.world)
 
 	// Spawn ships according to fleet configuration
 	const spawnRadius = 75.0 // Radius for circular spawn pattern
-	var playerShip donburi.Entity
-	var playerShipNew entity.Ship
-	var playerFound bool
+	var playerShip entity.Ship
 
 	for factionID := 0; factionID < fleetConfig.NumFactions; factionID++ {
 		comp := fleetConfig.Compositions[factionID]
 		totalShips := comp.Total()
 
 		// Build list of ship classes to spawn for this faction
-		shipClasses := make([]components.ShipClass, 0, totalShips)
+		shipClasses := make([]entity.ShipClass, 0, totalShips)
 
 		// Add fighters first (player will be first fighter of faction 0)
 		for i := 0; i < comp.Fighters; i++ {
-			shipClasses = append(shipClasses, components.Fighter)
+			shipClasses = append(shipClasses, entity.ClassFighter)
 		}
 		// Add destroyers
 		for i := 0; i < comp.Destroyers; i++ {
-			shipClasses = append(shipClasses, components.Destroyer)
+			shipClasses = append(shipClasses, entity.ClassDestroyer)
 		}
 		// Add testudons
 		for i := 0; i < comp.Testudons; i++ {
-			shipClasses = append(shipClasses, components.Testudon)
+			shipClasses = append(shipClasses, entity.ClassTestudon)
 		}
 
 		// Debug flags can override ship classes
 		if *useDestroyer {
 			// Convert all fighters to destroyers (but not testudons)
 			for i := range shipClasses {
-				if shipClasses[i] == components.Fighter {
-					shipClasses[i] = components.Destroyer
+				if shipClasses[i] == entity.ClassFighter {
+					shipClasses[i] = entity.ClassDestroyer
 				}
 			}
 		}
@@ -272,7 +258,7 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 			// Add one testudon at index 1 if there are enough ships
 			if len(shipClasses) > 1 {
 				// Insert testudon at position 1 (second ship)
-				shipClasses = append(shipClasses[:1], append([]components.ShipClass{components.Testudon}, shipClasses[1:]...)...)
+				shipClasses = append(shipClasses[:1], append([]entity.ShipClass{entity.ClassTestudon}, shipClasses[1:]...)...)
 			}
 		}
 
@@ -284,9 +270,6 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 			// First ship of faction 0 is player-controlled
 			isPlayerControlled := (factionID == 0 && shipIndex == 0)
 
-			// Get ship characteristics from database
-			shipChars := config.GetShipCharacteristics(shipClass)
-
 			// Calculate position with circular offset
 			x, y := spawnX, spawnY
 			if shipIndex > 0 {
@@ -296,91 +279,25 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 				y += spawnRadius * math.Sin(angle)
 			}
 
-			// Spawn ship in NEW system
-			var newShipClass entity.ShipClass
-			switch shipClass {
-			case components.Fighter:
-				newShipClass = entity.ClassFighter
-			case components.Destroyer:
-				newShipClass = entity.ClassDestroyer
-			case components.Testudon:
-				newShipClass = entity.ClassTestudon
-			default:
-				newShipClass = entity.ClassFighter
-			}
-
-			newShip := g.entityManager.SpawnShip(newShipClass, factionID, x, y)
+			// Spawn ship
+			ship := g.entityManager.SpawnShip(shipClass, factionID, x, y)
 			if isPlayerControlled {
-				newShip.SetPlayerControlled(true)
-				g.entityManager.SetPlayerShip(newShip.GetID())
-				playerShipNew = newShip
-			}
-
-			// Spawn ship in OLD system (will be removed)
-			ship, err := systems.SpawnShip(g.world, systems.ShipConfig{
-				Class:              shipClass,
-				FactionID:          factionID,
-				MaxSpeed:           shipChars.MaxSpeed,
-				Acceleration:       shipChars.Acceleration,
-				MaxHealth:          shipChars.MaxShield,
-				CapacitorRate:      shipChars.CapacitorChargeRate,
-				FiringCone:         shipChars.FiringCone,
-				CollisionRadius:    shipChars.CollisionRadius,
-				FactionSprites:     g.factionSprites,
-				IsPlayerControlled: isPlayerControlled,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to spawn ship for faction %d: %w", factionID, err)
-			}
-
-			// Apply position offset for OLD system
-			if shipIndex > 0 {
-				entry := g.world.Entry(ship)
-				pos := components.Position.Get(entry)
-				angleStep := 2.0 * math.Pi / float64(len(shipClasses)-1)
-				angle := float64(shipIndex-1) * angleStep
-				pos.X += spawnRadius * math.Cos(angle)
-				pos.Y += spawnRadius * math.Sin(angle)
-			}
-
-			// Track player ship
-			if isPlayerControlled {
+				ship.SetPlayerControlled(true)
+				g.entityManager.SetPlayerShip(ship.GetID())
 				playerShip = ship
-				playerFound = true
 			}
 		}
 	}
 
 	// Ensure we found a player ship
-	if !playerFound {
+	if playerShip == nil {
 		return fmt.Errorf("no player ship spawned (faction 0 must have at least 1 ship)")
 	}
 
-	// Create player state entity (singleton for score/kills tracking - OLD system)
-	playerState := g.world.Create(components.PlayerState)
-	playerStateEntry := g.world.Entry(playerState)
-	components.PlayerState.SetValue(playerStateEntry, components.PlayerStateData{
-		ControlledShip: playerShip,
-		Score:          0,
-		Kills:          0,
-	})
-
-	// Get player position for camera initialization
-	playerEntry := g.world.Entry(playerShip)
-	playerPos := components.Position.Get(playerEntry)
-
-	// Set game state
-	g.playerEntity = playerShip
-	g.playerStateEntity = playerState
-	g.cameraX = playerPos.X - float64(config.ScreenWidth)/2
-	g.cameraY = playerPos.Y - float64(config.ScreenHeight)/2
-
-	// Also set camera from NEW system (to keep them in sync)
-	if playerShipNew != nil {
-		newX, newY := playerShipNew.GetPosition()
-		g.cameraX = newX - float64(config.ScreenWidth)/2
-		g.cameraY = newY - float64(config.ScreenHeight)/2
-	}
+	// Initialize camera to follow player ship
+	newX, newY := playerShip.GetPosition()
+	g.cameraX = newX - float64(config.ScreenWidth)/2
+	g.cameraY = newY - float64(config.ScreenHeight)/2
 
 	g.currentState = InGame
 
@@ -423,190 +340,77 @@ func (g *Game) Update() error {
 	case InGame:
 		updateStart := time.Now()
 
-		// Run systems in sequence with timing
+		// Update all entities (ships, projectiles, explosions, collisions)
 		t := time.Now()
-		systems.UpdatePlayerInput(g.world)
-		g.profileData.PlayerInput += time.Since(t)
+		g.entityManager.UpdateAll()
+        g.profileData.EntityUpdate += time.Since(t)
 
-		t = time.Now()
-		systems.UpdateAIMovement(g.world)
-		g.profileData.AIMovement += time.Since(t)
+		// Handle spectate mode controls
+		if g.entityManager.IsSpectating() {
+			// Update spectate mode validation
+			g.entityManager.UpdateSpectateMode()
 
-		t = time.Now()
-		systems.UpdateWeapons(g.world)
-		g.profileData.WeaponsUpdate += time.Since(t)
+			// Handle input
+			keyA := ebiten.IsKeyPressed(ebiten.KeyA)
+			keyD := ebiten.IsKeyPressed(ebiten.KeyD)
+			keySpace := ebiten.IsKeyPressed(ebiten.KeySpace)
 
-		t = time.Now()
-		systems.UpdateBeamWeapons(g.world, g.explosionSprite)
-		g.profileData.BeamWeapons += time.Since(t)
-
-		t = time.Now()
-		systems.UpdateMovement(g.world)
-		g.profileData.Movement += time.Since(t)
-
-		t = time.Now()
-		systems.UpdateMissileTracking(g.world)
-		g.profileData.MissileTracking += time.Since(t)
-
-		t = time.Now()
-		systems.UpdateProjectileLifetime(g.world)
-		g.profileData.ProjectileLife += time.Since(t)
-
-		t = time.Now()
-		systems.UpdateCollisions(g.world, g.explosionSprite)
-		g.profileData.Collisions += time.Since(t)
-
-		t = time.Now()
-		systems.UpdateExplosions(g.world)
-		g.profileData.Explosions += time.Since(t)
-
-		// Update spectate mode (check if spectated ship is still valid)
-		if g.world.Valid(g.playerStateEntity) {
-			playerStateEntry := g.world.Entry(g.playerStateEntity)
-			playerState := components.PlayerState.Get(playerStateEntry)
-
-			if playerState.IsSpectating {
-				// Get player faction for spectate functions
-				var factionID int
-				if g.world.Valid(playerState.SpectatedShip) {
-					spectatedEntry := g.world.Entry(playerState.SpectatedShip)
-					if spectatedEntry.HasComponent(components.Faction) {
-						faction := components.Faction.Get(spectatedEntry)
-						factionID = faction.ID
-					}
-				}
-
-				// Update spectate mode (auto-switch if spectated ship died)
-				systems.UpdateSpectateMode(g.world, playerStateEntry, factionID)
-
-				// Handle A/D cycling through allied ships (only on key press, not held)
-				keyA := ebiten.IsKeyPressed(ebiten.KeyA)
-				keyD := ebiten.IsKeyPressed(ebiten.KeyD)
-				keySpace := ebiten.IsKeyPressed(ebiten.KeySpace)
-
-				if keyD && !g.prevKeyD {
-					// D key was just pressed - cycle to next allied ship
-					nextShip := systems.GetNextAlliedShip(g.world, factionID, playerState.SpectatedShip)
-					if g.world.Valid(nextShip) {
-						playerState.SpectatedShip = nextShip
-					}
-				} else if keyA && !g.prevKeyA {
-					// A key was just pressed - cycle to previous allied ship
-					prevShip := systems.GetPreviousAlliedShip(g.world, factionID, playerState.SpectatedShip)
-					if g.world.Valid(prevShip) {
-						playerState.SpectatedShip = prevShip
-					}
-				}
-
-				// Handle spacebar respawn (only on key press, not held)
-				if keySpace && !g.prevKeySpace {
-					// Space was just pressed - try to respawn into spectated ship
-					if systems.RespawnIntoShip(g.world, playerStateEntry) {
-						// Successfully respawned - update player entity
-						g.playerEntity = playerState.ControlledShip
-					}
-				}
-
-				// Update previous key states
-				g.prevKeyA = keyA
-				g.prevKeyD = keyD
-				g.prevKeySpace = keySpace
+			if keyD && !g.prevKeyD {
+				// D key was just pressed - cycle to next allied ship
+				g.entityManager.CycleSpectateNext()
+			} else if keyA && !g.prevKeyA {
+				// A key was just pressed - cycle to previous allied ship
+				g.entityManager.CycleSpectatePrevious()
 			}
-		}
 
-		// Handle player firing
-		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-			// Get mouse position in world coordinates
-			mouseX, mouseY := ebiten.CursorPosition()
-			worldMouseX := float64(mouseX) + g.cameraX
-			worldMouseY := float64(mouseY) + g.cameraY
+			// Handle spacebar respawn (only on key press, not held)
+			if keySpace && !g.prevKeySpace {
+				// Space was just pressed - try to respawn into spectated ship
+				g.entityManager.RespawnIntoSpectatedShip()
+			}
 
-			// Get player ship entry and attempt to fire
-			if g.world.Valid(g.playerEntity) {
-				playerEntry := g.world.Entry(g.playerEntity)
+			// Update previous key states
+			g.prevKeyA = keyA
+			g.prevKeyD = keyD
+			g.prevKeySpace = keySpace
+		} else {
+			// Handle player firing
+			if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+				playerShip := g.entityManager.GetPlayerShip()
+				if playerShip != nil && playerShip.IsAlive() {
+					// Get mouse position in world coordinates
+					mouseX, mouseY := ebiten.CursorPosition()
+					worldMouseX := float64(mouseX) + g.cameraX
+					worldMouseY := float64(mouseY) + g.cameraY
 
-				// Determine which weapon to fire based on cursor position
-				if systems.IsTargetInFiringArc(playerEntry, worldMouseX, worldMouseY) {
-					// Cursor in front arc - fire main weapon (laser)
-					systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
-				} else if playerEntry.HasComponent(components.SecondaryWeapon) {
-					// Cursor outside front arc and ship has missiles
-					// Try to fire missile at nearest enemy in rear arc
-					if nearestEnemy, found := systems.FindNearestEnemyInRearArc(g.world, playerEntry); found {
-						systems.FireMissile(g.world, playerEntry, nearestEnemy, g.missileSprite)
-					} else {
-						// No rear enemy for missile - fire main weapon toward cursor instead
-						// (projectile will be constrained to firing cone edge)
-						systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
-					}
-				} else {
-					// Ship has no missiles, fire main weapon toward cursor
-					// (projectile will be constrained to firing cone edge)
-					systems.FireWeapon(g.world, playerEntry, worldMouseX, worldMouseY, g.laserSprite)
+					// Fire weapon
+					// (For destroyers, this may fire either the main gun or the missile)
+					playerShip.FireWeapon(worldMouseX, worldMouseY, g.entityManager)
 				}
 			}
 		}
-
-		// Handle AI firing
-		t = time.Now()
-		systems.UpdateAIFiring(g.world, g.playerEntity, g.laserSprite, g.missileSprite)
-		g.profileData.AIFiring += time.Since(t)
 
 		// Check for battle end conditions
-		if g.world.Valid(g.playerStateEntity) {
-			playerStateEntry := g.world.Entry(g.playerStateEntity)
-			playerState := components.PlayerState.Get(playerStateEntry)
-
-			// Get player faction ID
-			playerFactionID := 0 // Default to faction 0 (green)
-			if g.world.Valid(playerState.ControlledShip) {
-				shipEntry := g.world.Entry(playerState.ControlledShip)
-				if shipEntry.HasComponent(components.Faction) {
-					faction := components.Faction.Get(shipEntry)
-					playerFactionID = faction.ID
-				}
-			} else if g.world.Valid(playerState.SpectatedShip) {
-				shipEntry := g.world.Entry(playerState.SpectatedShip)
-				if shipEntry.HasComponent(components.Faction) {
-					faction := components.Faction.Get(shipEntry)
-					playerFactionID = faction.ID
-				}
-			}
-
-			// Check battle end
-			battleResult := systems.CheckBattleEnd(g.world, playerFactionID)
-			switch battleResult {
-			case systems.PlayerVictory:
-				g.currentState = Victory
-			case systems.PlayerDefeat:
-				g.currentState = GameOver
-			}
+		battleResult := g.entityManager.CheckBattleEnd()
+		switch battleResult {
+		case PlayerVictory:
+			g.currentState = Victory
+		case PlayerDefeat:
+			g.currentState = GameOver
 		}
 
 		// Update camera to follow player or spectated ship
-		if g.world.Valid(g.playerStateEntity) {
-			playerStateEntry := g.world.Entry(g.playerStateEntity)
-			playerState := components.PlayerState.Get(playerStateEntry)
+		var shipToFollow entity.Ship
+		if g.entityManager.IsSpectating() {
+			shipToFollow = g.entityManager.GetSpectatedShip()
+		} else {
+			shipToFollow = g.entityManager.GetPlayerShip()
+		}
 
-			// Determine which ship to follow
-			var shipToFollow donburi.Entity
-			if playerState.IsSpectating && g.world.Valid(playerState.SpectatedShip) {
-				// Follow spectated ship
-				shipToFollow = playerState.SpectatedShip
-			} else if g.world.Valid(playerState.ControlledShip) {
-				// Follow controlled ship
-				shipToFollow = playerState.ControlledShip
-			}
-
-			// Update camera if we have a ship to follow
-			if g.world.Valid(shipToFollow) {
-				shipEntry := g.world.Entry(shipToFollow)
-				if shipEntry.HasComponent(components.Position) {
-					pos := components.Position.Get(shipEntry)
-					g.cameraX = pos.X - float64(config.ScreenWidth)/2
-					g.cameraY = pos.Y - float64(config.ScreenHeight)/2
-				}
-			}
+		if shipToFollow != nil {
+			x, y := shipToFollow.GetPosition()
+			g.cameraX = x - float64(config.ScreenWidth)/2
+			g.cameraY = y - float64(config.ScreenHeight)/2
 		}
 
 		g.profileData.TotalUpdate += time.Since(updateStart)
@@ -629,15 +433,8 @@ func (g *Game) Update() error {
 	case GameOver:
 		// Create game over screen if not already created
 		if g.gameOverScreen == nil {
-			// Get player stats
-			var score, kills, deaths int
-			if g.world.Valid(g.playerStateEntity) {
-				stateEntry := g.world.Entry(g.playerStateEntity)
-				state := components.PlayerState.Get(stateEntry)
-				score = state.Score
-				kills = state.Kills
-				deaths = state.Deaths
-			}
+			// Get player stats from EntityManager
+			score, kills, deaths := g.entityManager.GetPlayerStats()
 
 			// Check if it's a high score
 			isHighScore := g.highScores.IsHighScore(score)
@@ -649,13 +446,10 @@ func (g *Game) Update() error {
 			g.gameOverScreen = ui.NewGameOverScreen(playerName, score, kills, deaths, isHighScore, g.hudFont.Source, func() {
 				// Save high score
 				playerName := g.gameOverScreen.GetPlayerName()
-				if g.world.Valid(g.playerStateEntity) {
-					stateEntry := g.world.Entry(g.playerStateEntity)
-					state := components.PlayerState.Get(stateEntry)
-					g.highScores.AddScore(playerName, state.Score, state.Kills, state.Deaths)
-					if err := persistence.SaveHighScores(g.highScores); err != nil {
-						log.Printf("Warning: Failed to save high scores: %v", err)
-					}
+				score, kills, deaths := g.entityManager.GetPlayerStats()
+				g.highScores.AddScore(playerName, score, kills, deaths)
+				if err := persistence.SaveHighScores(g.highScores); err != nil {
+					log.Printf("Warning: Failed to save high scores: %v", err)
 				}
 
 				// Return to title screen and clear game over screen
@@ -816,48 +610,41 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 		g.profileData.RenderStars += time.Since(starsStart)
 
-		// Draw ships using ECS render system
+		// Draw ships
 		t := time.Now()
-		systems.RenderShips(g.world, screen, g.cameraX, g.cameraY)
+		for _, ship := range g.entityManager.ships {
+			ship.Render(screen, g.cameraX, g.cameraY)
+		}
 		g.profileData.RenderShips += time.Since(t)
 
-		// Draw beams from Testudons
+		// Draw projectiles
 		t = time.Now()
-		systems.RenderBeams(g.world, screen, g.cameraX, g.cameraY)
-		g.profileData.RenderBeams += time.Since(t)
-
-		// Draw projectiles using ECS render system
-		t = time.Now()
-		systems.RenderProjectiles(g.world, screen, g.cameraX, g.cameraY)
+		for _, proj := range g.entityManager.projectiles {
+			proj.Render(screen, g.cameraX, g.cameraY)
+		}
 		g.profileData.RenderProjectiles += time.Since(t)
 
-		// Draw explosions using ECS render system
+		// Draw explosions
 		t = time.Now()
-		systems.RenderExplosions(g.world, screen, g.cameraX, g.cameraY)
+		for _, explosion := range g.entityManager.explosions {
+			explosion.Render(screen, g.cameraX, g.cameraY)
+		}
 		g.profileData.RenderExplosions += time.Since(t)
 
 		// Draw minimap
 		t = time.Now()
-		systems.RenderMinimap(g.world, screen, g.playerEntity)
+		g.renderMinimap(screen)
 		g.profileData.RenderMinimap += time.Since(t)
 
 		// Draw HUD
 		textColor := color.White
 
-		// Get player state from ECS
-		var playerScore, playerKills, playerShield int
-		if g.world.Valid(g.playerStateEntity) {
-			stateEntry := g.world.Entry(g.playerStateEntity)
-			state := components.PlayerState.Get(stateEntry)
-			playerScore = state.Score
-			playerKills = state.Kills
-
-			// Get shield from player ship
-			if g.world.Valid(state.ControlledShip) {
-				shipEntry := g.world.Entry(state.ControlledShip)
-				health := components.Health.Get(shipEntry)
-				playerShield = health.Current
-			}
+		// Get player state from EntityManager
+		playerScore, playerKills, _ := g.entityManager.GetPlayerStats()
+		var playerShield int
+		playerShip := g.entityManager.GetPlayerShip()
+		if playerShip != nil {
+			playerShield, _ = playerShip.GetHealth()
 		}
 
 		// Upper left: Score
@@ -884,34 +671,29 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		text.Draw(screen, killsText, g.hudFont, killsOp)
 
 		// Spectate mode instructions (centered at bottom)
-		if g.world.Valid(g.playerStateEntity) {
-			stateEntry := g.world.Entry(g.playerStateEntity)
-			state := components.PlayerState.Get(stateEntry)
+		if g.entityManager.IsSpectating() {
+			instructionsLine1 := "A / D to switch ships"
+			instructionsLine2 := "SPACE to take control"
 
-			if state.IsSpectating {
-				instructionsLine1 := "A / D to switch ships"
-				instructionsLine2 := "SPACE to take control"
-
-				// Check if current ship is a testudon (can't respawn into it)
-				canRespawn := systems.CanRespawnIntoShip(g.world, state.SpectatedShip)
-				if !canRespawn {
-					instructionsLine2 = "Cannot take control of Testudon"
-				}
-
-				// Draw first line
-				line1Width, _ := text.Measure(instructionsLine1, g.hudFont, 0)
-				line1Op := &text.DrawOptions{}
-				line1Op.GeoM.Translate(float64(config.ScreenWidth/2)-line1Width/2, float64(config.ScreenHeight)-50)
-				line1Op.ColorScale.ScaleWithColor(textColor)
-				text.Draw(screen, instructionsLine1, g.hudFont, line1Op)
-
-				// Draw second line
-				line2Width, _ := text.Measure(instructionsLine2, g.hudFont, 0)
-				line2Op := &text.DrawOptions{}
-				line2Op.GeoM.Translate(float64(config.ScreenWidth/2)-line2Width/2, float64(config.ScreenHeight)-35)
-				line2Op.ColorScale.ScaleWithColor(textColor)
-				text.Draw(screen, instructionsLine2, g.hudFont, line2Op)
+			// Check if current ship is a testudon (can't respawn into it)
+			spectatedShip := g.entityManager.GetSpectatedShip()
+			if spectatedShip != nil && spectatedShip.GetClass() == entity.ClassTestudon {
+				instructionsLine2 = "Cannot take control of Testudon"
 			}
+
+			// Draw first line
+			line1Width, _ := text.Measure(instructionsLine1, g.hudFont, 0)
+			line1Op := &text.DrawOptions{}
+			line1Op.GeoM.Translate(float64(config.ScreenWidth/2)-line1Width/2, float64(config.ScreenHeight)-50)
+			line1Op.ColorScale.ScaleWithColor(textColor)
+			text.Draw(screen, instructionsLine1, g.hudFont, line1Op)
+
+			// Draw second line
+			line2Width, _ := text.Measure(instructionsLine2, g.hudFont, 0)
+			line2Op := &text.DrawOptions{}
+			line2Op.GeoM.Translate(float64(config.ScreenWidth/2)-line2Width/2, float64(config.ScreenHeight)-35)
+			line2Op.ColorScale.ScaleWithColor(textColor)
+			text.Draw(screen, instructionsLine2, g.hudFont, line2Op)
 		}
 
 		// FPS/TPS counter (if enabled)
@@ -1010,14 +792,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		// Stats
 		statsY := centerY + 50
-		var playerScore, playerKills, playerDeaths int
-		if g.world.Valid(g.playerStateEntity) {
-			stateEntry := g.world.Entry(g.playerStateEntity)
-			state := components.PlayerState.Get(stateEntry)
-			playerScore = state.Score
-			playerKills = state.Kills
-			playerDeaths = state.Deaths
-		}
+		playerScore, playerKills, playerDeaths := g.entityManager.GetPlayerStats()
 
 		// Score
 		scoreText := fmt.Sprintf("Score: %d", playerScore)
@@ -1145,14 +920,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		// Display interstitial information
 		textColor := color.RGBA{255, 255, 255, 255}
 
-		// Get player stats
-		var score, kills int
-		if g.world.Valid(g.playerStateEntity) {
-			stateEntry := g.world.Entry(g.playerStateEntity)
-			state := components.PlayerState.Get(stateEntry)
-			score = state.Score
-			kills = state.Kills
-		}
+		// Get player stats from EntityManager
+		score, kills, _ := g.entityManager.GetPlayerStats()
 
 		// Display current stats
 		statsY := float64(config.ScreenHeight)/2 - 80
@@ -1193,6 +962,61 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		continueOp.GeoM.Translate(float64(config.ScreenWidth/2)-continueWidth/2, statsY+150)
 		continueOp.ColorScale.ScaleWithColor(textColor)
 		text.Draw(screen, continueText, g.hudFont, continueOp)
+	}
+}
+
+// renderMinimap renders the minimap using EntityManager
+func (g *Game) renderMinimap(screen *ebiten.Image) {
+	// Minimap constants
+	const minimapSize = 120
+	const minimapMargin = 10
+	const minimapX = config.ScreenWidth - minimapSize - minimapMargin
+	const minimapY = config.ScreenHeight - minimapSize - minimapMargin
+
+	// Draw minimap background
+	vector.DrawFilledRect(screen, minimapX, minimapY, minimapSize, minimapSize, color.RGBA{20, 20, 20, 200}, false)
+
+	// Calculate scaling factors
+	scaleX := float64(minimapSize) / float64(config.GameWidth)
+	scaleY := float64(minimapSize) / float64(config.GameHeight)
+
+	// Faction colors
+	factionColors := []color.RGBA{
+		{0, 255, 0, 255},   // Green (player faction)
+		{0, 128, 255, 255}, // Blue
+		{255, 0, 0, 255},   // Red
+		{255, 255, 0, 255}, // Yellow
+	}
+
+	// Draw all ships as colored dots
+	for _, ship := range g.entityManager.ships {
+		if !ship.IsAlive() {
+			continue
+		}
+
+		x, y := ship.GetPosition()
+		minimapDotX := minimapX + float32(x*scaleX)
+		minimapDotY := minimapY + float32(y*scaleY)
+
+		factionID := ship.GetFaction()
+		shipColor := factionColors[factionID%len(factionColors)]
+
+		// Draw ship dot
+		vector.FillRect(screen, minimapDotX-1, minimapDotY-1, 3, 3, shipColor, false)
+	}
+
+	// Draw player marker (light green plus sign)
+	playerShip := g.entityManager.GetPlayerShip()
+	if playerShip != nil && playerShip.IsAlive() {
+		x, y := playerShip.GetPosition()
+		playerX := minimapX + float32(x*scaleX)
+		playerY := minimapY + float32(y*scaleY)
+
+		playerMarkerColor := color.RGBA{100, 255, 100, 255}
+		// Horizontal line
+		vector.FillRect(screen, playerX-3, playerY, 7, 1, playerMarkerColor, false)
+		// Vertical line
+		vector.FillRect(screen, playerX, playerY-3, 1, 7, playerMarkerColor, false)
 	}
 }
 

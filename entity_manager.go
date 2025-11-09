@@ -308,12 +308,16 @@ func (em *EntityManager) RemoveExplosion(id int) {
 	delete(em.explosions, id)
 }
 
-// UpdateAll updates all entities
+// UpdateAll updates all entities and handles collisions
 func (em *EntityManager) UpdateAll() {
 	// Update ships
 	for id, ship := range em.ships {
 		ship.Update(em)
 		if !ship.IsAlive() {
+			// Handle player death
+			if ship.IsPlayerControlled() {
+				em.handlePlayerDeath()
+			}
 			delete(em.ships, id)
 		}
 	}
@@ -333,6 +337,61 @@ func (em *EntityManager) UpdateAll() {
 			delete(em.explosions, id)
 		}
 	}
+
+	// Handle collisions (projectiles vs ships)
+	em.updateCollisions()
+}
+
+// updateCollisions checks for projectile-ship collisions
+func (em *EntityManager) updateCollisions() {
+	// Check each projectile against all ships
+	toDelete := make([]int, 0)
+
+	for projID, proj := range em.projectiles {
+		if !proj.IsAlive() {
+			continue
+		}
+
+		for _, ship := range em.ships {
+			if !ship.IsAlive() {
+				continue
+			}
+
+			// Check collision
+			if proj.CheckCollision(ship) {
+				// Apply damage
+				ship.TakeDamage(proj.GetDamage(), proj.GetOwnerID(), em)
+
+				// Mark projectile for deletion
+				toDelete = append(toDelete, projID)
+				break // Projectile can only hit one ship
+			}
+		}
+	}
+
+	// Delete collided projectiles
+	for _, projID := range toDelete {
+		delete(em.projectiles, projID)
+	}
+}
+
+// handlePlayerDeath transitions player to spectate mode
+func (em *EntityManager) handlePlayerDeath() {
+	em.playerShipID = -1
+	em.isSpectating = true
+	em.deaths++
+
+	// Find a friendly ship to spectate
+	playerFaction := 0 // Player is always faction 0
+	for _, ship := range em.ships {
+		if ship.GetFaction() == playerFaction && ship.IsAlive() {
+			em.spectatedShipID = ship.GetID()
+			return
+		}
+	}
+
+	// No friendly ships found
+	em.spectatedShipID = -1
 }
 
 // SetPlayerShip sets the player-controlled ship
@@ -359,6 +418,177 @@ func (em *EntityManager) GetPlayerShip() entity.Ship {
 		return nil
 	}
 	return em.ships[em.playerShipID]
+}
+
+// GetSpectatedShip returns the currently spectated ship
+func (em *EntityManager) GetSpectatedShip() entity.Ship {
+	if em.spectatedShipID < 0 {
+		return nil
+	}
+	return em.ships[em.spectatedShipID]
+}
+
+// IsSpectating returns whether the player is in spectate mode
+func (em *EntityManager) IsSpectating() bool {
+	return em.isSpectating
+}
+
+// GetPlayerStats returns the player's score, kills, and deaths
+func (em *EntityManager) GetPlayerStats() (score, kills, deaths int) {
+	return em.score, em.kills, em.deaths
+}
+
+// CycleSpectateNext cycles to the next allied ship
+func (em *EntityManager) CycleSpectateNext() {
+	if !em.isSpectating {
+		return
+	}
+
+	playerFaction := 0
+	var allies []entity.Ship
+	for _, ship := range em.ships {
+		if ship.GetFaction() == playerFaction && ship.IsAlive() {
+			allies = append(allies, ship)
+		}
+	}
+
+	if len(allies) == 0 {
+		em.spectatedShipID = -1
+		return
+	}
+
+	// Find current index
+	currentIndex := -1
+	for i, ship := range allies {
+		if ship.GetID() == em.spectatedShipID {
+			currentIndex = i
+			break
+		}
+	}
+
+	// Cycle to next
+	nextIndex := (currentIndex + 1) % len(allies)
+	em.spectatedShipID = allies[nextIndex].GetID()
+}
+
+// CycleSpectatePrevious cycles to the previous allied ship
+func (em *EntityManager) CycleSpectatePrevious() {
+	if !em.isSpectating {
+		return
+	}
+
+	playerFaction := 0
+	var allies []entity.Ship
+	for _, ship := range em.ships {
+		if ship.GetFaction() == playerFaction && ship.IsAlive() {
+			allies = append(allies, ship)
+		}
+	}
+
+	if len(allies) == 0 {
+		em.spectatedShipID = -1
+		return
+	}
+
+	// Find current index
+	currentIndex := -1
+	for i, ship := range allies {
+		if ship.GetID() == em.spectatedShipID {
+			currentIndex = i
+			break
+		}
+	}
+
+	// Cycle to previous
+	prevIndex := currentIndex - 1
+	if prevIndex < 0 {
+		prevIndex = len(allies) - 1
+	}
+	em.spectatedShipID = allies[prevIndex].GetID()
+}
+
+// RespawnIntoSpectatedShip attempts to take control of the spectated ship
+func (em *EntityManager) RespawnIntoSpectatedShip() bool {
+	if !em.isSpectating || em.spectatedShipID < 0 {
+		return false
+	}
+
+	ship := em.ships[em.spectatedShipID]
+	if ship == nil || !ship.IsAlive() {
+		return false
+	}
+
+	// Can't respawn into testudons (AI-only ships)
+	if ship.GetClass() == entity.ClassTestudon {
+		return false
+	}
+
+	// Take control
+	em.SetPlayerShip(em.spectatedShipID)
+	em.isSpectating = false
+	em.spectatedShipID = -1
+
+	return true
+}
+
+// UpdateSpectateMode validates spectated ship and auto-switches if needed
+func (em *EntityManager) UpdateSpectateMode() {
+	if !em.isSpectating {
+		return
+	}
+
+	// Check if spectated ship is still valid
+	spectatedShip := em.ships[em.spectatedShipID]
+	if spectatedShip == nil || !spectatedShip.IsAlive() {
+		// Find another ship to spectate
+		em.handlePlayerDeath() // Reuses logic to find new spectate target
+	}
+}
+
+// BattleResult represents the outcome of a battle
+type BattleResult int
+
+const (
+	BattleOngoing BattleResult = iota
+	PlayerVictory
+	PlayerDefeat
+)
+
+// CheckBattleEnd checks if the battle has ended
+func (em *EntityManager) CheckBattleEnd() BattleResult {
+	playerFaction := 0
+
+	// Count ships per faction
+	factionCounts := make(map[int]int)
+	for _, ship := range em.ships {
+		if ship.IsAlive() {
+			factionCounts[ship.GetFaction()]++
+		}
+	}
+
+	// Check if player's faction has any ships left
+	playerFactionAlive := factionCounts[playerFaction] > 0
+
+	// Count how many factions are still alive
+	aliveFactions := 0
+	for _, count := range factionCounts {
+		if count > 0 {
+			aliveFactions++
+		}
+	}
+
+	// Player defeated if their faction has no ships
+	if !playerFactionAlive {
+		return PlayerDefeat
+	}
+
+	// Player victory if only their faction remains
+	if aliveFactions == 1 {
+		return PlayerVictory
+	}
+
+	// Battle ongoing
+	return BattleOngoing
 }
 
 // SetFactionSpawnPoint sets the spawn point for a faction

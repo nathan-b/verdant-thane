@@ -4,7 +4,7 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/nathan/verdant-thane/components"
+
 	"github.com/nathan/verdant-thane/config"
 )
 
@@ -19,7 +19,7 @@ type Destroyer struct {
 
 // NewDestroyer creates a new destroyer ship
 func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *Destroyer {
-	chars := config.GetShipCharacteristics(components.Destroyer)
+	chars := config.GetShipCharacteristics(ClassDestroyer)
 
 	// Get missile characteristics for charge rate
 	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
@@ -105,7 +105,26 @@ func (d *Destroyer) UpdateAI(ctx GameContext) {
 // Ship Interface Implementation (Missile-specific)
 // ============================================================================
 
-// FireMissile fires a homing missile at a target
+func (d *Destroyer) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
+	playerShip := ctx.GetShip(d.ID)
+	// Find nearest enemy in rear arc for missile
+	nearestEnemy, dist := ctx.FindNearestEnemyInArc(
+		playerShip,
+		math.Pi, // 180 degree arc
+		1000.0,  // Max range (TODO: make this part of the projectile stats)
+		true,    // Rear-facing
+	)
+	if d.CanFireMissile() && nearestEnemy != nil && dist < 1000.0 { // TODO: definitely don't hardcode this twice
+		d.FireMissile(nearestEnemy.GetID(), ctx)
+	} else {
+		// No valid target for a missile, just fire the main gun
+		d.BaseShip.FireWeapon(mouseX, mouseY, ctx)
+	}
+}
+
+// FireMissile fires a homing missile at a target (this is a destroyer-specific method)
+// It's the responsibility of the caller to validate that the target is in a position
+// to be fired upon (e.g. in rear arc, within range)
 func (d *Destroyer) FireMissile(targetID int, ctx GameContext) {
 	if !d.CanFireMissile() {
 		return
@@ -117,19 +136,6 @@ func (d *Destroyer) FireMissile(targetID int, ctx GameContext) {
 		return
 	}
 
-	// Check if target is in rear arc
-	targetX, targetY := target.GetPosition()
-	dx, dy := GetWrappedDistance(d.X, d.Y, targetX, targetY)
-	angleToTarget := math.Atan2(dy, dx)
-
-	// Rear arc is 180° behind ship (±90° from rear direction)
-	rearAngle := NormalizeAngle(d.Rotation + math.Pi)
-	angleFromRear := math.Abs(NormalizeAngle(angleToTarget - rearAngle))
-
-	if angleFromRear > d.MissileFiringArc/2 {
-		return // Target not in rear arc
-	}
-
 	// Consume capacitor
 	d.MissileCapacitor = 0.0
 
@@ -137,7 +143,7 @@ func (d *Destroyer) FireMissile(targetID int, ctx GameContext) {
 	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
 
 	// Launch from rear of ship
-	launchAngle := rearAngle
+	launchAngle := NormalizeAngle(d.Rotation + math.Pi)
 	spawnOffset := 25.0
 	spawnX := d.X + math.Cos(launchAngle)*spawnOffset
 	spawnY := d.Y + math.Sin(launchAngle)*spawnOffset
@@ -145,10 +151,6 @@ func (d *Destroyer) FireMissile(targetID int, ctx GameContext) {
 	// Initial velocity (launches from rear)
 	missileVX := math.Cos(launchAngle) * missileChars.Speed
 	missileVY := math.Sin(launchAngle) * missileChars.Speed
-
-	// Add ship velocity
-	missileVX += d.VelocityX
-	missileVY += d.VelocityY
 
 	// Spawn missile via context
 	ctx.SpawnMissile(MissileConfig{

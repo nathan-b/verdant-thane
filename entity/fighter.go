@@ -5,7 +5,7 @@ import (
 	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/nathan/verdant-thane/components"
+
 	"github.com/nathan/verdant-thane/config"
 )
 
@@ -55,7 +55,7 @@ type Fighter struct {
 
 // NewFighter creates a new fighter ship
 func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Fighter {
-	chars := config.GetShipCharacteristics(components.Fighter)
+	chars := config.GetShipCharacteristics(ClassFighter)
 
 	base := &BaseShip{
 		ID:               id,
@@ -211,13 +211,13 @@ func (b *BaseShip) IsPlayerControlled() bool {
 }
 
 // FireWeapon fires the main weapon at a target position (BaseShip method, can be overridden)
-func (b *BaseShip) FireWeapon(targetX, targetY float64, ctx GameContext) {
+func (b *BaseShip) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
 	if !b.CanFireWeapon() {
 		return
 	}
 
 	// Calculate angle to target
-	dx, dy := GetWrappedDistance(b.X, b.Y, targetX, targetY)
+	dx, dy := GetWrappedDistance(b.X, b.Y, mouseX, mouseY)
 	angleToTarget := math.Atan2(dy, dx)
 
 	// Check if target is within firing cone

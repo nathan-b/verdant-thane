@@ -4,7 +4,6 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/nathan/verdant-thane/components"
 	"github.com/nathan/verdant-thane/config"
 )
 
@@ -23,7 +22,7 @@ type Testudon struct {
 
 // NewTestudon creates a new testudon ship
 func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *Testudon {
-	chars := config.GetShipCharacteristics(components.Testudon)
+	chars := config.GetShipCharacteristics(ClassTestudon)
 
 	base := &BaseShip{
 		ID:               id,
