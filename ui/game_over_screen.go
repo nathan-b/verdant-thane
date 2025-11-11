@@ -22,13 +22,15 @@ type GameOverScreen struct {
 	ui             *ebitenui.UI
 	nameInput      *widget.TextInput
 	continueButton *widget.Button
+	restartButton  *widget.Button
 	font           text.Face // Store as interface for ebitenui
 	hudFont        *text.GoTextFace
 }
 
 // NewGameOverScreen creates a new game over screen with ebitenui widgets
 // The onContinue callback will be called when the Continue button is clicked
-func NewGameOverScreen(playerName string, score, kills, deaths int, isHighScore bool, fontSource *text.GoTextFaceSource, onContinue func()) *GameOverScreen {
+// The onQuickRestart callback will be called when the Quick Restart button is clicked
+func NewGameOverScreen(playerName string, score, kills, deaths int, isHighScore bool, fontSource *text.GoTextFaceSource, onContinue func(), onQuickRestart func()) *GameOverScreen {
 	// Create font faces
 	hudFont := &text.GoTextFace{
 		Source: fontSource,
@@ -151,10 +153,42 @@ func NewGameOverScreen(playerName string, score, kills, deaths int, isHighScore 
 		}),
 	)
 
+	// Create Quick Restart button
+	gos.restartButton = widget.NewButton(
+		widget.ButtonOpts.WidgetOpts(
+			widget.WidgetOpts.LayoutData(widget.RowLayoutData{
+				Position: widget.RowLayoutPositionCenter,
+				Stretch:  false,
+			}),
+			widget.WidgetOpts.MinSize(150, 40),
+		),
+		widget.ButtonOpts.Image(&widget.ButtonImage{
+			Idle:    ebitenui_image.NewNineSliceColor(color.NRGBA{R: 70, G: 180, B: 130, A: 255}), // Green color
+			Hover:   ebitenui_image.NewNineSliceColor(color.NRGBA{R: 90, G: 200, B: 150, A: 255}),
+			Pressed: ebitenui_image.NewNineSliceColor(color.NRGBA{R: 50, G: 160, B: 110, A: 255}),
+		}),
+		widget.ButtonOpts.Text("Quick Restart", &gos.font, &widget.ButtonTextColor{
+			Idle: color.NRGBA{0xdf, 0xff, 0xf4, 0xff},
+		}),
+		widget.ButtonOpts.TextPadding(&widget.Insets{
+			Left:   20,
+			Right:  20,
+			Top:    10,
+			Bottom: 10,
+		}),
+		// Click handler callback
+		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
+			if onQuickRestart != nil {
+				onQuickRestart()
+			}
+		}),
+	)
+
 	// Add widgets to content container
 	contentContainer.AddChild(nameLabel)
 	contentContainer.AddChild(gos.nameInput)
 	contentContainer.AddChild(gos.continueButton)
+	contentContainer.AddChild(gos.restartButton)
 
 	// Add content to main container
 	container.AddChild(contentContainer)

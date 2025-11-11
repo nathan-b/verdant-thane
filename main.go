@@ -112,6 +112,7 @@ type Game struct {
 	highScoresDialog   *ui.Dialog              // High scores screen dialog
 	highScores         *persistence.HighScores // High scores loaded at game start
 	battleNumber       int                     // Current battle number (1-indexed)
+	currentFleetConfig *config.FleetConfig     // Config for current battle (used for quick restart)
 	nextFleetConfig    *config.FleetConfig     // Config for next battle (used by interstitial)
 
 	// Entity system
@@ -237,6 +238,9 @@ func NewGame() (*Game, error) {
 
 // StartGame transitions from title screen to in-game state by spawning ships
 func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
+	// Store fleet config for quick restart
+	g.currentFleetConfig = &fleetConfig
+
 	// Clear entity manager for new game
 	g.entityManager.Clear()
 
@@ -463,20 +467,36 @@ func (g *Game) Update() error {
 			// Get default player name
 			playerName := persistence.GetCurrentUsername()
 
-			// Create game over screen with ebitenui and button callback
-			g.gameOverScreen = ui.NewGameOverScreen(playerName, score, kills, deaths, isHighScore, g.hudFont.Source, func() {
-				// Save high score
-				playerName := g.gameOverScreen.GetPlayerName()
-				score, kills, deaths := g.entityManager.GetPlayerStats()
-				g.highScores.AddScore(playerName, score, kills, deaths)
-				if err := persistence.SaveHighScores(g.highScores); err != nil {
-					log.Printf("Warning: Failed to save high scores: %v", err)
-				}
+			// Create game over screen with ebitenui and button callbacks
+			g.gameOverScreen = ui.NewGameOverScreen(playerName, score, kills, deaths, isHighScore, g.hudFont.Source,
+				// Continue callback (saves high score and returns to title)
+				func() {
+					// Save high score
+					playerName := g.gameOverScreen.GetPlayerName()
+					score, kills, deaths := g.entityManager.GetPlayerStats()
+					g.highScores.AddScore(playerName, score, kills, deaths)
+					if err := persistence.SaveHighScores(g.highScores); err != nil {
+						log.Printf("Warning: Failed to save high scores: %v", err)
+					}
 
-				// Return to title screen and clear game over screen
-				g.gameOverScreen = nil
-				g.currentState = TitleScreen
-			})
+					// Return to title screen and clear game over screen
+					g.gameOverScreen = nil
+					g.currentState = TitleScreen
+				},
+				// Quick restart callback (restarts with same fleet config)
+				func() {
+					if g.currentFleetConfig != nil {
+						// Clear game over screen
+						g.gameOverScreen = nil
+
+						// Restart with same fleet configuration
+						if err := g.StartGame(*g.currentFleetConfig); err != nil {
+							log.Printf("Error restarting game: %v", err)
+							g.currentState = TitleScreen
+						}
+					}
+				},
+			)
 		}
 
 		// Update UI (handles text input and button interactions)
