@@ -123,6 +123,7 @@ type Game struct {
 	explosionSprite *ebiten.Image           // Sprite sheet for explosion animation
 	factionSprites  *systems.FactionSprites // Ship sprites for all factions
 	hudFont         *text.GoTextFace        // Font for HUD rendering
+	factionColors   []color.RGBA            // Faction colors for rendering (beams, minimap, etc.)
 
 	// Camera
 	cameraX float64 // Camera position (follows player)
@@ -218,8 +219,14 @@ func NewGame() (*Game, error) {
 		explosionSprite:    explosionSprite,
 		factionSprites:     factionSprites,
 		hudFont:            hudFont,
-		lastFPSTime:        time.Now(),
-		lastProfileTime:    time.Now(),
+		factionColors: []color.RGBA{
+			{0, 255, 0, 255},   // Green (player faction)
+			{0, 128, 255, 255}, // Blue
+			{255, 0, 0, 255},   // Red
+			{255, 255, 0, 255}, // Yellow
+		},
+		lastFPSTime:     time.Now(),
+		lastProfileTime: time.Now(),
 	}
 
 	// Set profiler on entity manager for performance tracking
@@ -631,6 +638,38 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 		g.profileData.RenderShips += time.Since(t)
 
+		// Draw testudon beams
+		t = time.Now()
+		for _, ship := range g.entityManager.ships {
+			// Check if this is a testudon with an active beam
+			if ship.GetClass() == entity.ClassTestudon {
+				// Type assert to get beam target info
+				if testudon, ok := ship.(*entity.Testudon); ok && testudon.IsAlive() {
+					beamTargetID := testudon.GetBeamTargetID()
+					if beamTargetID >= 0 {
+						target := g.entityManager.GetShip(beamTargetID)
+						if target != nil && target.IsAlive() {
+							// Get positions
+							shipX, shipY := testudon.GetPosition()
+							targetX, targetY := target.GetPosition()
+
+							// Convert to screen coordinates
+							screenX1 := float32(shipX - g.cameraX)
+							screenY1 := float32(shipY - g.cameraY)
+							screenX2 := float32(targetX - g.cameraX)
+							screenY2 := float32(targetY - g.cameraY)
+
+							// Draw beam line using testudon's faction color
+							factionID := testudon.GetFaction()
+							beamColor := g.factionColors[factionID%len(g.factionColors)]
+							vector.StrokeLine(screen, screenX1, screenY1, screenX2, screenY2, 2, beamColor, false)
+						}
+					}
+				}
+			}
+		}
+		g.profileData.RenderBeams += time.Since(t)
+
 		// Draw projectiles
 		t = time.Now()
 		for _, proj := range g.entityManager.projectiles {
@@ -1001,14 +1040,6 @@ func (g *Game) renderMinimap(screen *ebiten.Image) {
 	scaleX := float64(minimapSize) / float64(config.GameWidth)
 	scaleY := float64(minimapSize) / float64(config.GameHeight)
 
-	// Faction colors
-	factionColors := []color.RGBA{
-		{0, 255, 0, 255},   // Green (player faction)
-		{0, 128, 255, 255}, // Blue
-		{255, 0, 0, 255},   // Red
-		{255, 255, 0, 255}, // Yellow
-	}
-
 	// Draw all ships as colored dots
 	for _, ship := range g.entityManager.ships {
 		if !ship.IsAlive() {
@@ -1020,7 +1051,7 @@ func (g *Game) renderMinimap(screen *ebiten.Image) {
 		minimapDotY := minimapY + float32(y*scaleY)
 
 		factionID := ship.GetFaction()
-		shipColor := factionColors[factionID%len(factionColors)]
+		shipColor := g.factionColors[factionID%len(g.factionColors)]
 
 		// Draw ship dot with size based on ship class
 		// Fighters: 1x1, Destroyers: 2x2, Testudons: 3x3
