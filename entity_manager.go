@@ -5,6 +5,7 @@ import (
 	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
+
 	"github.com/nathan/verdant-thane/config"
 	"github.com/nathan/verdant-thane/entity"
 	"github.com/nathan/verdant-thane/systems"
@@ -63,15 +64,15 @@ func NewEntityManager(laserSprite, missileSprite, explosionSprite *ebiten.Image,
 // GameContext Interface Implementation
 // ============================================================================
 
-// SpawnLaserProjectile creates a new laser projectile
-func (em *EntityManager) SpawnLaserProjectile(cfg entity.LaserConfig) {
+// SpawnProjectile creates a new laser projectile
+func (em *EntityManager) SpawnProjectile(cfg entity.MainGunConfig) {
 	id := em.nextID
 	em.nextID++
 
 	// Set sprite from manager
 	cfg.Sprite = em.laserSprite
 
-	laser := entity.NewLaserProjectile(id, cfg)
+	laser := entity.NewMainGunProjectile(id, cfg)
 	em.projectiles[id] = laser
 }
 
@@ -343,8 +344,17 @@ func (em *EntityManager) UpdateAll() {
 }
 
 // updateCollisions checks for projectile-ship collisions
+// Uses spatial grid partitioning to reduce collision checks from O(n×m) to O(n×k)
 func (em *EntityManager) updateCollisions() {
-	// Check each projectile against all ships
+	// Build spatial grid with all ships
+	grid := newSpatialGrid()
+	for _, ship := range em.ships {
+		if ship.IsAlive() {
+			grid.insert(ship)
+		}
+	}
+
+	// Check each projectile against nearby ships only
 	toDelete := make([]int, 0)
 
 	for projID, proj := range em.projectiles {
@@ -352,7 +362,12 @@ func (em *EntityManager) updateCollisions() {
 			continue
 		}
 
-		for _, ship := range em.ships {
+		// Get ships in 3×3 cell neighborhood around projectile
+		projX, projY := proj.GetPosition()
+		nearbyShips := grid.getNearbyShips(projX, projY)
+
+		// Check collision against nearby ships only (not all ships)
+		for _, ship := range nearbyShips {
 			if !ship.IsAlive() {
 				continue
 			}
