@@ -266,6 +266,11 @@ func (em *EntityManager) SpawnShipAtFactionPoint(class entity.ShipClass, faction
 
 // getSpriteForShip returns the appropriate sprite for a ship class and faction
 func (em *EntityManager) getSpriteForShip(class entity.ShipClass, factionID int) *ebiten.Image {
+	// Handle nil factionSprites (for unit tests)
+	if em.factionSprites == nil {
+		return nil
+	}
+
 	var classSprites *systems.ShipClassSprites
 
 	switch class {
@@ -277,6 +282,11 @@ func (em *EntityManager) getSpriteForShip(class entity.ShipClass, factionID int)
 		classSprites = em.factionSprites.Testudon
 	default:
 		classSprites = em.factionSprites.Fighter
+	}
+
+	// Handle nil classSprites (for unit tests)
+	if classSprites == nil {
+		return nil
 	}
 
 	// Map faction ID to sprite

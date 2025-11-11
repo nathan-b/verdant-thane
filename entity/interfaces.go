@@ -11,7 +11,7 @@ type ShipClass = config.ShipClass
 
 // Re-export ship class constants for convenience
 const (
-	ClassFighter  = config.ClassFighter
+	ClassFighter   = config.ClassFighter
 	ClassDestroyer = config.ClassDestroyer
 	ClassTestudon  = config.ClassTestudon
 )

@@ -343,7 +343,7 @@ func (g *Game) Update() error {
 		// Update all entities (ships, projectiles, explosions, collisions)
 		t := time.Now()
 		g.entityManager.UpdateAll()
-        g.profileData.EntityUpdate += time.Since(t)
+		g.profileData.EntityUpdate += time.Since(t)
 
 		// Handle spectate mode controls
 		if g.entityManager.IsSpectating() {
