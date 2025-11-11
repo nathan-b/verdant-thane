@@ -1022,8 +1022,23 @@ func (g *Game) renderMinimap(screen *ebiten.Image) {
 		factionID := ship.GetFaction()
 		shipColor := factionColors[factionID%len(factionColors)]
 
-		// Draw ship dot
-		vector.FillRect(screen, minimapDotX-1, minimapDotY-1, 3, 3, shipColor, false)
+		// Draw ship dot with size based on ship class
+		// Fighters: 1x1, Destroyers: 2x2, Testudons: 3x3
+		var dotSize float32
+		switch ship.GetClass() {
+		case entity.ClassFighter:
+			dotSize = 1
+		case entity.ClassDestroyer:
+			dotSize = 2
+		case entity.ClassTestudon:
+			dotSize = 3
+		default:
+			dotSize = 1
+		}
+
+		// Center the dot on the ship position
+		offset := dotSize / 2
+		vector.FillRect(screen, minimapDotX-offset, minimapDotY-offset, dotSize, dotSize, shipColor, false)
 	}
 
 	// Draw player marker (light green plus sign)
