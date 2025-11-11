@@ -221,7 +221,8 @@ func (em *EntityManager) FindNearestEnemyInArc(ship entity.Ship, arc, maxRange f
 
 		// Check arc
 		dx, dy := entity.GetWrappedDistance(shipX, shipY, otherX, otherY)
-		angleToTarget := math.Atan2(dy, dx)
+		// Sprites face UP (Y-axis), so use atan2(dx, -dy) instead of atan2(dy, dx)
+		angleToTarget := math.Atan2(dx, -dy)
 		angleFromArcCenter := math.Abs(entity.NormalizeAngle(angleToTarget - arcCenter))
 
 		if angleFromArcCenter > arc/2 {
