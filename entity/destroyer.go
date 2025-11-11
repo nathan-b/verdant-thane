@@ -143,14 +143,17 @@ func (d *Destroyer) FireMissile(targetID int, ctx GameContext) {
 	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
 
 	// Launch from rear of ship
+	// Sprites face UP (Y-axis), so rotation + π points to rear
 	launchAngle := NormalizeAngle(d.Rotation + math.Pi)
 	spawnOffset := 25.0
-	spawnX := d.X + math.Cos(launchAngle)*spawnOffset
-	spawnY := d.Y + math.Sin(launchAngle)*spawnOffset
+	// Use sin/cos adjusted for sprite orientation
+	spawnX := d.X + math.Sin(launchAngle)*spawnOffset
+	spawnY := d.Y + -math.Cos(launchAngle)*spawnOffset
 
 	// Initial velocity (launches from rear)
-	missileVX := math.Cos(launchAngle) * missileChars.Speed
-	missileVY := math.Sin(launchAngle) * missileChars.Speed
+	// Use sin/cos adjusted for sprite orientation
+	missileVX := math.Sin(launchAngle) * missileChars.Speed
+	missileVY := -math.Cos(launchAngle) * missileChars.Speed
 
 	// Spawn missile via context
 	ctx.SpawnMissile(MissileConfig{

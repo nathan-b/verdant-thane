@@ -217,8 +217,9 @@ func (b *BaseShip) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
 	}
 
 	// Calculate angle to target
+	// Sprites face UP (Y-axis), so use atan2(dx, -dy) instead of atan2(dy, dx)
 	dx, dy := GetWrappedDistance(b.X, b.Y, mouseX, mouseY)
-	angleToTarget := math.Atan2(dy, dx)
+	angleToTarget := math.Atan2(dx, -dy)
 
 	// Check if target is within firing cone
 	angleFromForward := NormalizeAngle(angleToTarget - b.Rotation)
@@ -241,9 +242,10 @@ func (b *BaseShip) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
 	b.WeaponCapacitor = 0.0
 
 	// Calculate projectile velocity
+	// Sprites face UP (Y-axis), so use sin/cos adjusted for sprite orientation
 	projectileSpeed := 12.0 // 2x max ship speed
-	projectileVX := math.Cos(firingAngle) * projectileSpeed
-	projectileVY := math.Sin(firingAngle) * projectileSpeed
+	projectileVX := math.Sin(firingAngle) * projectileSpeed
+	projectileVY := -math.Cos(firingAngle) * projectileSpeed
 
 	// Add ship velocity to projectile (inheritance)
 	projectileVX += b.VelocityX
@@ -251,11 +253,11 @@ func (b *BaseShip) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
 
 	// Spawn offset (spawn in front of ship)
 	spawnOffset := 20.0
-	spawnX := b.X + math.Cos(firingAngle)*spawnOffset
-	spawnY := b.Y + math.Sin(firingAngle)*spawnOffset
+	spawnX := b.X + math.Sin(firingAngle)*spawnOffset
+	spawnY := b.Y + -math.Cos(firingAngle)*spawnOffset
 
 	// Spawn projectile via context
-	ctx.SpawnLaserProjectile(LaserConfig{
+	ctx.SpawnProjectile(MainGunConfig{
 		X:         spawnX,
 		Y:         spawnY,
 		VelocityX: projectileVX,
@@ -323,8 +325,10 @@ func (b *BaseShip) UpdatePlayerInput(ctx GameContext) {
 	// Acceleration/Deceleration
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		// Accelerate in facing direction
-		b.VelocityX += math.Cos(b.Rotation) * b.Accel
-		b.VelocityY += math.Sin(b.Rotation) * b.Accel
+		// Sprites face UP (along Y-axis), so rotation 0 = facing up
+		// Use sin for X and -cos for Y to account for sprite orientation
+		b.VelocityX += math.Sin(b.Rotation) * b.Accel
+		b.VelocityY += -math.Cos(b.Rotation) * b.Accel
 
 		// Cap at max speed
 		speed := math.Sqrt(b.VelocityX*b.VelocityX + b.VelocityY*b.VelocityY)
@@ -372,7 +376,8 @@ func (f *Fighter) UpdateAI(ctx GameContext) {
 		// Pursuit: Rotate toward target and fly at 80-100% speed
 		targetX, targetY := target.GetPosition()
 		dx, dy := GetWrappedDistance(f.X, f.Y, targetX, targetY)
-		angleToTarget := math.Atan2(dy, dx)
+		// Sprites face UP (Y-axis), so use atan2(dx, -dy)
+		angleToTarget := math.Atan2(dx, -dy)
 
 		// Rotate toward target
 		angleDiff := NormalizeAngle(angleToTarget - f.Rotation)
@@ -389,8 +394,9 @@ func (f *Fighter) UpdateAI(ctx GameContext) {
 
 		// Accelerate toward target at random speed (80-100%)
 		targetSpeed := f.MaxSpeed * (config.AIPursuitSpeedMin + rand.Float64()*(config.AIPursuitSpeedMax-config.AIPursuitSpeedMin))
-		f.VelocityX += math.Cos(f.Rotation) * f.Accel
-		f.VelocityY += math.Sin(f.Rotation) * f.Accel
+		// Sprites face UP (along Y-axis), so use sin/cos adjusted for sprite orientation
+		f.VelocityX += math.Sin(f.Rotation) * f.Accel
+		f.VelocityY += -math.Cos(f.Rotation) * f.Accel
 
 		// Cap speed
 		speed := math.Sqrt(f.VelocityX*f.VelocityX + f.VelocityY*f.VelocityY)
@@ -421,8 +427,9 @@ func (f *Fighter) UpdateAI(ctx GameContext) {
 	} else {
 		// Patrol: Maintain heading at 50% speed
 		targetSpeed := f.MaxSpeed * config.AIPatrolSpeed
-		f.VelocityX += math.Cos(f.Rotation) * f.Accel
-		f.VelocityY += math.Sin(f.Rotation) * f.Accel
+		// Sprites face UP (along Y-axis), so use sin/cos adjusted for sprite orientation
+		f.VelocityX += math.Sin(f.Rotation) * f.Accel
+		f.VelocityY += -math.Cos(f.Rotation) * f.Accel
 
 		speed := math.Sqrt(f.VelocityX*f.VelocityX + f.VelocityY*f.VelocityY)
 		if speed > targetSpeed {

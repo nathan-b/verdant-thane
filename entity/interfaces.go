@@ -65,7 +65,7 @@ type Projectile interface {
 // creating circular dependencies between packages
 type GameContext interface {
 	// Entity spawning
-	SpawnLaserProjectile(config LaserConfig)
+	SpawnProjectile(config MainGunConfig)
 	SpawnMissile(config MissileConfig)
 	SpawnExplosion(x, y float64)
 
@@ -84,8 +84,8 @@ type GameContext interface {
 	AddScore(points int)
 }
 
-// LaserConfig contains parameters for spawning a laser projectile
-type LaserConfig struct {
+// MainGunConfig contains parameters for spawning a main gun projectile
+type MainGunConfig struct {
 	X, Y                 float64
 	VelocityX, VelocityY float64
 	OwnerID              int

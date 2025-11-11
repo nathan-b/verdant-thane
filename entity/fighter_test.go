@@ -278,10 +278,11 @@ func TestFighterFireWeapon(t *testing.T) {
 func TestFighterFiringCone(t *testing.T) {
 	ctx := NewMockGameContext()
 	fighter := NewFighter(1, 0, 100, 100, nil)
-	fighter.Rotation = 0 // Facing right
+	fighter.Rotation = 0 // Facing up (sprites face UP)
 
 	// Try to fire at a position behind the ship (outside cone)
-	fighter.FireWeapon(0, 100, ctx)
+	// Behind means below (positive Y) since ship faces up
+	fighter.FireWeapon(100, 200, ctx)
 
 	// Should still fire, but along cone edge
 	if len(ctx.spawnedProjectiles) != 1 {
@@ -291,8 +292,9 @@ func TestFighterFiringCone(t *testing.T) {
 	proj := ctx.spawnedProjectiles[0]
 
 	// Projectile should be angled along cone edge, not directly at target
-	// Since target is behind (180°), and cone is 30°, projectile should fire at ±15° from forward
-	firingAngle := math.Atan2(proj.VelocityY, proj.VelocityX)
+	// Since target is behind (180° in ship coords), and cone is 30°, projectile should fire at ±15° from forward
+	// Calculate velocity angle in ship coordinate system (sprites face UP)
+	firingAngle := math.Atan2(proj.VelocityX, -proj.VelocityY)
 	angleDiff := math.Abs(NormalizeAngle(firingAngle - fighter.Rotation))
 
 	chars := config.GetShipCharacteristics(ClassFighter)
@@ -526,11 +528,12 @@ func TestDeadFighterDoesNotUpdate(t *testing.T) {
 func TestFighterProjectileVelocityInheritance(t *testing.T) {
 	ctx := NewMockGameContext()
 	fighter := NewFighter(1, 0, 100, 100, nil)
-	fighter.Rotation = 0 // Facing right
+	fighter.Rotation = 0 // Facing up (sprites face UP)
 	fighter.VelocityX = 2.0
 	fighter.VelocityY = 1.0
 
-	fighter.FireWeapon(200, 100, ctx)
+	// Fire straight ahead (upward)
+	fighter.FireWeapon(100, 0, ctx)
 
 	if len(ctx.spawnedProjectiles) != 1 {
 		t.Fatalf("Expected 1 projectile, got %d", len(ctx.spawnedProjectiles))
@@ -539,13 +542,14 @@ func TestFighterProjectileVelocityInheritance(t *testing.T) {
 	proj := ctx.spawnedProjectiles[0]
 
 	// Projectile should inherit ship velocity
-	// Base projectile speed is 12.0, so VX should be ~12 + 2 = 14
-	if proj.VelocityX < 13.0 || proj.VelocityX > 15.0 {
-		t.Errorf("Expected projectile VX ~14 (12 base + 2 ship), got %f", proj.VelocityX)
+	// Base projectile speed is 12.0 going up (0 rotation), so:
+	// VX should be ~0 + 2 = 2 (no X component from firing angle, plus ship velocity)
+	// VY should be ~-12 + 1 = -11 (firing upward is negative Y, plus ship velocity)
+	if math.Abs(proj.VelocityX-2.0) > 0.1 {
+		t.Errorf("Expected projectile VX ~2 (0 base + 2 ship), got %f", proj.VelocityX)
 	}
 
-	// VY should be ~0 + 1 = 1 (firing straight, so no Y component from firing angle)
-	if math.Abs(proj.VelocityY-1.0) > 0.1 {
-		t.Errorf("Expected projectile VY ~1 (0 base + 1 ship), got %f", proj.VelocityY)
+	if math.Abs(proj.VelocityY-(-11.0)) > 0.1 {
+		t.Errorf("Expected projectile VY ~-11 (-12 base + 1 ship), got %f", proj.VelocityY)
 	}
 }

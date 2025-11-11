@@ -4,15 +4,16 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
+
 	"github.com/nathan/verdant-thane/config"
 )
 
 // ============================================================================
-// LaserProjectile
+// MainGunProjectile
 // ============================================================================
 
-// LaserProjectile is a straight-line laser projectile
-type LaserProjectile struct {
+// MainGunProjectile is a straight-line laser projectile
+type MainGunProjectile struct {
 	ID                   int
 	X, Y                 float64
 	VelocityX, VelocityY float64
@@ -24,11 +25,11 @@ type LaserProjectile struct {
 	Alive                bool
 }
 
-// NewLaserProjectile creates a new laser projectile
-func NewLaserProjectile(id int, cfg LaserConfig) *LaserProjectile {
+// NewMainGunProjectile creates a new projectile for the figter and destroyer main gun
+func NewMainGunProjectile(id int, cfg MainGunConfig) *MainGunProjectile {
 	chars := config.GetProjectileCharacteristics(config.LaserProjectile)
 
-	return &LaserProjectile{
+	return &MainGunProjectile{
 		ID:          id,
 		X:           cfg.X,
 		Y:           cfg.Y,
@@ -48,7 +49,7 @@ func NewLaserProjectile(id int, cfg LaserConfig) *LaserProjectile {
 // ============================================================================
 
 // Update handles per-frame logic for the laser
-func (l *LaserProjectile) Update(ctx GameContext) error {
+func (l *MainGunProjectile) Update(ctx GameContext) error {
 	if !l.Alive {
 		return nil
 	}
@@ -71,7 +72,7 @@ func (l *LaserProjectile) Update(ctx GameContext) error {
 }
 
 // Render draws the laser to the screen
-func (l *LaserProjectile) Render(screen *ebiten.Image, cameraX, cameraY float64) {
+func (l *MainGunProjectile) Render(screen *ebiten.Image, cameraX, cameraY float64) {
 	if !l.Alive || l.Sprite == nil {
 		return
 	}
@@ -88,17 +89,17 @@ func (l *LaserProjectile) Render(screen *ebiten.Image, cameraX, cameraY float64)
 }
 
 // GetID returns the projectile's ID
-func (l *LaserProjectile) GetID() int {
+func (l *MainGunProjectile) GetID() int {
 	return l.ID
 }
 
 // GetPosition returns the projectile's position
-func (l *LaserProjectile) GetPosition() (float64, float64) {
+func (l *MainGunProjectile) GetPosition() (float64, float64) {
 	return l.X, l.Y
 }
 
 // IsAlive returns whether the projectile is still active
-func (l *LaserProjectile) IsAlive() bool {
+func (l *MainGunProjectile) IsAlive() bool {
 	return l.Alive
 }
 
@@ -107,17 +108,17 @@ func (l *LaserProjectile) IsAlive() bool {
 // ============================================================================
 
 // GetOwnerID returns the ID of the ship that fired this projectile
-func (l *LaserProjectile) GetOwnerID() int {
+func (l *MainGunProjectile) GetOwnerID() int {
 	return l.OwnerID
 }
 
 // GetDamage returns the damage this projectile deals
-func (l *LaserProjectile) GetDamage() int {
+func (l *MainGunProjectile) GetDamage() int {
 	return 1 // Lasers deal 1 damage
 }
 
 // CheckCollision checks if this projectile collides with a ship
-func (l *LaserProjectile) CheckCollision(ship Ship) bool {
+func (l *MainGunProjectile) CheckCollision(ship Ship) bool {
 	if !l.Alive || !ship.IsAlive() {
 		return false
 	}
@@ -136,7 +137,7 @@ func (l *LaserProjectile) CheckCollision(ship Ship) bool {
 }
 
 // GetFaction returns the faction ID (inherited from owner)
-func (l *LaserProjectile) GetFaction() int {
+func (l *MainGunProjectile) GetFaction() int {
 	return l.FactionID
 }
 
@@ -299,7 +300,8 @@ func (m *MissileProjectile) UpdateTracking(ctx GameContext) {
 	// Calculate direction to target
 	targetX, targetY := target.GetPosition()
 	dx, dy := GetWrappedDistance(m.X, m.Y, targetX, targetY)
-	angleToTarget := math.Atan2(dy, dx)
+	// Sprites face UP (Y-axis), so use atan2(dx, -dy)
+	angleToTarget := math.Atan2(dx, -dy)
 
 	// Current velocity angle
 	currentSpeed := math.Sqrt(m.VelocityX*m.VelocityX + m.VelocityY*m.VelocityY)
@@ -307,7 +309,8 @@ func (m *MissileProjectile) UpdateTracking(ctx GameContext) {
 		// Edge case: very slow, just point at target
 		m.Rotation = angleToTarget
 	} else {
-		currentAngle := math.Atan2(m.VelocityY, m.VelocityX)
+		// Sprites face UP (Y-axis), so use atan2(vx, -vy) for velocity angle
+		currentAngle := math.Atan2(m.VelocityX, -m.VelocityY)
 
 		// Calculate angle difference
 		angleDiff := NormalizeAngle(angleToTarget - currentAngle)
@@ -330,8 +333,9 @@ func (m *MissileProjectile) UpdateTracking(ctx GameContext) {
 		m.Rotation = currentAngle
 
 		// Accelerate in current direction
+		// Sprites face UP (Y-axis), so use sin/cos adjusted for sprite orientation
 		currentSpeed += m.Acceleration
-		m.VelocityX = math.Cos(currentAngle) * currentSpeed
-		m.VelocityY = math.Sin(currentAngle) * currentSpeed
+		m.VelocityX = math.Sin(currentAngle) * currentSpeed
+		m.VelocityY = -math.Cos(currentAngle) * currentSpeed
 	}
 }

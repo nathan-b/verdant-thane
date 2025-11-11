@@ -163,7 +163,8 @@ func (t *Testudon) UpdateAI(ctx GameContext) {
 	if target != nil {
 		targetX, targetY := target.GetPosition()
 		dx, dy := GetWrappedDistance(t.X, t.Y, targetX, targetY)
-		angleToTarget := math.Atan2(dy, dx)
+		// Sprites face UP (Y-axis), so use atan2(dx, -dy)
+		angleToTarget := math.Atan2(dx, -dy)
 
 		// Rotate toward target
 		angleDiff := NormalizeAngle(angleToTarget - t.Rotation)
@@ -180,8 +181,9 @@ func (t *Testudon) UpdateAI(ctx GameContext) {
 
 		// Move toward target at max speed
 		targetSpeed := t.MaxSpeed
-		t.VelocityX += math.Cos(t.Rotation) * t.Accel
-		t.VelocityY += math.Sin(t.Rotation) * t.Accel
+		// Sprites face UP (along Y-axis), so use sin/cos adjusted for sprite orientation
+		t.VelocityX += math.Sin(t.Rotation) * t.Accel
+		t.VelocityY += -math.Cos(t.Rotation) * t.Accel
 
 		// Cap speed
 		speed := math.Sqrt(t.VelocityX*t.VelocityX + t.VelocityY*t.VelocityY)
@@ -192,8 +194,9 @@ func (t *Testudon) UpdateAI(ctx GameContext) {
 	} else {
 		// Patrol behavior
 		targetSpeed := t.MaxSpeed * config.AIPatrolSpeed
-		t.VelocityX += math.Cos(t.Rotation) * t.Accel
-		t.VelocityY += math.Sin(t.Rotation) * t.Accel
+		// Sprites face UP (along Y-axis), so use sin/cos adjusted for sprite orientation
+		t.VelocityX += math.Sin(t.Rotation) * t.Accel
+		t.VelocityY += -math.Cos(t.Rotation) * t.Accel
 
 		speed := math.Sqrt(t.VelocityX*t.VelocityX + t.VelocityY*t.VelocityY)
 		if speed > targetSpeed {

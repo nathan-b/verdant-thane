@@ -617,7 +617,8 @@ func (em *EntityManager) GetFactionSpawnPoint(factionID int) (float64, float64, 
 	return sp.x, sp.y, ok
 }
 
-// Clear removes all entities
+// Clear removes all entities but preserves player stats (score, kills, deaths)
+// This allows stats to accumulate across multiple battles in a game session
 func (em *EntityManager) Clear() {
 	em.ships = make(map[int]entity.Ship)
 	em.projectiles = make(map[int]entity.Projectile)
@@ -626,9 +627,7 @@ func (em *EntityManager) Clear() {
 	em.playerShipID = -1
 	em.isSpectating = false
 	em.spectatedShipID = -1
-	em.score = 0
-	em.kills = 0
-	em.deaths = 0
+	// NOTE: Do NOT reset score, kills, deaths - they accumulate across battles
 	em.nextID = 1
 }
 
