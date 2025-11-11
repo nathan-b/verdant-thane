@@ -54,6 +54,9 @@ type EntityManager struct {
 
 	// Performance profiling (optional)
 	profiler Profiler
+
+	// Spatial grid for optimized queries (rebuilt each frame)
+	spatialGrid *spatialGrid
 }
 
 // NewEntityManager creates a new entity manager
@@ -141,6 +144,13 @@ func (em *EntityManager) GetShipsByFaction(factionID int) []entity.Ship {
 
 // FindNearestEnemy finds the nearest enemy ship to the given ship
 func (em *EntityManager) FindNearestEnemy(ship entity.Ship) (entity.Ship, float64) {
+	// Use spatial grid for optimized O(k) search instead of O(n)
+	// Grid is rebuilt each frame in UpdateAll()
+	if em.spatialGrid != nil {
+		return em.spatialGrid.findNearestEnemy(ship)
+	}
+
+	// Fallback to linear search if grid not available (shouldn't happen in normal gameplay)
 	var nearestShip entity.Ship
 	minDistance := math.MaxFloat64
 
@@ -344,6 +354,16 @@ func (em *EntityManager) SetProfiler(p Profiler) {
 // UpdateAll updates all entities and handles collisions
 // Updates are broken into discrete passes to enable accurate per-subsystem profiling
 func (em *EntityManager) UpdateAll() {
+	// Build spatial grid once for this frame (used by AI targeting and collision detection)
+	gridBuildStart := time.Now()
+	em.spatialGrid = newSpatialGrid()
+	for _, ship := range em.ships {
+		if ship.IsAlive() {
+			em.spatialGrid.insert(ship)
+		}
+	}
+	gridBuildTime := time.Since(gridBuildStart)
+
 	// Pass 1: Weapon capacitor charging for all ships
 	weaponsStart := time.Now()
 	for _, ship := range em.ships {
@@ -352,7 +372,7 @@ func (em *EntityManager) UpdateAll() {
 		}
 	}
 	if em.profiler != nil {
-		em.profiler.RecordWeaponsUpdate(time.Since(weaponsStart))
+		em.profiler.RecordWeaponsUpdate(time.Since(weaponsStart) + gridBuildTime)
 	}
 
 	// Pass 2: AI/Player control updates (includes targeting, rotation, velocity, firing)
