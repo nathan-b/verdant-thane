@@ -370,6 +370,11 @@ func (em *EntityManager) UpdateAll() {
 	for _, ship := range em.ships {
 		if ship.IsAlive() {
 			ship.UpdateWeapons()
+
+			// Destroyers have a second weapon (missiles) that also needs charging
+			if destroyer, ok := ship.(*entity.Destroyer); ok {
+				destroyer.UpdateMissileWeapon()
+			}
 		}
 	}
 	if em.profiler != nil {

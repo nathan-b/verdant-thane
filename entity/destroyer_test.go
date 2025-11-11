@@ -360,3 +360,65 @@ func TestDestroyerPlayerControl(t *testing.T) {
 		t.Error("Destroyer should be player controlled after setting")
 	}
 }
+
+// Test AI Destroyer Fires Multiple Missiles
+func TestAIDestroyerFiresMultipleMissiles(t *testing.T) {
+	// Create AI destroyer facing UP (rotation = 0)
+	destroyer := NewDestroyer(1, 0, 2500.0, 2500.0, nil)
+	destroyer.PlayerControlled = false // AI controlled
+	ctx := NewMockGameContext()
+	ctx.ships[1] = destroyer
+
+	// Create two enemy targets in the rear arc (behind destroyer)
+	// Destroyer faces UP (rotation 0), so rear is DOWN (positive Y)
+	enemy1 := NewFighter(2, 1, 2500.0, 2700.0, nil) // 200 pixels below
+	enemy2 := NewFighter(3, 1, 2500.0, 2900.0, nil) // 400 pixels below
+	ctx.ships[2] = enemy1
+	ctx.ships[3] = enemy2
+
+	// Simulate EntityManager's discrete update passes
+	missilesFired := 0
+	maxIterations := 300 // Should be enough for 2 missiles (missile charge time ~3 seconds at 60fps = 180 frames)
+
+	for i := 0; i < maxIterations; i++ {
+		// Pass 1: Weapon capacitor charging (main gun + missiles)
+		destroyer.UpdateWeapons()
+		destroyer.UpdateMissileWeapon()
+
+		// Pass 2: AI updates (targeting, rotation, firing)
+		destroyer.UpdateAI(ctx)
+
+		// Pass 3: Movement
+		destroyer.UpdateMovement()
+
+		// Check if new missile was fired this frame
+		if len(ctx.spawnedMissiles) > missilesFired {
+			missilesFired = len(ctx.spawnedMissiles)
+			t.Logf("Missile %d fired at frame %d", missilesFired, i)
+
+			// If we've fired 2 missiles, we can stop early
+			if missilesFired >= 2 {
+				break
+			}
+		}
+	}
+
+	// Verify at least 2 missiles were fired
+	if missilesFired < 2 {
+		t.Errorf("Expected at least 2 missiles fired, got %d", missilesFired)
+	}
+
+	// Verify missiles were targeted at enemies
+	for i, missile := range ctx.spawnedMissiles {
+		if missile.OwnerID != 1 {
+			t.Errorf("Missile %d: Expected owner ID 1, got %d", i, missile.OwnerID)
+		}
+		if missile.FactionID != 0 {
+			t.Errorf("Missile %d: Expected faction ID 0, got %d", i, missile.FactionID)
+		}
+		// Target should be one of the enemies
+		if missile.TargetID != 2 && missile.TargetID != 3 {
+			t.Errorf("Missile %d: Expected target ID 2 or 3, got %d", i, missile.TargetID)
+		}
+	}
+}
