@@ -49,6 +49,12 @@ type Ship interface {
 	// Weapons
 	FireWeapon(mouseX, mouseY float64, ctx GameContext)
 	CanFireWeapon() bool
+
+	// Update subsystems (for profiling)
+	UpdateWeapons()
+	UpdateAI(ctx GameContext)
+	UpdatePlayerInput(ctx GameContext)
+	UpdateMovement()
 }
 
 // Projectile extends Entity with projectile-specific methods

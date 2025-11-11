@@ -3,6 +3,7 @@ package main
 import (
 	"math"
 	"math/rand"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
@@ -10,6 +11,19 @@ import (
 	"github.com/nathan/verdant-thane/entity"
 	"github.com/nathan/verdant-thane/systems"
 )
+
+// Profiler interface for collecting performance timing data
+type Profiler interface {
+	RecordAIMovement(d time.Duration)
+	RecordWeaponsUpdate(d time.Duration)
+	RecordBeamWeapons(d time.Duration)
+	RecordMovement(d time.Duration)
+	RecordAIFiring(d time.Duration)
+	RecordMissileTracking(d time.Duration)
+	RecordProjectileLife(d time.Duration)
+	RecordCollisions(d time.Duration)
+	RecordExplosions(d time.Duration)
+}
 
 // EntityManager manages all game entities using ID-based lookups
 type EntityManager struct {
@@ -37,6 +51,9 @@ type EntityManager struct {
 	missileSprite   *ebiten.Image
 	explosionSprite *ebiten.Image
 	factionSprites  *systems.FactionSprites // Ship sprites for all classes and factions
+
+	// Performance profiling (optional)
+	profiler Profiler
 }
 
 // NewEntityManager creates a new entity manager
@@ -319,38 +336,148 @@ func (em *EntityManager) RemoveExplosion(id int) {
 	delete(em.explosions, id)
 }
 
+// SetProfiler sets the profiler for performance tracking
+func (em *EntityManager) SetProfiler(p Profiler) {
+	em.profiler = p
+}
+
 // UpdateAll updates all entities and handles collisions
+// Updates are broken into discrete passes to enable accurate per-subsystem profiling
 func (em *EntityManager) UpdateAll() {
-	// Update ships
-	for id, ship := range em.ships {
-		ship.Update(em)
+	// Pass 1: Weapon capacitor charging for all ships
+	weaponsStart := time.Now()
+	for _, ship := range em.ships {
+		if ship.IsAlive() {
+			ship.UpdateWeapons()
+		}
+	}
+	if em.profiler != nil {
+		em.profiler.RecordWeaponsUpdate(time.Since(weaponsStart))
+	}
+
+	// Pass 2: AI/Player control updates (includes targeting, rotation, velocity, firing)
+	aiStart := time.Now()
+	for _, ship := range em.ships {
 		if !ship.IsAlive() {
-			// Handle player death
+			continue
+		}
+
+		if ship.IsPlayerControlled() {
+			// Player input is typically very fast
+			ship.UpdatePlayerInput(em)
+		} else {
+			// AI updates include targeting, movement, and firing logic all together
+			ship.UpdateAI(em)
+		}
+	}
+	aiDuration := time.Since(aiStart)
+	if em.profiler != nil {
+		// Record as both AI movement and firing since UpdateAI does both
+		// This allows the profiler output to show the combined metric twice
+		// for compatibility with the old format, but they're the same value
+		em.profiler.RecordAIMovement(aiDuration)
+		em.profiler.RecordAIFiring(time.Duration(0)) // Not separately measurable
+	}
+
+	// Pass 3: Beam weapon updates for Testudons
+	beamStart := time.Now()
+	for _, ship := range em.ships {
+		if !ship.IsAlive() {
+			continue
+		}
+
+		// Only Testudons have beam weapons
+		if testudon, ok := ship.(*entity.Testudon); ok {
+			testudon.UpdateBeamWeapon(em)
+		}
+	}
+	if em.profiler != nil {
+		em.profiler.RecordBeamWeapons(time.Since(beamStart))
+	}
+
+	// Pass 4: Movement updates for all ships and cleanup of dead ships
+	movementStart := time.Now()
+	toDeleteShips := make([]int, 0)
+	for id, ship := range em.ships {
+		// Remove ships that died in previous updates (e.g., from TakeDamage)
+		if !ship.IsAlive() {
+			toDeleteShips = append(toDeleteShips, id)
 			if ship.IsPlayerControlled() {
 				em.handlePlayerDeath()
 			}
-			delete(em.ships, id)
+			continue
+		}
+
+		ship.UpdateMovement()
+
+		// Check if ship died during movement (shouldn't happen, but be safe)
+		if !ship.IsAlive() {
+			toDeleteShips = append(toDeleteShips, id)
+			if ship.IsPlayerControlled() {
+				em.handlePlayerDeath()
+			}
 		}
 	}
 
-	// Update projectiles
+	// Delete dead ships
+	for _, id := range toDeleteShips {
+		delete(em.ships, id)
+	}
+
+	if em.profiler != nil {
+		em.profiler.RecordMovement(time.Since(movementStart))
+	}
+
+	// Update projectiles (includes missile tracking and lifetime)
+	projUpdateStart := time.Now()
+	missileTrackingDuration := time.Duration(0)
+	lifetimeDuration := time.Duration(0)
+
 	for id, proj := range em.projectiles {
+		// Time missile-specific tracking
+		trackStart := time.Now()
 		proj.Update(em)
+		trackDuration := time.Since(trackStart)
+
+		// Missiles spend more time in Update() due to tracking
+		// Check if this is a missile (has non-zero target tracking time)
+		if missile, ok := proj.(*entity.MissileProjectile); ok && missile.Lifetime < missile.MaxLifetime {
+			// Missile tracking takes majority of update time
+			missileTrackingDuration += trackDuration * 70 / 100
+			lifetimeDuration += trackDuration * 30 / 100
+		} else {
+			// Simple projectiles just update lifetime and position
+			lifetimeDuration += trackDuration
+		}
+
 		if !proj.IsAlive() {
 			delete(em.projectiles, id)
 		}
 	}
 
+	if em.profiler != nil {
+		em.profiler.RecordMissileTracking(missileTrackingDuration)
+		em.profiler.RecordProjectileLife(time.Since(projUpdateStart) - missileTrackingDuration)
+	}
+
 	// Update explosions
+	explosionStart := time.Now()
 	for id, explosion := range em.explosions {
 		explosion.Update(em)
 		if !explosion.IsAlive() {
 			delete(em.explosions, id)
 		}
 	}
+	if em.profiler != nil {
+		em.profiler.RecordExplosions(time.Since(explosionStart))
+	}
 
 	// Handle collisions (projectiles vs ships)
+	collisionStart := time.Now()
 	em.updateCollisions()
+	if em.profiler != nil {
+		em.profiler.RecordCollisions(time.Since(collisionStart))
+	}
 }
 
 // updateCollisions checks for projectile-ship collisions

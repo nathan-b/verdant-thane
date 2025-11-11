@@ -57,7 +57,6 @@ type ProfileData struct {
 	MissileTracking   time.Duration
 	ProjectileLife    time.Duration
 	Collisions        time.Duration
-	EntityUpdate      time.Duration
 	Explosions        time.Duration
 	AIFiring          time.Duration
 	RenderStars       time.Duration
@@ -69,6 +68,17 @@ type ProfileData struct {
 	TotalUpdate       time.Duration
 	TotalDraw         time.Duration
 }
+
+// Profiler interface implementation
+func (p *ProfileData) RecordAIMovement(d time.Duration)      { p.AIMovement += d }
+func (p *ProfileData) RecordWeaponsUpdate(d time.Duration)   { p.WeaponsUpdate += d }
+func (p *ProfileData) RecordBeamWeapons(d time.Duration)     { p.BeamWeapons += d }
+func (p *ProfileData) RecordMovement(d time.Duration)        { p.Movement += d }
+func (p *ProfileData) RecordAIFiring(d time.Duration)        { p.AIFiring += d }
+func (p *ProfileData) RecordMissileTracking(d time.Duration) { p.MissileTracking += d }
+func (p *ProfileData) RecordProjectileLife(d time.Duration)  { p.ProjectileLife += d }
+func (p *ProfileData) RecordCollisions(d time.Duration)      { p.Collisions += d }
+func (p *ProfileData) RecordExplosions(d time.Duration)      { p.Explosions += d }
 
 // Reset clears all timing data
 func (p *ProfileData) Reset() {
@@ -195,7 +205,7 @@ func NewGame() (*Game, error) {
 	// Create entity manager
 	entityManager := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
 
-	return &Game{
+	game := &Game{
 		currentState:       TitleScreen,
 		titleDialog:        titleDialog,
 		gameOverScreen:     nil,
@@ -210,7 +220,12 @@ func NewGame() (*Game, error) {
 		hudFont:            hudFont,
 		lastFPSTime:        time.Now(),
 		lastProfileTime:    time.Now(),
-	}, nil
+	}
+
+	// Set profiler on entity manager for performance tracking
+	entityManager.SetProfiler(&game.profileData)
+
+	return game, nil
 }
 
 // StartGame transitions from title screen to in-game state by spawning ships
@@ -341,9 +356,8 @@ func (g *Game) Update() error {
 		updateStart := time.Now()
 
 		// Update all entities (ships, projectiles, explosions, collisions)
-		t := time.Now()
+		// Profiling is handled internally by EntityManager via Profiler interface
 		g.entityManager.UpdateAll()
-		g.profileData.EntityUpdate += time.Since(t)
 
 		// Handle spectate mode controls
 		if g.entityManager.IsSpectating() {
@@ -720,26 +734,33 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				// Print profiling data to console
 				fmt.Printf("\n=== Performance Profile (avg per frame) ===\n")
 				fmt.Printf("Update Systems:\n")
-				fmt.Printf("  Player Input:    %6.2f ms\n", float64(g.profileData.PlayerInput.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  AI Movement:     %6.2f ms\n", float64(g.profileData.AIMovement.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  Weapons Update:  %6.2f ms\n", float64(g.profileData.WeaponsUpdate.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  Movement:        %6.2f ms\n", float64(g.profileData.Movement.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  Projectile Life: %6.2f ms\n", float64(g.profileData.ProjectileLife.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  Collisions:      %6.2f ms\n", float64(g.profileData.Collisions.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  Explosions:      %6.2f ms\n", float64(g.profileData.Explosions.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  AI Firing:       %6.2f ms\n", float64(g.profileData.AIFiring.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Weapons Update:    %6.2f ms (capacitor charging)\n", float64(g.profileData.WeaponsUpdate.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  AI Update:         %6.2f ms (targeting, rotation, firing)\n", float64(g.profileData.AIMovement.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Beam Weapons:      %6.2f ms (testudon beams)\n", float64(g.profileData.BeamWeapons.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Movement:          %6.2f ms (position + wrapping)\n", float64(g.profileData.Movement.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Missile Tracking:  %6.2f ms (homing missiles)\n", float64(g.profileData.MissileTracking.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Projectile Life:   %6.2f ms (lifetime checks)\n", float64(g.profileData.ProjectileLife.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Collisions:        %6.2f ms (spatial grid)\n", float64(g.profileData.Collisions.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Explosions:        %6.2f ms (animation)\n", float64(g.profileData.Explosions.Microseconds())/frameCount/1000.0)
 				fmt.Printf("Render Systems:\n")
-				fmt.Printf("  Stars:           %6.2f ms\n", float64(g.profileData.RenderStars.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  Ships:           %6.2f ms\n", float64(g.profileData.RenderShips.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  Projectiles:     %6.2f ms\n", float64(g.profileData.RenderProjectiles.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  Explosions:      %6.2f ms\n", float64(g.profileData.RenderExplosions.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  Minimap:         %6.2f ms\n", float64(g.profileData.RenderMinimap.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Stars:             %6.2f ms\n", float64(g.profileData.RenderStars.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Ships:             %6.2f ms\n", float64(g.profileData.RenderShips.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Beams:             %6.2f ms (testudon beams)\n", float64(g.profileData.RenderBeams.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Projectiles:       %6.2f ms\n", float64(g.profileData.RenderProjectiles.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Explosions:        %6.2f ms\n", float64(g.profileData.RenderExplosions.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Minimap:           %6.2f ms\n", float64(g.profileData.RenderMinimap.Microseconds())/frameCount/1000.0)
 				fmt.Printf("Totals:\n")
-				fmt.Printf("  Total Update:    %6.2f ms\n", float64(g.profileData.TotalUpdate.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  Total Draw:      %6.2f ms\n", float64(g.profileData.TotalDraw.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Total Update:      %6.2f ms\n", float64(g.profileData.TotalUpdate.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Total Draw:        %6.2f ms\n", float64(g.profileData.TotalDraw.Microseconds())/frameCount/1000.0)
 				totalFrame := g.profileData.TotalUpdate + g.profileData.TotalDraw
-				fmt.Printf("  Total Frame:     %6.2f ms\n", float64(totalFrame.Microseconds())/frameCount/1000.0)
-				fmt.Printf("  Frame Budget:    %6.2f ms (60 FPS)\n", 16.67)
+				fmt.Printf("  Total Frame:       %6.2f ms\n", float64(totalFrame.Microseconds())/frameCount/1000.0)
+				fmt.Printf("  Frame Budget:      %6.2f ms (60 FPS)\n", 16.67)
+
+				// Calculate entity counts for context
+				shipCount := len(g.entityManager.ships)
+				projCount := len(g.entityManager.projectiles)
+				explCount := len(g.entityManager.explosions)
+				fmt.Printf("Entity Counts: %d ships, %d projectiles, %d explosions\n", shipCount, projCount, explCount)
 				fmt.Printf("==========================================\n")
 			}
 
