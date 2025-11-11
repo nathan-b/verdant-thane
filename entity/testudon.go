@@ -181,27 +181,34 @@ func (t *Testudon) UpdateAI(ctx GameContext) {
 
 		// Move toward target at max speed
 		targetSpeed := t.MaxSpeed
-		// Sprites face UP (along Y-axis), so use sin/cos adjusted for sprite orientation
-		t.VelocityX += math.Sin(t.Rotation) * t.Accel
-		t.VelocityY += -math.Cos(t.Rotation) * t.Accel
 
-		// Cap speed
-		speed := math.Sqrt(t.VelocityX*t.VelocityX + t.VelocityY*t.VelocityY)
-		if speed > targetSpeed {
-			t.VelocityX = (t.VelocityX / speed) * targetSpeed
-			t.VelocityY = (t.VelocityY / speed) * targetSpeed
+		// Adjust speed toward target speed
+		if t.Speed < targetSpeed {
+			t.Speed += t.Accel
+			if t.Speed > targetSpeed {
+				t.Speed = targetSpeed
+			}
+		} else if t.Speed > targetSpeed {
+			t.Speed -= t.Accel
+			if t.Speed < targetSpeed {
+				t.Speed = targetSpeed
+			}
 		}
 	} else {
 		// Patrol behavior
 		targetSpeed := t.MaxSpeed * config.AIPatrolSpeed
-		// Sprites face UP (along Y-axis), so use sin/cos adjusted for sprite orientation
-		t.VelocityX += math.Sin(t.Rotation) * t.Accel
-		t.VelocityY += -math.Cos(t.Rotation) * t.Accel
 
-		speed := math.Sqrt(t.VelocityX*t.VelocityX + t.VelocityY*t.VelocityY)
-		if speed > targetSpeed {
-			t.VelocityX = (t.VelocityX / speed) * targetSpeed
-			t.VelocityY = (t.VelocityY / speed) * targetSpeed
+		// Adjust speed toward target speed
+		if t.Speed < targetSpeed {
+			t.Speed += t.Accel
+			if t.Speed > targetSpeed {
+				t.Speed = targetSpeed
+			}
+		} else if t.Speed > targetSpeed {
+			t.Speed -= t.Accel
+			if t.Speed < targetSpeed {
+				t.Speed = targetSpeed
+			}
 		}
 	}
 }

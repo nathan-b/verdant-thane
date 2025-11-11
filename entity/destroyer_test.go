@@ -299,26 +299,27 @@ func TestDestroyerMovementAndWrapping(t *testing.T) {
 	destroyer := NewDestroyer(1, 0, 100, 100, nil)
 	destroyer.PlayerControlled = true
 
-	// Set velocity to move right
-	destroyer.VelocityX = 5
-	destroyer.VelocityY = 0
+	// Set speed and rotation to move right (velocity = (5, 0))
+	// Moving right means rotation = π/2 (90 degrees)
+	destroyer.Speed = 5
+	destroyer.Rotation = math.Pi / 2 // Facing right
 
 	// Update movement
 	destroyer.UpdateMovement()
 
 	x, y := destroyer.GetPosition()
-	if x != 105 {
+	if math.Abs(x-105) > 1e-9 {
 		t.Errorf("Expected X=105, got %f", x)
 	}
-	if y != 100 {
+	if math.Abs(y-100) > 1e-9 {
 		t.Errorf("Expected Y=100, got %f", y)
 	}
 
 	// Test wrapping: place near edge
 	destroyer.X = float64(config.GameWidth - 5)
 	destroyer.Y = 100
-	destroyer.VelocityX = 10
-	destroyer.VelocityY = 0
+	destroyer.Speed = 10
+	destroyer.Rotation = math.Pi / 2 // Facing right
 
 	destroyer.UpdateMovement()
 

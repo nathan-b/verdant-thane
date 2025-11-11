@@ -299,15 +299,18 @@ func (b *BaseShip) UpdateWeapons() {
 
 // UpdateMovement applies velocity and handles world wrapping (BaseShip method)
 func (b *BaseShip) UpdateMovement() {
+	// Calculate velocity from Speed and Rotation
+	// Sprites face UP (along Y-axis), so rotation 0 = facing up
+	// Use sin for X and -cos for Y to account for sprite orientation
+	b.VelocityX = math.Sin(b.Rotation) * b.Speed
+	b.VelocityY = -math.Cos(b.Rotation) * b.Speed
+
 	// Apply velocity
 	b.X += b.VelocityX
 	b.Y += b.VelocityY
 
 	// Wrap position
 	b.X, b.Y = WrapPosition(b.X, b.Y)
-
-	// Update speed (magnitude of velocity)
-	b.Speed = math.Sqrt(b.VelocityX*b.VelocityX + b.VelocityY*b.VelocityY)
 }
 
 // UpdatePlayerInput handles WASD controls for player-controlled ships (BaseShip method)
@@ -322,31 +325,20 @@ func (b *BaseShip) UpdatePlayerInput(ctx GameContext) {
 		b.Rotation = NormalizeAngle(b.Rotation)
 	}
 
-	// Acceleration/Deceleration
+	// Acceleration/Deceleration (modify Speed scalar, not velocity)
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		// Accelerate in facing direction
-		// Sprites face UP (along Y-axis), so rotation 0 = facing up
-		// Use sin for X and -cos for Y to account for sprite orientation
-		b.VelocityX += math.Sin(b.Rotation) * b.Accel
-		b.VelocityY += -math.Cos(b.Rotation) * b.Accel
-
-		// Cap at max speed
-		speed := math.Sqrt(b.VelocityX*b.VelocityX + b.VelocityY*b.VelocityY)
-		if speed > b.MaxSpeed {
-			b.VelocityX = (b.VelocityX / speed) * b.MaxSpeed
-			b.VelocityY = (b.VelocityY / speed) * b.MaxSpeed
+		// Accelerate
+		b.Speed += b.Accel
+		if b.Speed > b.MaxSpeed {
+			b.Speed = b.MaxSpeed
 		}
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
 		// Decelerate
 		decel := b.Accel * 0.5
-		speed := math.Sqrt(b.VelocityX*b.VelocityX + b.VelocityY*b.VelocityY)
-		if speed > decel {
-			b.VelocityX -= (b.VelocityX / speed) * decel
-			b.VelocityY -= (b.VelocityY / speed) * decel
-		} else {
-			b.VelocityX = 0
-			b.VelocityY = 0
+		b.Speed -= decel
+		if b.Speed < 0 {
+			b.Speed = 0
 		}
 	}
 
@@ -394,15 +386,18 @@ func (f *Fighter) UpdateAI(ctx GameContext) {
 
 		// Accelerate toward target at random speed (80-100%)
 		targetSpeed := f.MaxSpeed * (config.AIPursuitSpeedMin + rand.Float64()*(config.AIPursuitSpeedMax-config.AIPursuitSpeedMin))
-		// Sprites face UP (along Y-axis), so use sin/cos adjusted for sprite orientation
-		f.VelocityX += math.Sin(f.Rotation) * f.Accel
-		f.VelocityY += -math.Cos(f.Rotation) * f.Accel
 
-		// Cap speed
-		speed := math.Sqrt(f.VelocityX*f.VelocityX + f.VelocityY*f.VelocityY)
-		if speed > targetSpeed {
-			f.VelocityX = (f.VelocityX / speed) * targetSpeed
-			f.VelocityY = (f.VelocityY / speed) * targetSpeed
+		// Adjust speed toward target speed
+		if f.Speed < targetSpeed {
+			f.Speed += f.Accel
+			if f.Speed > targetSpeed {
+				f.Speed = targetSpeed
+			}
+		} else if f.Speed > targetSpeed {
+			f.Speed -= f.Accel
+			if f.Speed < targetSpeed {
+				f.Speed = targetSpeed
+			}
 		}
 
 		// Fire weapon if target in arc
@@ -427,14 +422,18 @@ func (f *Fighter) UpdateAI(ctx GameContext) {
 	} else {
 		// Patrol: Maintain heading at 50% speed
 		targetSpeed := f.MaxSpeed * config.AIPatrolSpeed
-		// Sprites face UP (along Y-axis), so use sin/cos adjusted for sprite orientation
-		f.VelocityX += math.Sin(f.Rotation) * f.Accel
-		f.VelocityY += -math.Cos(f.Rotation) * f.Accel
 
-		speed := math.Sqrt(f.VelocityX*f.VelocityX + f.VelocityY*f.VelocityY)
-		if speed > targetSpeed {
-			f.VelocityX = (f.VelocityX / speed) * targetSpeed
-			f.VelocityY = (f.VelocityY / speed) * targetSpeed
+		// Adjust speed toward target speed
+		if f.Speed < targetSpeed {
+			f.Speed += f.Accel
+			if f.Speed > targetSpeed {
+				f.Speed = targetSpeed
+			}
+		} else if f.Speed > targetSpeed {
+			f.Speed -= f.Accel
+			if f.Speed < targetSpeed {
+				f.Speed = targetSpeed
+			}
 		}
 	}
 }

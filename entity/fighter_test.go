@@ -154,17 +154,20 @@ func TestNewFighter(t *testing.T) {
 // Test Movement and Physics
 func TestFighterMovement(t *testing.T) {
 	fighter := NewFighter(1, 0, 100, 100, nil)
-	fighter.VelocityX = 5.0
-	fighter.VelocityY = 3.0
+	// Set speed and rotation instead of velocity directly
+	// Rotation 0 = facing up, we want velocity (5, 3)
+	// atan2(5, -3) = angle for velocity vector
+	fighter.Speed = math.Sqrt(5.0*5.0 + 3.0*3.0)
+	fighter.Rotation = math.Atan2(5.0, -3.0)
 
 	fighter.UpdateMovement()
 
 	x, y := fighter.GetPosition()
-	if x != 105.0 || y != 103.0 {
+	if math.Abs(x-105.0) > 1e-9 || math.Abs(y-103.0) > 1e-9 {
 		t.Errorf("Expected position (105, 103), got (%f, %f)", x, y)
 	}
 
-	// Verify speed is updated correctly
+	// Verify speed is maintained correctly
 	expectedSpeed := math.Sqrt(5.0*5.0 + 3.0*3.0)
 	if math.Abs(fighter.BaseShip.Speed-expectedSpeed) > 1e-9 {
 		t.Errorf("Expected speed %f, got %f", expectedSpeed, fighter.BaseShip.Speed)
@@ -189,8 +192,11 @@ func TestFighterWrapping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fighter := NewFighter(1, 0, tt.startX, tt.startY, nil)
-			fighter.VelocityX = tt.velocityX
-			fighter.VelocityY = tt.velocityY
+			// Set speed and rotation to produce desired velocity
+			fighter.Speed = math.Sqrt(tt.velocityX*tt.velocityX + tt.velocityY*tt.velocityY)
+			if fighter.Speed > 0 {
+				fighter.Rotation = math.Atan2(tt.velocityX, -tt.velocityY)
+			}
 
 			fighter.UpdateMovement()
 
