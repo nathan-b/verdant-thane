@@ -47,6 +47,7 @@ const (
 	Instructions
 	HighScores
 	Interstitial
+	Settings
 )
 
 // ProfileData tracks timing for performance profiling
@@ -112,6 +113,7 @@ type Game struct {
 	gameOverScreen     *ui.GameOverScreen      // Game over screen (only used in GameOver state)
 	instructionsDialog *ui.Dialog              // Instructions screen dialog
 	highScoresDialog   *ui.Dialog              // High scores screen dialog
+	settingsScreen     *ui.SettingsScreen      // Settings screen (only used in Settings state)
 	highScores         *persistence.HighScores // High scores loaded at game start
 	settings           *persistence.Settings   // Game settings loaded at game start
 	battleNumber       int                     // Current battle number (1-indexed)
@@ -234,9 +236,11 @@ func NewGame() (*Game, error) {
 		return nil, fmt.Errorf("failed to create audio manager: %w", err)
 	}
 
-	// Apply saved mute settings
+	// Apply saved settings (mute and volume)
 	audioManager.SetSoundMuted(settings.SoundMuted)
 	audioManager.SetMusicMuted(settings.MusicMuted)
+	audioManager.SetSoundVolume(settings.SoundVolume)
+	audioManager.SetMusicVolume(settings.MusicVolume)
 
 	// Load sound effects
 	if err := audioManager.LoadSound("laser", "assets/laser.wav"); err != nil {
@@ -260,6 +264,7 @@ func NewGame() (*Game, error) {
 		gameOverScreen:     nil,
 		instructionsDialog: instructionsDialog,
 		highScoresDialog:   highScoresDialog,
+		settingsScreen:     nil,
 		highScores:         highScores,
 		settings:           settings,
 		entityManager:      entityManager,
@@ -457,12 +462,13 @@ func (g *Game) Update() error {
 				if err := g.StartGame(fleetConfig); err != nil {
 					return fmt.Errorf("failed to start game: %w", err)
 				}
+			} else if buttonIndex == 1 { // "Settings" button
+				g.currentState = Settings
 			} else if buttonIndex == 2 { // "Instructions" button
 				g.currentState = Instructions
 			} else if buttonIndex == 3 { // "High Scores" button
 				g.currentState = HighScores
 			}
-			// TODO: Handle other button (Settings)
 		}
 
 	case InGame:
@@ -690,6 +696,56 @@ func (g *Game) Update() error {
 				g.ReturnToTitleScreen()
 			}
 		}
+
+	case Settings:
+		// Create settings screen if not already created
+		if g.settingsScreen == nil {
+			g.settingsScreen = ui.NewSettingsScreen(
+				g.audioManager.IsSoundMuted(),
+				g.audioManager.GetSoundVolume(),
+				g.audioManager.IsMusicMuted(),
+				g.audioManager.GetMusicVolume(),
+				g.hudFont.Source,
+				func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64) {
+					// Apply settings
+					g.audioManager.SetSoundMuted(soundMuted)
+					g.audioManager.SetSoundVolume(soundVolume)
+					g.audioManager.SetMusicMuted(musicMuted)
+					g.audioManager.SetMusicVolume(musicVolume)
+
+					// Update settings struct
+					g.settings.SoundMuted = soundMuted
+					g.settings.SoundVolume = soundVolume
+					g.settings.MusicMuted = musicMuted
+					g.settings.MusicVolume = musicVolume
+				},
+				func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64) {
+					// Save settings callback
+					g.audioManager.SetSoundMuted(soundMuted)
+					g.audioManager.SetSoundVolume(soundVolume)
+					g.audioManager.SetMusicMuted(musicMuted)
+					g.audioManager.SetMusicVolume(musicVolume)
+
+					// Update settings struct
+					g.settings.SoundMuted = soundMuted
+					g.settings.SoundVolume = soundVolume
+					g.settings.MusicMuted = musicMuted
+					g.settings.MusicVolume = musicVolume
+
+					// Save to disk
+					if err := persistence.SaveSettings(g.settings); err != nil {
+						log.Printf("Warning: Failed to save settings: %v", err)
+					}
+
+					// Clear settings screen and return to title
+					g.settingsScreen = nil
+					g.ReturnToTitleScreen()
+				},
+			)
+		}
+
+		// Update settings screen
+		g.settingsScreen.Update()
 	}
 
 	return nil
@@ -1216,6 +1272,32 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		continueOp.GeoM.Translate(float64(config.ScreenWidth/2)-continueWidth/2, statsY+150)
 		continueOp.ColorScale.ScaleWithColor(textColor)
 		text.Draw(screen, continueText, g.hudFont, continueOp)
+
+	case Settings:
+		// Draw stars background
+		cameraX, cameraY := 0.0, 0.0
+		minGridX := int(cameraX) / config.StarGridSize
+		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
+		minGridY := int(cameraY) / config.StarGridSize
+		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+
+		for gridX := minGridX; gridX <= maxGridX; gridX++ {
+			for gridY := minGridY; gridY <= maxGridY; gridY++ {
+				stars := systems.GenerateStarsForGrid(gridX, gridY)
+				for _, star := range stars {
+					screenX := star.X - cameraX
+					screenY := star.Y - cameraY
+					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
+						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
+					}
+				}
+			}
+		}
+
+		// Draw settings screen
+		if g.settingsScreen != nil {
+			g.settingsScreen.Draw(screen)
+		}
 	}
 }
 

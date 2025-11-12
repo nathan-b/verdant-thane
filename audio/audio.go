@@ -24,7 +24,9 @@ type Manager struct {
 	context     *audio.Context
 	sounds      map[string]*SoundEffect
 	soundMuted  bool
+	soundVolume float64 // 0.0 to 1.0
 	musicMuted  bool
+	musicVolume float64           // 0.0 to 1.0
 	musicPlayer *audio.Player     // Current music player (only one plays at a time)
 	musicFiles  map[string][]byte // Compressed MP3 data (not decoded)
 }
@@ -37,7 +39,9 @@ func NewManager() (*Manager, error) {
 		context:     ctx,
 		sounds:      make(map[string]*SoundEffect),
 		soundMuted:  false,
+		soundVolume: 1.0,
 		musicMuted:  false,
+		musicVolume: 1.0,
 		musicPlayer: nil,
 		musicFiles:  make(map[string][]byte),
 	}, nil
@@ -86,6 +90,9 @@ func (m *Manager) PlaySound(name string) error {
 	// Create a new player from the stored data
 	// This allows the same sound to play multiple times simultaneously
 	player := m.context.NewPlayerFromBytes(sound.data)
+
+	// Apply volume
+	player.SetVolume(m.soundVolume)
 
 	// Play the sound
 	player.Play()
@@ -145,6 +152,7 @@ func (m *Manager) PlayMusic(name string) error {
 	}
 
 	m.musicPlayer = player
+	player.SetVolume(m.musicVolume)
 	player.Play()
 
 	return nil
@@ -207,4 +215,40 @@ func (m *Manager) IsMuted() bool {
 // ToggleMute toggles the sound mute state (legacy compatibility)
 func (m *Manager) ToggleMute() {
 	m.ToggleSoundMute()
+}
+
+// SetSoundVolume sets the sound effects volume (0.0 to 1.0)
+func (m *Manager) SetSoundVolume(volume float64) {
+	if volume < 0.0 {
+		volume = 0.0
+	}
+	if volume > 1.0 {
+		volume = 1.0
+	}
+	m.soundVolume = volume
+}
+
+// GetSoundVolume returns the current sound effects volume (0.0 to 1.0)
+func (m *Manager) GetSoundVolume() float64 {
+	return m.soundVolume
+}
+
+// SetMusicVolume sets the music volume (0.0 to 1.0)
+func (m *Manager) SetMusicVolume(volume float64) {
+	if volume < 0.0 {
+		volume = 0.0
+	}
+	if volume > 1.0 {
+		volume = 1.0
+	}
+	m.musicVolume = volume
+	// Apply volume to currently playing music
+	if m.musicPlayer != nil {
+		m.musicPlayer.SetVolume(volume)
+	}
+}
+
+// GetMusicVolume returns the current music volume (0.0 to 1.0)
+func (m *Manager) GetMusicVolume() float64 {
+	return m.musicVolume
 }

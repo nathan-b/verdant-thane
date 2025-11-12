@@ -8,8 +8,10 @@ import (
 
 // Settings represents game settings that persist across sessions
 type Settings struct {
-	SoundMuted bool `json:"sound_muted"`
-	MusicMuted bool `json:"music_muted"` // For future music implementation
+	SoundMuted  bool    `json:"sound_muted"`
+	MusicMuted  bool    `json:"music_muted"`
+	SoundVolume float64 `json:"sound_volume"` // 0.0 to 1.0
+	MusicVolume float64 `json:"music_volume"` // 0.0 to 1.0
 }
 
 const settingsFile = "settings.json"
@@ -29,16 +31,20 @@ func LoadSettings() (*Settings, error) {
 	settingsPath, err := GetSettingsPath()
 	if err != nil {
 		return &Settings{
-			SoundMuted: false,
-			MusicMuted: false,
+			SoundMuted:  false,
+			MusicMuted:  false,
+			SoundVolume: 1.0,
+			MusicVolume: 1.0,
 		}, err
 	}
 
 	// If file doesn't exist, return default settings
 	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
 		return &Settings{
-			SoundMuted: false,
-			MusicMuted: false,
+			SoundMuted:  false,
+			MusicMuted:  false,
+			SoundVolume: 1.0,
+			MusicVolume: 1.0,
 		}, nil
 	}
 
@@ -46,8 +52,10 @@ func LoadSettings() (*Settings, error) {
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		return &Settings{
-			SoundMuted: false,
-			MusicMuted: false,
+			SoundMuted:  false,
+			MusicMuted:  false,
+			SoundVolume: 1.0,
+			MusicVolume: 1.0,
 		}, err
 	}
 
@@ -55,9 +63,19 @@ func LoadSettings() (*Settings, error) {
 	var settings Settings
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return &Settings{
-			SoundMuted: false,
-			MusicMuted: false,
+			SoundMuted:  false,
+			MusicMuted:  false,
+			SoundVolume: 1.0,
+			MusicVolume: 1.0,
 		}, err
+	}
+
+	// Apply defaults for any missing fields (for backwards compatibility)
+	if settings.SoundVolume == 0 {
+		settings.SoundVolume = 1.0
+	}
+	if settings.MusicVolume == 0 {
+		settings.MusicVolume = 1.0
 	}
 
 	return &settings, nil
