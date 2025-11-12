@@ -145,6 +145,10 @@ type Game struct {
 	prevKeyD        bool
 	prevKeySpace    bool
 	lastProfileTime time.Time
+
+	// Pause state
+	paused   bool
+	prevKeyP bool
 }
 
 // NewGame creates and initializes a new game, starting at the title screen
@@ -364,6 +368,19 @@ func (g *Game) Update() error {
 		}
 
 	case InGame:
+		// Handle pause toggle (P key)
+		keyP := ebiten.IsKeyPressed(ebiten.KeyP)
+		if keyP && !g.prevKeyP {
+			// P key was just pressed - toggle pause
+			g.paused = !g.paused
+		}
+		g.prevKeyP = keyP
+
+		// Skip all game logic if paused
+		if g.paused {
+			return nil
+		}
+
 		updateStart := time.Now()
 
 		// Update all entities (ships, projectiles, explosions, collisions)
@@ -742,6 +759,37 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		killsOp.GeoM.Translate(float64(config.ScreenWidth)-killsWidth-10, 27)
 		killsOp.ColorScale.ScaleWithColor(textColor)
 		text.Draw(screen, killsText, g.hudFont, killsOp)
+
+		// Pause message (centered)
+		if g.paused {
+			pauseFont := &text.GoTextFace{
+				Source: g.hudFont.Source,
+				Size:   24,
+			}
+
+			pauseText := "PAUSED"
+			pauseWidth, _ := text.Measure(pauseText, pauseFont, 0)
+			pauseOp := &text.DrawOptions{}
+			pauseOp.GeoM.Translate(float64(config.ScreenWidth/2)-pauseWidth/2, float64(config.ScreenHeight/2)-40)
+			pauseOp.ColorScale.ScaleWithColor(color.RGBA{255, 255, 0, 255}) // Yellow
+			text.Draw(screen, pauseText, pauseFont, pauseOp)
+
+			// Instructions
+			instructionsText := "Press P to resume"
+			instrWidth, _ := text.Measure(instructionsText, g.hudFont, 0)
+			instrOp := &text.DrawOptions{}
+			instrOp.GeoM.Translate(float64(config.ScreenWidth/2)-instrWidth/2, float64(config.ScreenHeight/2))
+			instrOp.ColorScale.ScaleWithColor(textColor)
+			text.Draw(screen, instructionsText, g.hudFont, instrOp)
+
+			// Control keys reference
+			controlsText := "Controls: M (music) | N (sound) | P (pause)"
+			controlsWidth, _ := text.Measure(controlsText, g.hudFont, 0)
+			controlsOp := &text.DrawOptions{}
+			controlsOp.GeoM.Translate(float64(config.ScreenWidth/2)-controlsWidth/2, float64(config.ScreenHeight/2)+30)
+			controlsOp.ColorScale.ScaleWithColor(color.RGBA{180, 180, 180, 255}) // Gray
+			text.Draw(screen, controlsText, g.hudFont, controlsOp)
+		}
 
 		// Spectate mode instructions (centered at bottom)
 		if g.entityManager.IsSpectating() {
