@@ -56,8 +56,9 @@ func TestTestudonCharacteristics(t *testing.T) {
 	if testudon.BeamRange != 200.0 {
 		t.Errorf("Expected BeamRange=200.0, got %f", testudon.BeamRange)
 	}
-	if testudon.BeamDamagePerTick != 0.1 {
-		t.Errorf("Expected BeamDamagePerTick=0.1, got %f", testudon.BeamDamagePerTick)
+	// 0.125 = 1/8, exactly representable in binary (prevents FP accumulation errors)
+	if testudon.BeamDamagePerTick != 0.125 {
+		t.Errorf("Expected BeamDamagePerTick=0.125, got %f", testudon.BeamDamagePerTick)
 	}
 	if testudon.BeamTargetID != -1 {
 		t.Errorf("Expected initial BeamTargetID=-1, got %d", testudon.BeamTargetID)
@@ -435,24 +436,24 @@ func TestTestudonBeamDamageAccumulation(t *testing.T) {
 	testudon.BeamTargetID = 2
 	initialHealth := enemy.Health
 
-	// Fire beam for 11 ticks (accumulator needs to exceed 1.0)
-	for i := 0; i < 11; i++ {
+	// Fire beam for 8 ticks (0.125 damage/tick = 1.0 accumulated, exactly)
+	for i := 0; i < 8; i++ {
 		testudon.UpdateBeamWeapon(ctx)
 	}
 
-	// After 11 ticks at 0.1 damage/tick (1.1 accumulated), should have dealt 1 damage
+	// After 8 ticks at 0.125 damage/tick (1.0 accumulated), should have dealt 1 damage
 	if enemy.Health != initialHealth-1 {
-		t.Errorf("Expected health=%d after 11 ticks, got %d", initialHealth-1, enemy.Health)
+		t.Errorf("Expected health=%d after 8 ticks, got %d", initialHealth-1, enemy.Health)
 	}
 
-	// Fire for 10 more ticks (total 21 ticks = 2.1 damage)
-	for i := 0; i < 10; i++ {
+	// Fire for 8 more ticks (total 16 ticks = 2.0 damage)
+	for i := 0; i < 8; i++ {
 		testudon.UpdateBeamWeapon(ctx)
 	}
 
 	// Should have dealt 2 total damage
 	if enemy.Health != initialHealth-2 {
-		t.Errorf("Expected health=%d after 21 ticks, got %d", initialHealth-2, enemy.Health)
+		t.Errorf("Expected health=%d after 16 ticks, got %d", initialHealth-2, enemy.Health)
 	}
 }
 
@@ -465,7 +466,7 @@ func TestTestudonBeamKillsTarget(t *testing.T) {
 
 	testudon.BeamTargetID = 2
 
-	// Fire beam until target dies (fighter has 8 HP = 80 ticks)
+	// Fire beam until target dies (fighter has 8 HP = 64 ticks at 0.125 damage/tick)
 	for i := 0; i < 100; i++ {
 		if !enemy.IsAlive() {
 			break
