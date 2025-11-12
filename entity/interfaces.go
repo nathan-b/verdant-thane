@@ -88,6 +88,9 @@ type GameContext interface {
 	// Player state (for score tracking)
 	AddKill()
 	AddScore(points int)
+
+	// Audio
+	PlayImpactSound(targetShip Ship)
 }
 
 // MainGunConfig contains parameters for spawning a main gun projectile

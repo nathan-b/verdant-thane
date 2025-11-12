@@ -16,6 +16,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
+	"github.com/nathan/verdant-thane/audio"
 	"github.com/nathan/verdant-thane/config"
 	"github.com/nathan/verdant-thane/entity"
 	"github.com/nathan/verdant-thane/persistence"
@@ -111,12 +112,16 @@ type Game struct {
 	instructionsDialog *ui.Dialog              // Instructions screen dialog
 	highScoresDialog   *ui.Dialog              // High scores screen dialog
 	highScores         *persistence.HighScores // High scores loaded at game start
+	settings           *persistence.Settings   // Game settings loaded at game start
 	battleNumber       int                     // Current battle number (1-indexed)
 	currentFleetConfig *config.FleetConfig     // Config for current battle (used for quick restart)
 	nextFleetConfig    *config.FleetConfig     // Config for next battle (used by interstitial)
 
 	// Entity system
 	entityManager *EntityManager
+
+	// Audio system
+	audioManager *audio.Manager
 
 	// Shared resources
 	laserSprite     *ebiten.Image           // Shared sprite for all laser projectiles
@@ -149,6 +154,7 @@ type Game struct {
 	// Pause state
 	paused   bool
 	prevKeyP bool
+	prevKeyN bool // For sound mute toggle
 }
 
 // NewGame creates and initializes a new game, starting at the title screen
@@ -208,8 +214,35 @@ func NewGame() (*Game, error) {
 		highScores = &persistence.HighScores{Entries: []persistence.HighScore{}}
 	}
 
+	// Load settings
+	settings, err := persistence.LoadSettings()
+	if err != nil {
+		log.Printf("Warning: Failed to load settings: %v", err)
+		settings = &persistence.Settings{SoundMuted: false, MusicMuted: false}
+	}
+
 	// Create entity manager
 	entityManager := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+
+	// Create audio manager and load sound effects
+	audioManager, err := audio.NewManager()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create audio manager: %w", err)
+	}
+
+	// Apply saved mute setting
+	audioManager.SetMuted(settings.SoundMuted)
+
+	// Load sound effects
+	if err := audioManager.LoadSound("laser", "assets/laser.wav"); err != nil {
+		log.Printf("Warning: Failed to load laser sound: %v", err)
+	}
+	if err := audioManager.LoadSound("impact", "assets/impact.wav"); err != nil {
+		log.Printf("Warning: Failed to load impact sound: %v", err)
+	}
+	if err := audioManager.LoadSound("explosion", "assets/explosion.wav"); err != nil {
+		log.Printf("Warning: Failed to load explosion sound: %v", err)
+	}
 
 	game := &Game{
 		currentState:       TitleScreen,
@@ -218,7 +251,9 @@ func NewGame() (*Game, error) {
 		instructionsDialog: instructionsDialog,
 		highScoresDialog:   highScoresDialog,
 		highScores:         highScores,
+		settings:           settings,
 		entityManager:      entityManager,
+		audioManager:       audioManager,
 		laserSprite:        laserSprite,
 		missileSprite:      missileSprite,
 		explosionSprite:    explosionSprite,
@@ -236,6 +271,9 @@ func NewGame() (*Game, error) {
 
 	// Set profiler on entity manager for performance tracking
 	entityManager.SetProfiler(&game.profileData)
+
+	// Set audio manager on entity manager for sound effects
+	entityManager.SetAudioManager(audioManager)
 
 	return game, nil
 }
@@ -375,6 +413,20 @@ func (g *Game) Update() error {
 			g.paused = !g.paused
 		}
 		g.prevKeyP = keyP
+
+		// Handle sound mute toggle (N key)
+		keyN := ebiten.IsKeyPressed(ebiten.KeyN)
+		if keyN && !g.prevKeyN {
+			// N key was just pressed - toggle sound mute
+			g.audioManager.ToggleMute()
+
+			// Save settings with new mute state
+			g.settings.SoundMuted = g.audioManager.IsMuted()
+			if err := persistence.SaveSettings(g.settings); err != nil {
+				log.Printf("Warning: Failed to save settings: %v", err)
+			}
+		}
+		g.prevKeyN = keyN
 
 		// Skip all game logic if paused
 		if g.paused {

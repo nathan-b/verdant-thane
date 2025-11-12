@@ -370,6 +370,9 @@ func (t *Testudon) ApplyBeamDamage(target Ship, ctx GameContext) {
 		// Apply damage to target
 		target.TakeDamage(damageToApply, t.ID, ctx)
 
+		// Play impact sound if player ship was hit
+		ctx.PlayImpactSound(target)
+
 		// If target was destroyed, clear beam target
 		if !target.IsAlive() {
 			t.BeamTargetID = -1

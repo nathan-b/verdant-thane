@@ -100,6 +100,10 @@ func (m *MockGameContext) AddScore(points int) {
 	m.scoreAdded += points
 }
 
+func (m *MockGameContext) PlayImpactSound(targetShip Ship) {
+	// No-op for tests
+}
+
 // Test Fighter Creation
 func TestNewFighter(t *testing.T) {
 	fighter := NewFighter(1, 0, 100, 200, nil)

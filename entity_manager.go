@@ -7,6 +7,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
+	"github.com/nathan/verdant-thane/audio"
 	"github.com/nathan/verdant-thane/config"
 	"github.com/nathan/verdant-thane/entity"
 	"github.com/nathan/verdant-thane/systems"
@@ -55,6 +56,9 @@ type EntityManager struct {
 	// Performance profiling (optional)
 	profiler Profiler
 
+	// Audio manager (optional)
+	audioManager *audio.Manager
+
 	// Spatial grid for optimized queries (rebuilt each frame)
 	spatialGrid *spatialGrid
 }
@@ -94,6 +98,11 @@ func (em *EntityManager) SpawnProjectile(cfg entity.MainGunConfig) {
 
 	laser := entity.NewMainGunProjectile(id, cfg)
 	em.projectiles[id] = laser
+
+	// Play laser sound effect
+	if em.audioManager != nil {
+		em.audioManager.PlaySound("laser")
+	}
 }
 
 // SpawnMissile creates a new missile projectile
@@ -106,6 +115,11 @@ func (em *EntityManager) SpawnMissile(cfg entity.MissileConfig) {
 
 	missile := entity.NewMissileProjectile(id, cfg)
 	em.projectiles[id] = missile
+
+	// Play laser sound effect (missiles use same sound as main gun for now)
+	if em.audioManager != nil {
+		em.audioManager.PlaySound("laser")
+	}
 }
 
 // SpawnExplosion creates a new explosion animation
@@ -115,6 +129,11 @@ func (em *EntityManager) SpawnExplosion(x, y float64) {
 
 	explosion := entity.NewExplosion(id, x, y, em.explosionSprite)
 	em.explosions[id] = explosion
+
+	// Play explosion sound effect
+	if em.audioManager != nil {
+		em.audioManager.PlaySound("explosion")
+	}
 }
 
 // GetShip returns a ship by ID
@@ -352,6 +371,18 @@ func (em *EntityManager) SetProfiler(p Profiler) {
 	em.profiler = p
 }
 
+// SetAudioManager sets the audio manager for sound effects
+func (em *EntityManager) SetAudioManager(am *audio.Manager) {
+	em.audioManager = am
+}
+
+// PlayImpactSound plays impact sound only if the target ship is player-controlled
+func (em *EntityManager) PlayImpactSound(targetShip entity.Ship) {
+	if em.audioManager != nil && targetShip.IsPlayerControlled() {
+		em.audioManager.PlaySound("impact")
+	}
+}
+
 // UpdateAll updates all entities and handles collisions
 // Updates are broken into discrete passes to enable accurate per-subsystem profiling
 func (em *EntityManager) UpdateAll() {
@@ -539,6 +570,9 @@ func (em *EntityManager) updateCollisions() {
 			if proj.CheckCollision(ship) {
 				// Apply damage
 				ship.TakeDamage(proj.GetDamage(), proj.GetOwnerID(), em)
+
+				// Play impact sound effect only for player ship
+				em.PlayImpactSound(ship)
 
 				// Mark projectile for deletion
 				toDelete = append(toDelete, projID)
