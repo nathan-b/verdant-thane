@@ -21,11 +21,30 @@ func main() {
 	switch subcommand {
 	case "build-sounds":
 		fs = flag.NewFlagSet("build-sounds", flag.ExitOnError)
-		outputFile := fs.String("output", "laser.wav", "Output WAV file path")
+		soundType := fs.String("type", "laser", "Type of sound to generate (laser, impact, explosion)")
+		outputFile := fs.String("output", "out.wav", "Output WAV file path")
 		duration := fs.Float64("duration", 0.2, "Sound duration in seconds")
+
 		fs.Parse(os.Args[2:])
-		if err := makeLaserSound(*outputFile, *duration); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+
+		switch *soundType {
+		case "laser":
+			if err := makeLaserSound(*outputFile, *duration); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+		case "impact":
+			if err := makeImpactSound(*outputFile, *duration); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+		case "explosion":
+			if err := makeExplosionSound(*outputFile, *duration); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+		default:
+			fmt.Fprintf(os.Stderr, "Error: unknown sound type '%s'\n", *soundType)
 			os.Exit(1)
 		}
 
@@ -72,7 +91,7 @@ func printUsage() {
 	fmt.Println("  go run ./tools <command> [options]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  build-sounds         Generate laser sound effect WAV file")
+	fmt.Println("  build-sounds         Generate sound effect WAV files (laser, impact)")
 	fmt.Println("  convert-grayscale    Convert a PNG image to grayscale")
 	fmt.Println("  extract-palette      Extract color palette from an image")
 	fmt.Println("  help                 Show this help message")

@@ -4,12 +4,14 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 )
 
 // makeLaserSound generates a laser sound effect WAV file
 func makeLaserSound(outputPath string, duration float64) error {
 	const sampleRate = 44100
+	numSamples := int(sampleRate * duration)
 
 	// Create output file
 	f, err := os.Create(outputPath)
@@ -17,8 +19,6 @@ func makeLaserSound(outputPath string, duration float64) error {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
 	defer f.Close()
-
-	numSamples := int(sampleRate * duration)
 
 	// Write WAV header
 	if err := writeWavHeader(f, numSamples, sampleRate); err != nil {
@@ -55,6 +55,90 @@ func makeLaserSound(outputPath string, duration float64) error {
 	}
 
 	fmt.Printf("Generated laser sound: %s (%.2fs, %d samples)\n", outputPath, duration, numSamples)
+	return nil
+}
+
+func makeImpactSound(outputPath string, duration float64) error {
+	const sampleRate = 44100
+	numSamples := int(sampleRate * duration)
+
+	// Create output file
+	f, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer f.Close()
+
+	// Write WAV header
+	if err := writeWavHeader(f, numSamples, sampleRate); err != nil {
+		return fmt.Errorf("failed to write WAV header: %w", err)
+	}
+
+	for i := range numSamples {
+		t := float64(i) / sampleRate
+
+		// Two combined frequencies: impact + resonance
+		freq1 := 1200.0 - 800.0*t*3   // downward pitch for impact
+		freq2 := 4000.0 - 2000.0*t*2  // metallic ring
+		sample := 0.6*math.Sin(2*math.Pi*freq1*t) +
+			0.4*math.Sin(2*math.Pi*freq2*t)
+
+		// Exponential fade to give quick decay
+		env := math.Exp(-6 * t / duration)
+		value := int16(sample * env * 32767)
+
+		binary.Write(f, binary.LittleEndian, value)
+		binary.Write(f, binary.LittleEndian, value)
+	}
+
+	fmt.Printf("Generated impact sound: %s (%.2fs, %d samples)\n", outputPath, duration, numSamples)
+	return nil
+}
+
+func makeExplosionSound(outputPath string, duration float64) error {
+	const sampleRate = 44100
+	numSamples := int(sampleRate * duration)
+
+	// Create output file
+	f, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer f.Close()
+
+	// Write WAV header
+	if err := writeWavHeader(f, numSamples, sampleRate); err != nil {
+		return fmt.Errorf("failed to write WAV header: %w", err)
+	}
+
+	// Simple low-pass filtered noise explosion
+	var prev float64
+	for i := range numSamples {
+		t := float64(i) / sampleRate
+
+		// Envelope: fast attack, exponential decay
+		env := math.Exp(-4 * t / duration)
+		if t < 0.02 {
+			env = t / 0.02 // attack ramp
+		}
+
+		// Random white noise
+		n := (rand.Float64()*2 - 1)
+
+		// Low-pass filter (to give a "boom" instead of hiss)
+		smooth := prev*0.9 + n*0.1
+		prev = smooth
+
+		// Modulate slight pitch oscillation
+		mod := math.Sin(2 * math.Pi * 30 * t)
+
+		sample := smooth * env * (0.8 + 0.2*mod)
+		value := int16(sample * 32767)
+
+		binary.Write(f, binary.LittleEndian, value)
+		binary.Write(f, binary.LittleEndian, value)
+	}
+	fmt.Println("Generated explosion sound: explosion.wav")
 	return nil
 }
 

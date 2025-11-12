@@ -18,31 +18,32 @@ Run `go run ./tools help` to see available commands.
 
 ### build-sounds
 
-Generates a laser sound effect WAV file using procedural synthesis.
+Generates sound effect WAV files using procedural synthesis.
 
 **Usage:**
 ```bash
-go run ./tools build-sounds [--output FILE] [--duration SECONDS]
+go run ./tools build-sounds [--type TYPE] [--output FILE] [--duration SECONDS]
 ```
 
 **Options:**
-- `--output` - Output WAV file path (default: `laser.wav`)
+- `--type` - Type of sound to generate: `laser`, `impact`, `explosion` (default: `laser`)
+- `--output` - Output WAV file path (default: `out.wav`)
 - `--duration` - Sound duration in seconds (default: `0.2`)
 
-**Example:**
+**Examples:**
 ```bash
 # Generate default laser sound
-go run ./tools build-sounds
+go run ./tools build-sounds --type laser --output laser.wav
 
-# Generate a longer sound effect
-go run ./tools build-sounds --duration 0.5 --output custom_laser.wav
+# Generate impact sound
+go run ./tools build-sounds --type impact --output impact.wav
+
+# Generate explosion sound
+go run ./tools build-sounds --type explosion --output explosion.wav --duration 0.4
+
+# Generate a longer laser effect
+go run ./tools build-sounds --type laser --duration 0.5 --output custom_laser.wav
 ```
-
-**Details:**
-- Sample rate: 44.1kHz stereo
-- Waveform: Square wave (retro style)
-- Effect: Downward frequency sweep from 800Hz to 100Hz
-- Envelope: Linear fade-out
 
 ---
 
