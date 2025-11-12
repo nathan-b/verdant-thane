@@ -21,12 +21,12 @@ type SoundEffect struct {
 
 // Manager handles all audio playback for the game
 type Manager struct {
-	context      *audio.Context
-	sounds       map[string]*SoundEffect
-	soundMuted   bool
-	musicMuted   bool
-	musicPlayer  *audio.Player // Current music player (only one plays at a time)
-	musicStreams map[string][]byte
+	context     *audio.Context
+	sounds      map[string]*SoundEffect
+	soundMuted  bool
+	musicMuted  bool
+	musicPlayer *audio.Player     // Current music player (only one plays at a time)
+	musicFiles  map[string][]byte // Compressed MP3 data (not decoded)
 }
 
 // NewManager creates a new audio manager
@@ -34,12 +34,12 @@ func NewManager() (*Manager, error) {
 	ctx := audio.NewContext(sampleRate)
 
 	return &Manager{
-		context:      ctx,
-		sounds:       make(map[string]*SoundEffect),
-		soundMuted:   false,
-		musicMuted:   false,
-		musicPlayer:  nil,
-		musicStreams: make(map[string][]byte),
+		context:     ctx,
+		sounds:      make(map[string]*SoundEffect),
+		soundMuted:  false,
+		musicMuted:  false,
+		musicPlayer: nil,
+		musicFiles:  make(map[string][]byte),
 	}, nil
 }
 
@@ -93,28 +93,16 @@ func (m *Manager) PlaySound(name string) error {
 	return nil
 }
 
-// LoadMusic loads an MP3 file into memory for looping playback
+// LoadMusic loads an MP3 file into memory (keeps it compressed)
 func (m *Manager) LoadMusic(name string, filepath string) error {
-	// Read the MP3 file
+	// Read the compressed MP3 file
 	fileData, err := os.ReadFile(filepath)
 	if err != nil {
 		return fmt.Errorf("failed to read music file %s: %w", filepath, err)
 	}
 
-	// Decode MP3 data
-	stream, err := mp3.DecodeWithoutResampling(bytes.NewReader(fileData))
-	if err != nil {
-		return fmt.Errorf("failed to decode MP3 file %s: %w", filepath, err)
-	}
-
-	// Read all data into memory
-	data, err := io.ReadAll(stream)
-	if err != nil {
-		return fmt.Errorf("failed to read stream data %s: %w", filepath, err)
-	}
-
-	// Store the music data
-	m.musicStreams[name] = data
+	// Store the compressed MP3 data (we'll decode on-the-fly during playback)
+	m.musicFiles[name] = fileData
 
 	return nil
 }
@@ -129,13 +117,26 @@ func (m *Manager) PlayMusic(name string) error {
 		return nil
 	}
 
-	musicData, exists := m.musicStreams[name]
+	compressedData, exists := m.musicFiles[name]
 	if !exists {
 		return fmt.Errorf("music %s not loaded", name)
 	}
 
-	// Create infinite loop from the music data
-	infiniteLoop := audio.NewInfiniteLoop(bytes.NewReader(musicData), int64(len(musicData)))
+	// Decode MP3 stream (this happens quickly since it's streaming, not loading all at once)
+	stream, err := mp3.DecodeWithoutResampling(bytes.NewReader(compressedData))
+	if err != nil {
+		return fmt.Errorf("failed to decode MP3: %w", err)
+	}
+
+	// Get the stream length for looping
+	// We need to read the entire stream once to get its length
+	data, err := io.ReadAll(stream)
+	if err != nil {
+		return fmt.Errorf("failed to read decoded stream: %w", err)
+	}
+
+	// Create infinite loop from the decoded data
+	infiniteLoop := audio.NewInfiniteLoop(bytes.NewReader(data), int64(len(data)))
 
 	// Create player from infinite loop
 	player, err := m.context.NewPlayer(infiniteLoop)

@@ -9,6 +9,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -121,7 +122,9 @@ type Game struct {
 	entityManager *EntityManager
 
 	// Audio system
-	audioManager *audio.Manager
+	audioManager      *audio.Manager
+	bgmTracksReady    bool       // Whether background music tracks have been loaded
+	bgmTracksReadyMux sync.Mutex // Protects bgmTracksReady flag
 
 	// Shared resources
 	laserSprite     *ebiten.Image           // Shared sprite for all laser projectiles
@@ -246,7 +249,7 @@ func NewGame() (*Game, error) {
 		log.Printf("Warning: Failed to load explosion sound: %v", err)
 	}
 
-	// Load music
+	// Load menu music (needed immediately)
 	if err := audioManager.LoadMusic("menu", "assets/energy-electrowave.mp3"); err != nil {
 		log.Printf("Warning: Failed to load menu music: %v", err)
 	}
@@ -282,12 +285,41 @@ func NewGame() (*Game, error) {
 	// Set audio manager on entity manager for sound effects
 	entityManager.SetAudioManager(audioManager)
 
+	// Start loading in-game music tracks in background (won't block startup)
+	go func() {
+		bgmTracks := []string{
+			"assets/bgm/0-top.mp3",
+			"assets/bgm/adrenaline-rush.mp3",
+			"assets/bgm/crazy-bad.mp3",
+			"assets/bgm/dance-with-demons.mp3",
+			"assets/bgm/tank-metal.mp3",
+		}
+		for i, track := range bgmTracks {
+			musicName := fmt.Sprintf("bgm%d", i)
+			if err := audioManager.LoadMusic(musicName, track); err != nil {
+				log.Printf("Warning: Failed to load BGM track %s: %v", track, err)
+			}
+		}
+		game.bgmTracksReadyMux.Lock()
+		game.bgmTracksReady = true
+		game.bgmTracksReadyMux.Unlock()
+		log.Printf("Background music tracks loaded")
+	}()
+
 	// Start menu music
 	if err := audioManager.PlayMusic("menu"); err != nil {
 		log.Printf("Warning: Failed to play menu music: %v", err)
 	}
 
 	return game, nil
+}
+
+// ReturnToTitleScreen transitions to the title screen and resumes menu music
+func (g *Game) ReturnToTitleScreen() {
+	g.currentState = TitleScreen
+	if err := g.audioManager.PlayMusic("menu"); err != nil {
+		log.Printf("Warning: Failed to play menu music: %v", err)
+	}
 }
 
 // StartGame transitions from title screen to in-game state by spawning ships
@@ -378,6 +410,22 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 	newX, newY := playerShip.GetPosition()
 	g.cameraX = newX - float64(config.ScreenWidth)/2
 	g.cameraY = newY - float64(config.ScreenHeight)/2
+
+	// Play random in-game music (if tracks are loaded)
+	g.bgmTracksReadyMux.Lock()
+	tracksReady := g.bgmTracksReady
+	g.bgmTracksReadyMux.Unlock()
+
+	if tracksReady {
+		bgmIndex := rand.Intn(5) // We have 5 BGM tracks (bgm0 through bgm4)
+		bgmName := fmt.Sprintf("bgm%d", bgmIndex)
+		if err := g.audioManager.PlayMusic(bgmName); err != nil {
+			log.Printf("Warning: Failed to play BGM: %v", err)
+		}
+	} else {
+		// BGM tracks not loaded yet - continue with menu music
+		log.Printf("BGM tracks still loading, continuing with menu music")
+	}
 
 	g.currentState = InGame
 
@@ -576,7 +624,7 @@ func (g *Game) Update() error {
 
 					// Return to title screen and clear game over screen
 					g.gameOverScreen = nil
-					g.currentState = TitleScreen
+					g.ReturnToTitleScreen()
 				},
 				// Quick restart callback (restarts with same fleet config)
 				func() {
@@ -587,7 +635,7 @@ func (g *Game) Update() error {
 						// Restart with same fleet configuration
 						if err := g.StartGame(*g.currentFleetConfig); err != nil {
 							log.Printf("Error restarting game: %v", err)
-							g.currentState = TitleScreen
+							g.ReturnToTitleScreen()
 						}
 					}
 				},
@@ -602,13 +650,13 @@ func (g *Game) Update() error {
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 			mouseX, mouseY := ebiten.CursorPosition()
 			if ui.CheckCloseButtonClick(g.instructionsDialog, mouseX, mouseY) {
-				g.currentState = TitleScreen
+				g.ReturnToTitleScreen()
 			}
 		}
 
 		// Also handle ESC key
 		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
-			g.currentState = TitleScreen
+			g.ReturnToTitleScreen()
 		}
 
 	case HighScores:
@@ -616,13 +664,13 @@ func (g *Game) Update() error {
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 			mouseX, mouseY := ebiten.CursorPosition()
 			if ui.CheckCloseButtonClick(g.highScoresDialog, mouseX, mouseY) {
-				g.currentState = TitleScreen
+				g.ReturnToTitleScreen()
 			}
 		}
 
 		// Also handle ESC key
 		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
-			g.currentState = TitleScreen
+			g.ReturnToTitleScreen()
 		}
 
 	case Interstitial:
@@ -632,14 +680,14 @@ func (g *Game) Update() error {
 			if g.nextFleetConfig != nil {
 				if err := g.StartGame(*g.nextFleetConfig); err != nil {
 					log.Printf("Error starting next battle: %v", err)
-					g.currentState = TitleScreen
+					g.ReturnToTitleScreen()
 				} else {
 					// Clear next fleet config after using it
 					g.nextFleetConfig = nil
 				}
 			} else {
 				// Fallback: return to title if no config
-				g.currentState = TitleScreen
+				g.ReturnToTitleScreen()
 			}
 		}
 	}
