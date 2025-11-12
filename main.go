@@ -656,13 +656,13 @@ func (g *Game) Update() error {
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 			mouseX, mouseY := ebiten.CursorPosition()
 			if ui.CheckCloseButtonClick(g.instructionsDialog, mouseX, mouseY) {
-				g.ReturnToTitleScreen()
+				g.currentState = TitleScreen
 			}
 		}
 
 		// Also handle ESC key
 		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
-			g.ReturnToTitleScreen()
+			g.currentState = TitleScreen
 		}
 
 	case HighScores:
@@ -670,13 +670,13 @@ func (g *Game) Update() error {
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 			mouseX, mouseY := ebiten.CursorPosition()
 			if ui.CheckCloseButtonClick(g.highScoresDialog, mouseX, mouseY) {
-				g.ReturnToTitleScreen()
+				g.currentState = TitleScreen
 			}
 		}
 
 		// Also handle ESC key
 		if ebiten.IsKeyPressed(ebiten.KeyEscape) {
-			g.ReturnToTitleScreen()
+			g.currentState = TitleScreen
 		}
 
 	case Interstitial:
@@ -739,7 +739,7 @@ func (g *Game) Update() error {
 
 					// Clear settings screen and return to title
 					g.settingsScreen = nil
-					g.ReturnToTitleScreen()
+					g.currentState = TitleScreen
 				},
 			)
 		}
