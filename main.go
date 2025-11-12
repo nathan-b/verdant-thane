@@ -155,6 +155,7 @@ type Game struct {
 	paused   bool
 	prevKeyP bool
 	prevKeyN bool // For sound mute toggle
+	prevKeyM bool // For music mute toggle
 }
 
 // NewGame creates and initializes a new game, starting at the title screen
@@ -230,8 +231,9 @@ func NewGame() (*Game, error) {
 		return nil, fmt.Errorf("failed to create audio manager: %w", err)
 	}
 
-	// Apply saved mute setting
-	audioManager.SetMuted(settings.SoundMuted)
+	// Apply saved mute settings
+	audioManager.SetSoundMuted(settings.SoundMuted)
+	audioManager.SetMusicMuted(settings.MusicMuted)
 
 	// Load sound effects
 	if err := audioManager.LoadSound("laser", "assets/laser.wav"); err != nil {
@@ -242,6 +244,11 @@ func NewGame() (*Game, error) {
 	}
 	if err := audioManager.LoadSound("explosion", "assets/explosion.wav"); err != nil {
 		log.Printf("Warning: Failed to load explosion sound: %v", err)
+	}
+
+	// Load music
+	if err := audioManager.LoadMusic("menu", "assets/energy-electrowave.mp3"); err != nil {
+		log.Printf("Warning: Failed to load menu music: %v", err)
 	}
 
 	game := &Game{
@@ -274,6 +281,11 @@ func NewGame() (*Game, error) {
 
 	// Set audio manager on entity manager for sound effects
 	entityManager.SetAudioManager(audioManager)
+
+	// Start menu music
+	if err := audioManager.PlayMusic("menu"); err != nil {
+		log.Printf("Warning: Failed to play menu music: %v", err)
+	}
 
 	return game, nil
 }
@@ -418,15 +430,29 @@ func (g *Game) Update() error {
 		keyN := ebiten.IsKeyPressed(ebiten.KeyN)
 		if keyN && !g.prevKeyN {
 			// N key was just pressed - toggle sound mute
-			g.audioManager.ToggleMute()
+			g.audioManager.ToggleSoundMute()
 
 			// Save settings with new mute state
-			g.settings.SoundMuted = g.audioManager.IsMuted()
+			g.settings.SoundMuted = g.audioManager.IsSoundMuted()
 			if err := persistence.SaveSettings(g.settings); err != nil {
 				log.Printf("Warning: Failed to save settings: %v", err)
 			}
 		}
 		g.prevKeyN = keyN
+
+		// Handle music mute toggle (M key)
+		keyM := ebiten.IsKeyPressed(ebiten.KeyM)
+		if keyM && !g.prevKeyM {
+			// M key was just pressed - toggle music mute
+			g.audioManager.ToggleMusicMute()
+
+			// Save settings with new mute state
+			g.settings.MusicMuted = g.audioManager.IsMusicMuted()
+			if err := persistence.SaveSettings(g.settings); err != nil {
+				log.Printf("Warning: Failed to save settings: %v", err)
+			}
+		}
+		g.prevKeyM = keyM
 
 		// Skip all game logic if paused
 		if g.paused {
