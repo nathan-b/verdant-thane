@@ -40,9 +40,7 @@ func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *Tes
 		Accel:                chars.Acceleration,
 		CollisionRadius:      chars.CollisionRadius,
 		PlayerControlled:     false,
-		WeaponCapacitor:      0.0, // Testudons don't use projectile weapons
-		WeaponChargeRate:     0.0,
-		FiringCone:           0.0, // 360° beam weapon
+		Weapons:              []Weapon{}, // Testudons don't use projectile weapons (beam weapon only)
 		AfterburnerCharge:    0.0,
 		AfterburnerActive:    false,
 		AfterburnerMaxCharge: 0.0,

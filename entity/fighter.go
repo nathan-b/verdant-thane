@@ -9,6 +9,12 @@ import (
 	"github.com/nathan/verdant-thane/config"
 )
 
+type Weapon struct {
+	WeaponCapacitor  float64 // 0.0 to 1.0
+	WeaponChargeRate float64
+	FiringCone       float64 // Radians
+}
+
 // BaseShip contains common data for all ship types
 type BaseShip struct {
 	// Identity
@@ -33,9 +39,7 @@ type BaseShip struct {
 	PlayerControlled bool
 
 	// Weapons
-	WeaponCapacitor  float64 // 0.0 to 1.0
-	WeaponChargeRate float64
-	FiringCone       float64 // Radians
+	Weapons []Weapon
 
 	// Afterburner (fighters and destroyers only, not testudons)
 	AfterburnerCharge    float64 // 0.0 to 360.0
@@ -64,24 +68,28 @@ func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Figh
 	chars := config.GetShipCharacteristics(ClassFighter)
 
 	base := &BaseShip{
-		ID:                   id,
-		FactionID:            factionID,
-		Class:                ClassFighter,
-		X:                    x,
-		Y:                    y,
-		VelocityX:            0,
-		VelocityY:            0,
-		Rotation:             0,
-		Health:               chars.MaxShield,
-		MaxHealth:            chars.MaxShield,
-		Speed:                0,
-		MaxSpeed:             chars.MaxSpeed,
-		Accel:                chars.Acceleration,
-		CollisionRadius:      chars.CollisionRadius,
-		PlayerControlled:     false,
-		WeaponCapacitor:      1.0, // Start fully charged
-		WeaponChargeRate:     chars.CapacitorChargeRate,
-		FiringCone:           chars.FiringCone,
+		ID:               id,
+		FactionID:        factionID,
+		Class:            ClassFighter,
+		X:                x,
+		Y:                y,
+		VelocityX:        0,
+		VelocityY:        0,
+		Rotation:         0,
+		Health:           chars.MaxShield,
+		MaxHealth:        chars.MaxShield,
+		Speed:            0,
+		MaxSpeed:         chars.MaxSpeed,
+		Accel:            chars.Acceleration,
+		CollisionRadius:  chars.CollisionRadius,
+		PlayerControlled: false,
+		Weapons: []Weapon{
+			{
+				WeaponCapacitor:  1.0, // Start fully charged
+				WeaponChargeRate: chars.Weapons[0].CapacitorChargeRate,
+				FiringCone:       chars.Weapons[0].FiringCone,
+			},
+		},
 		AfterburnerCharge:    360.0, // Start fully charged
 		AfterburnerActive:    false,
 		AfterburnerMaxCharge: 360.0,
@@ -235,9 +243,9 @@ func (b *BaseShip) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
 	dx, dy := GetWrappedDistance(b.X, b.Y, mouseX, mouseY)
 	angleToTarget := math.Atan2(dx, -dy)
 
-	// Check if target is within firing cone
+	// Check if target is within firing cone (use primary weapon)
 	angleFromForward := NormalizeAngle(angleToTarget - b.Rotation)
-	halfCone := b.FiringCone / 2
+	halfCone := b.Weapons[0].FiringCone / 2
 
 	var firingAngle float64
 	if math.Abs(angleFromForward) <= halfCone {
@@ -253,7 +261,7 @@ func (b *BaseShip) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
 	}
 
 	// Consume capacitor
-	b.WeaponCapacitor = 0.0
+	b.Weapons[0].WeaponCapacitor = 0.0
 
 	// Calculate projectile velocity
 	// Sprites face UP (Y-axis), so use sin/cos adjusted for sprite orientation
@@ -289,7 +297,7 @@ func (b *BaseShip) FireMissile(targetID int, ctx GameContext) {
 
 // CanFireWeapon returns whether the weapon can be fired (BaseShip method)
 func (b *BaseShip) CanFireWeapon() bool {
-	return b.Alive && b.WeaponCapacitor >= 1.0
+	return b.Alive && len(b.Weapons) > 0 && b.Weapons[0].WeaponCapacitor >= 1.0
 }
 
 // CanFireMissile returns whether missiles can be fired (BaseShip method, overridden by Destroyer)
@@ -318,14 +326,21 @@ func (b *BaseShip) HasAfterburner() bool {
 
 // UpdateWeapons charges the weapon capacitor and afterburner (BaseShip method)
 func (b *BaseShip) UpdateWeapons() {
-	// Charge weapon capacitor first
-	if b.WeaponCapacitor < 1.0 {
-		b.WeaponCapacitor += b.WeaponChargeRate
-		if b.WeaponCapacitor > 1.0 {
-			b.WeaponCapacitor = 1.0
+	// Charge all weapon capacitors
+	allWeaponsCharged := true
+	for i := range b.Weapons {
+		if b.Weapons[i].WeaponCapacitor < 1.0 {
+			b.Weapons[i].WeaponCapacitor += b.Weapons[i].WeaponChargeRate
+			if b.Weapons[i].WeaponCapacitor > 1.0 {
+				b.Weapons[i].WeaponCapacitor = 1.0
+			} else {
+				allWeaponsCharged = false
+			}
 		}
-	} else if b.HasAfterburnerSystem && !b.AfterburnerActive {
-		// Only charge afterburner when weapon capacitor is full and afterburner is not active
+	}
+
+	// Only charge afterburner when all weapon capacitors are full and afterburner is not active
+	if allWeaponsCharged && b.HasAfterburnerSystem && !b.AfterburnerActive {
 		if b.AfterburnerCharge < b.AfterburnerMaxCharge {
 			b.AfterburnerCharge += 1.0 // Charge at 1 per tick
 			if b.AfterburnerCharge > b.AfterburnerMaxCharge {
@@ -471,7 +486,7 @@ func (f *Fighter) UpdateAI(ctx GameContext) {
 		// Fire weapon if target in arc
 		if f.CanFireWeapon() {
 			angleFromForward := math.Abs(NormalizeAngle(angleToTarget - f.Rotation))
-			if angleFromForward <= f.FiringCone/2 {
+			if angleFromForward <= f.Weapons[0].FiringCone/2 {
 				// 50% accurate, 25% random, 25% no fire
 				roll := rand.Float64()
 				if roll < 0.50 {
@@ -479,7 +494,7 @@ func (f *Fighter) UpdateAI(ctx GameContext) {
 					f.FireWeapon(targetX, targetY, ctx)
 				} else if roll < 0.75 {
 					// Random shot within cone
-					randomAngle := f.Rotation + (rand.Float64()-0.5)*f.FiringCone
+					randomAngle := f.Rotation + (rand.Float64()-0.5)*f.Weapons[0].FiringCone
 					randomTargetX := f.X + math.Cos(randomAngle)*1000
 					randomTargetY := f.Y + math.Sin(randomAngle)*1000
 					f.FireWeapon(randomTargetX, randomTargetY, ctx)

@@ -383,7 +383,6 @@ func TestAIDestroyerFiresMultipleMissiles(t *testing.T) {
 	for i := 0; i < maxIterations; i++ {
 		// Pass 1: Weapon capacitor charging (main gun + missiles)
 		destroyer.UpdateWeapons()
-		destroyer.UpdateMissileWeapon()
 
 		// Pass 2: AI updates (targeting, rotation, firing)
 		destroyer.UpdateAI(ctx)

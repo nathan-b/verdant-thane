@@ -56,11 +56,8 @@ func TestGetShipCharacteristicsTestudon(t *testing.T) {
 	if chars.CollisionRadius != 50.0 {
 		t.Errorf("Testudon CollisionRadius: expected 50.0, got %f", chars.CollisionRadius)
 	}
-	if chars.FiringCone != 0.0 {
-		t.Errorf("Testudon FiringCone: expected 0.0 (360°), got %f", chars.FiringCone)
-	}
-	if chars.CapacitorChargeRate != 0.0 {
-		t.Errorf("Testudon CapacitorChargeRate: expected 0.0 (beam weapon), got %f", chars.CapacitorChargeRate)
+	if len(chars.Weapons) != 0 {
+		t.Errorf("Testudon Weapons: expected 0 (beam weapon only), got %d", len(chars.Weapons))
 	}
 	if chars.BaseSpritePath != "assets/testudon.png" {
 		t.Errorf("Testudon sprite path: expected 'assets/testudon.png', got '%s'", chars.BaseSpritePath)
@@ -564,9 +561,11 @@ func TestShipAndProjectileConsistency(t *testing.T) {
 		t.Log("Missile and laser have very different charge times")
 	}
 
-	// Fighter and destroyer should have same firing cone
-	if fighter.FiringCone != destroyer.FiringCone {
-		t.Error("Fighter and destroyer should have same firing cone")
+	// Fighter and destroyer should have same firing cone for main gun
+	if len(fighter.Weapons) > 0 && len(destroyer.Weapons) > 0 {
+		if fighter.Weapons[0].FiringCone != destroyer.Weapons[0].FiringCone {
+			t.Error("Fighter and destroyer should have same firing cone for main gun")
+		}
 	}
 }
 

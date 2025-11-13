@@ -11,39 +11,42 @@ import (
 // Destroyer is a heavy fighter with rear-facing missiles
 type Destroyer struct {
 	*BaseShip
-	// Secondary weapon (missiles)
-	MissileCapacitor  float64
-	MissileChargeRate float64
-	MissileFiringArc  float64 // Rear 180° arc
+	// Weapon 0: Main gun (forward)
+	// Weapon 1: Missile launcher (rear 180° arc)
 }
 
 // NewDestroyer creates a new destroyer ship
 func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *Destroyer {
 	chars := config.GetShipCharacteristics(ClassDestroyer)
 
-	// Get missile characteristics for charge rate
-	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
-	missileChargeRate := 1.0 / (missileChars.ChargeTime * 60.0)
-
 	base := &BaseShip{
-		ID:                   id,
-		FactionID:            factionID,
-		Class:                ClassDestroyer,
-		X:                    x,
-		Y:                    y,
-		VelocityX:            0,
-		VelocityY:            0,
-		Rotation:             0,
-		Health:               chars.MaxShield,
-		MaxHealth:            chars.MaxShield,
-		Speed:                0,
-		MaxSpeed:             chars.MaxSpeed,
-		Accel:                chars.Acceleration,
-		CollisionRadius:      chars.CollisionRadius,
-		PlayerControlled:     false,
-		WeaponCapacitor:      1.0,
-		WeaponChargeRate:     chars.CapacitorChargeRate,
-		FiringCone:           chars.FiringCone,
+		ID:               id,
+		FactionID:        factionID,
+		Class:            ClassDestroyer,
+		X:                x,
+		Y:                y,
+		VelocityX:        0,
+		VelocityY:        0,
+		Rotation:         0,
+		Health:           chars.MaxShield,
+		MaxHealth:        chars.MaxShield,
+		Speed:            0,
+		MaxSpeed:         chars.MaxSpeed,
+		Accel:            chars.Acceleration,
+		CollisionRadius:  chars.CollisionRadius,
+		PlayerControlled: false,
+		Weapons: []Weapon{
+			{
+				WeaponCapacitor:  1.0, // Main gun - start fully charged
+				WeaponChargeRate: chars.Weapons[0].CapacitorChargeRate,
+				FiringCone:       chars.Weapons[0].FiringCone,
+			},
+			{
+				WeaponCapacitor:  1.0, // Missile launcher - start fully charged
+				WeaponChargeRate: chars.Weapons[1].CapacitorChargeRate,
+				FiringCone:       chars.Weapons[1].FiringCone,
+			},
+		},
 		AfterburnerCharge:    360.0, // Start fully charged
 		AfterburnerActive:    false,
 		AfterburnerMaxCharge: 360.0,
@@ -55,10 +58,7 @@ func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *De
 	}
 
 	return &Destroyer{
-		BaseShip:          base,
-		MissileCapacitor:  1.0, // Start fully charged
-		MissileChargeRate: missileChargeRate,
-		MissileFiringArc:  math.Pi, // 180° rear arc
+		BaseShip: base,
 	}
 }
 
@@ -72,9 +72,8 @@ func (d *Destroyer) Update(ctx GameContext) error {
 		return nil
 	}
 
-	// Update both weapons
+	// Update all weapons (main gun and missiles)
 	d.UpdateWeapons()
-	d.UpdateMissileWeapon()
 
 	// Update control (AI or player)
 	if d.PlayerControlled {
@@ -98,7 +97,7 @@ func (d *Destroyer) UpdateAI(ctx GameContext) {
 
 	// Additional destroyer behavior: Fire missiles at rear targets
 	if d.CanFireMissile() {
-		rearTarget, _ := ctx.FindNearestEnemyInArc(d, d.MissileFiringArc, 2000.0, true) // 2000px range, rear-facing
+		rearTarget, _ := ctx.FindNearestEnemyInArc(d, d.Weapons[1].FiringCone, 2000.0, true) // 2000px range, rear-facing
 		if rearTarget != nil {
 			d.FireMissile(rearTarget.GetID(), ctx)
 		}
@@ -141,7 +140,7 @@ func (d *Destroyer) FireMissile(targetID int, ctx GameContext) {
 	}
 
 	// Consume capacitor
-	d.MissileCapacitor = 0.0
+	d.Weapons[1].WeaponCapacitor = 0.0
 
 	// Get missile characteristics
 	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
@@ -175,21 +174,5 @@ func (d *Destroyer) FireMissile(targetID int, ctx GameContext) {
 
 // CanFireMissile returns whether missiles can be fired
 func (d *Destroyer) CanFireMissile() bool {
-	return d.Alive && d.MissileCapacitor >= 1.0
-}
-
-// ============================================================================
-// Weapon Update Methods
-// ============================================================================
-
-// UpdateMissileWeapon charges the missile capacitor
-func (d *Destroyer) UpdateMissileWeapon() {
-	if d.MissileCapacitor < 1.0 {
-		d.MissileCapacitor += d.MissileChargeRate
-		if d.MissileCapacitor > 1.0 {
-			d.MissileCapacitor = 1.0
-		}
-	}
-	// Note: Afterburner charging is handled in UpdateWeapons (BaseShip method)
-	// which charges afterburner when the main weapon capacitor is full
+	return d.Alive && len(d.Weapons) > 1 && d.Weapons[1].WeaponCapacitor >= 1.0
 }

@@ -223,7 +223,7 @@ func TestFighterWrapping(t *testing.T) {
 // Test Weapon Charging
 func TestWeaponCharging(t *testing.T) {
 	fighter := NewFighter(1, 0, 100, 100, nil)
-	fighter.WeaponCapacitor = 0.0
+	fighter.Weapons[0].WeaponCapacitor = 0.0
 
 	// Weapon should not be fireable when empty
 	if fighter.CanFireWeapon() {
@@ -232,7 +232,7 @@ func TestWeaponCharging(t *testing.T) {
 
 	// Charge weapon
 	chars := config.GetShipCharacteristics(ClassFighter)
-	ticksToCharge := int(1.0 / chars.CapacitorChargeRate)
+	ticksToCharge := int(1.0 / chars.Weapons[0].CapacitorChargeRate)
 
 	for i := 0; i < ticksToCharge; i++ {
 		fighter.UpdateWeapons()
@@ -242,8 +242,8 @@ func TestWeaponCharging(t *testing.T) {
 	if !fighter.CanFireWeapon() {
 		t.Error("Weapon should be fireable after charging")
 	}
-	if fighter.WeaponCapacitor < 1.0 {
-		t.Errorf("Expected capacitor to be 1.0, got %f", fighter.WeaponCapacitor)
+	if fighter.Weapons[0].WeaponCapacitor < 1.0 {
+		t.Errorf("Expected capacitor to be 1.0, got %f", fighter.Weapons[0].WeaponCapacitor)
 	}
 }
 
@@ -282,8 +282,8 @@ func TestFighterFireWeapon(t *testing.T) {
 	}
 
 	// Verify capacitor was consumed
-	if fighter.WeaponCapacitor != 0.0 {
-		t.Errorf("Expected capacitor to be 0.0 after firing, got %f", fighter.WeaponCapacitor)
+	if fighter.Weapons[0].WeaponCapacitor != 0.0 {
+		t.Errorf("Expected capacitor to be 0.0 after firing, got %f", fighter.Weapons[0].WeaponCapacitor)
 	}
 
 	// Verify can't fire again immediately
@@ -316,7 +316,7 @@ func TestFighterFiringCone(t *testing.T) {
 	angleDiff := math.Abs(NormalizeAngle(firingAngle - fighter.Rotation))
 
 	chars := config.GetShipCharacteristics(ClassFighter)
-	halfCone := chars.FiringCone / 2
+	halfCone := chars.Weapons[0].FiringCone / 2
 
 	// Should be at cone edge (approximately)
 	if math.Abs(angleDiff-halfCone) > 0.01 {

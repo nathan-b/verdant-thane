@@ -68,14 +68,8 @@ func TestTestudonCharacteristics(t *testing.T) {
 	}
 
 	// Verify no projectile weapons
-	if testudon.WeaponCapacitor != 0.0 {
-		t.Error("Testudons should not have weapon capacitor")
-	}
-	if testudon.WeaponChargeRate != 0.0 {
-		t.Error("Testudons should not have weapon charge rate")
-	}
-	if testudon.FiringCone != 0.0 {
-		t.Error("Testudons should have 360° beam (no firing cone)")
+	if len(testudon.Weapons) != 0 {
+		t.Errorf("Testudons should not have projectile weapons, got %d weapons", len(testudon.Weapons))
 	}
 }
 

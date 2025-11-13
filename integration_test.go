@@ -69,7 +69,7 @@ func TestFullGameFlowWithCombat(t *testing.T) {
 	// Access underlying implementation to set rotation
 	if fighter, ok := playerShip.(*entity.Fighter); ok {
 		fighter.Rotation = math.Pi / 2
-		fighter.WeaponCapacitor = 1.0 // Fully charge
+		fighter.Weapons[0].WeaponCapacitor = 1.0 // Fully charge
 	}
 
 	// Fire weapon
@@ -179,7 +179,7 @@ func TestAICombatBehavior(t *testing.T) {
 	// Enemy is to the right, so rotate 90 degrees (π/2)
 	if fighter, ok := aiShip.(*entity.Fighter); ok {
 		fighter.Rotation = math.Pi / 2
-		fighter.WeaponCapacitor = 1.0 // Fully charge
+		fighter.Weapons[0].WeaponCapacitor = 1.0 // Fully charge
 	}
 
 	// Get initial projectile count
@@ -296,7 +296,7 @@ func TestProjectileLifecycleIntegration(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		// Charge weapon directly on underlying implementation
 		if fighter, ok := ship.(*entity.Fighter); ok {
-			fighter.WeaponCapacitor = 1.0
+			fighter.Weapons[0].WeaponCapacitor = 1.0
 		}
 		ship.FireWeapon(200, 100, em)
 	}
@@ -340,7 +340,7 @@ func TestExplosionLifecycleIntegration(t *testing.T) {
 	// Point player toward enemy (90 degrees = facing right)
 	if fighter, ok := playerShip.(*entity.Fighter); ok {
 		fighter.Rotation = math.Pi / 2
-		fighter.WeaponCapacitor = 1.0 // Fully charge
+		fighter.Weapons[0].WeaponCapacitor = 1.0 // Fully charge
 	}
 
 	// Fire and hit enemy
