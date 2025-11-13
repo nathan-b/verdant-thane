@@ -9,7 +9,6 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -109,27 +108,21 @@ func (p *ProfileData) Reset() {
 type Game struct {
 	// Game state
 	currentState       GameState
-	titleDialog        *ui.Dialog              // Title screen dialog (only used in TitleScreen state)
-	gameOverScreen     *ui.GameOverScreen      // Game over screen (only used in GameOver state)
+	titleDialog        *ui.Dialog              // Title screen dialog
+	gameOverScreen     *ui.GameOverScreen      // Game over screen
 	instructionsDialog *ui.Dialog              // Instructions screen dialog
 	highScoresDialog   *ui.Dialog              // High scores screen dialog
-	settingsScreen     *ui.SettingsScreen      // Settings screen (only used in Settings state)
+	settingsScreen     *ui.SettingsScreen      // Settings screen
 	highScores         *persistence.HighScores // High scores loaded at game start
 	settings           *persistence.Settings   // Game settings loaded at game start
 	battleNumber       int                     // Current battle number (1-indexed)
 	currentFleetConfig *config.FleetConfig     // Config for current battle (used for quick restart)
 	nextFleetConfig    *config.FleetConfig     // Config for next battle (used by interstitial)
 
-	// Entity system
+	// System managers
 	entityManager *EntityManager
-
-	// Chat system
 	chatWindow *ChatWindow
-
-	// Audio system
-	audioManager      *audio.Manager
-	bgmTracksReady    bool       // Whether background music tracks have been loaded
-	bgmTracksReadyMux sync.Mutex // Protects bgmTracksReady flag
+	audioManager *audio.Manager
 
 	// Shared resources
 	laserSprite     *ebiten.Image           // Shared sprite for all laser projectiles
@@ -152,18 +145,18 @@ type Game struct {
 	// Performance profiling
 	profileData       ProfileData
 	profileFrameCount int
-
-	// Input state tracking for spectate mode cycling
-	prevKeyA        bool
-	prevKeyD        bool
-	prevKeySpace    bool
-	lastProfileTime time.Time
+	lastProfileTime   time.Time
 
 	// Pause state
-	paused   bool
-	prevKeyP bool
-	prevKeyN bool // For sound mute toggle
-	prevKeyM bool // For music mute toggle
+	paused bool
+
+	// Debounce control to avoid multiple toggles per key press
+	prevKeyA     bool
+	prevKeyD     bool
+	prevKeyP     bool
+	prevKeyN     bool
+	prevKeyM     bool
+	prevKeySpace bool
 }
 
 // NewGame creates and initializes a new game, starting at the title screen
@@ -306,26 +299,20 @@ func NewGame() (*Game, error) {
 		entityManager.SetChatWindow(chatWindow)
 	}
 
-	// Start loading in-game music tracks in background (won't block startup)
-	go func() {
-		bgmTracks := []string{
-			"assets/bgm/0-top.mp3",
-			"assets/bgm/adrenaline-rush.mp3",
-			"assets/bgm/crazy-bad.mp3",
-			"assets/bgm/dance-with-demons.mp3",
-			"assets/bgm/tank-metal.mp3",
+	// Load in-game music tracks
+	bgmTracks := []string{
+		"assets/bgm/0-top.mp3",
+		"assets/bgm/adrenaline-rush.mp3",
+		"assets/bgm/crazy-bad.mp3",
+		"assets/bgm/dance-with-demons.mp3",
+		"assets/bgm/tank-metal.mp3",
+	}
+	for i, track := range bgmTracks {
+		musicName := fmt.Sprintf("bgm%d", i)
+		if err := audioManager.LoadMusic(musicName, track); err != nil {
+			log.Printf("Warning: Failed to load BGM track %s: %v", track, err)
 		}
-		for i, track := range bgmTracks {
-			musicName := fmt.Sprintf("bgm%d", i)
-			if err := audioManager.LoadMusic(musicName, track); err != nil {
-				log.Printf("Warning: Failed to load BGM track %s: %v", track, err)
-			}
-		}
-		game.bgmTracksReadyMux.Lock()
-		game.bgmTracksReady = true
-		game.bgmTracksReadyMux.Unlock()
-		log.Printf("Background music tracks loaded")
-	}()
+	}
 
 	// Start menu music
 	if err := audioManager.PlayMusic("menu"); err != nil {
@@ -432,20 +419,11 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 	g.cameraX = newX - float64(config.ScreenWidth)/2
 	g.cameraY = newY - float64(config.ScreenHeight)/2
 
-	// Play random in-game music (if tracks are loaded)
-	g.bgmTracksReadyMux.Lock()
-	tracksReady := g.bgmTracksReady
-	g.bgmTracksReadyMux.Unlock()
-
-	if tracksReady {
-		bgmIndex := rand.Intn(5) // We have 5 BGM tracks (bgm0 through bgm4)
-		bgmName := fmt.Sprintf("bgm%d", bgmIndex)
-		if err := g.audioManager.PlayMusic(bgmName); err != nil {
-			log.Printf("Warning: Failed to play BGM: %v", err)
-		}
-	} else {
-		// BGM tracks not loaded yet - continue with menu music
-		log.Printf("BGM tracks still loading, continuing with menu music")
+	// Play random in-game music
+	bgmIndex := rand.Intn(5) // We have 5 BGM tracks (bgm0 through bgm4)
+	bgmName := fmt.Sprintf("bgm%d", bgmIndex)
+	if err := g.audioManager.PlayMusic(bgmName); err != nil {
+		log.Printf("Warning: Failed to play BGM: %v", err)
 	}
 
 	g.currentState = InGame
