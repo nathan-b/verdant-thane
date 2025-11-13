@@ -78,8 +78,8 @@ func makeImpactSound(outputPath string, duration float64) error {
 		t := float64(i) / sampleRate
 
 		// Two combined frequencies: impact + resonance
-		freq1 := 1200.0 - 800.0*t*3   // downward pitch for impact
-		freq2 := 4000.0 - 2000.0*t*2  // metallic ring
+		freq1 := 1200.0 - 800.0*t*3  // downward pitch for impact
+		freq2 := 4000.0 - 2000.0*t*2 // metallic ring
 		sample := 0.6*math.Sin(2*math.Pi*freq1*t) +
 			0.4*math.Sin(2*math.Pi*freq2*t)
 
