@@ -119,8 +119,12 @@ func (t *Testudon) TakeDamage(amount int, attackerID int, ctx GameContext) {
 		// Spawn explosion
 		ctx.SpawnExplosion(t.X, t.Y)
 
+		// Notify chat window of ship destruction
+		ctx.OnShipDestroyed(t.ID, attackerID)
+
 		// Update score if killed by player
-		if attacker := ctx.GetShip(attackerID); attacker != nil && attacker.IsPlayerControlled() {
+		attacker := ctx.GetShip(attackerID)
+		if attacker != nil && attacker.IsPlayerControlled() {
 			ctx.AddKill()
 			ctx.AddScore(50) // 50 points for killing a testudon (worth more than fighter)
 		}

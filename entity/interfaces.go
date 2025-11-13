@@ -97,6 +97,9 @@ type GameContext interface {
 
 	// Audio
 	PlayImpactSound(targetShip Ship)
+
+	// Chat events
+	OnShipDestroyed(victimShipID int, killerShipID int)
 }
 
 // MainGunConfig contains parameters for spawning a main gun projectile

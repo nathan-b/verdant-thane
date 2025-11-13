@@ -18,18 +18,19 @@ type SettingsScreen struct {
 	soundVolume     *widget.Slider
 	musicMute       *widget.Checkbox
 	musicVolume     *widget.Slider
+	chatEnabled     *widget.Checkbox
 	soundVolumeText *widget.Text
 	musicVolumeText *widget.Text
-	onClose         func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64)
+	onClose         func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64, chatEnabled bool)
 	font            text.Face
 	hudFont         *text.GoTextFace
 }
 
 // NewSettingsScreen creates a new settings screen with ebitenui widgets
-func NewSettingsScreen(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64,
+func NewSettingsScreen(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64, chatEnabled bool,
 	fontSource *text.GoTextFaceSource,
-	onApply func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64),
-	onClose func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64)) *SettingsScreen {
+	onApply func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64, chatEnabled bool),
+	onClose func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64, chatEnabled bool)) *SettingsScreen {
 
 	// Create font faces
 	hudFont := &text.GoTextFace{
@@ -87,12 +88,12 @@ func NewSettingsScreen(soundMuted bool, soundVolume float64, musicMuted bool, mu
 		soundVolume,
 		func(checked bool) {
 			// Sound mute checkbox changed
-			onApply(checked, float64(ss.soundVolume.Current)/100.0, ss.musicMute.State() == widget.WidgetChecked, float64(ss.musicVolume.Current)/100.0)
+			onApply(checked, float64(ss.soundVolume.Current)/100.0, ss.musicMute.State() == widget.WidgetChecked, float64(ss.musicVolume.Current)/100.0, ss.chatEnabled.State() == widget.WidgetChecked)
 		},
 		func(args *widget.SliderChangedEventArgs) {
 			// Sound volume slider changed
 			ss.soundVolumeText.Label = fmt.Sprintf("%d%%", args.Current)
-			onApply(ss.soundMute.State() == widget.WidgetChecked, float64(args.Current)/100.0, ss.musicMute.State() == widget.WidgetChecked, float64(ss.musicVolume.Current)/100.0)
+			onApply(ss.soundMute.State() == widget.WidgetChecked, float64(args.Current)/100.0, ss.musicMute.State() == widget.WidgetChecked, float64(ss.musicVolume.Current)/100.0, ss.chatEnabled.State() == widget.WidgetChecked)
 		},
 	)
 	ss.soundMute = soundEffectsRow.checkbox
@@ -106,17 +107,28 @@ func NewSettingsScreen(soundMuted bool, soundVolume float64, musicMuted bool, mu
 		musicVolume,
 		func(checked bool) {
 			// Music mute checkbox changed
-			onApply(ss.soundMute.State() == widget.WidgetChecked, float64(ss.soundVolume.Current)/100.0, checked, float64(ss.musicVolume.Current)/100.0)
+			onApply(ss.soundMute.State() == widget.WidgetChecked, float64(ss.soundVolume.Current)/100.0, checked, float64(ss.musicVolume.Current)/100.0, ss.chatEnabled.State() == widget.WidgetChecked)
 		},
 		func(args *widget.SliderChangedEventArgs) {
 			// Music volume slider changed
 			ss.musicVolumeText.Label = fmt.Sprintf("%d%%", args.Current)
-			onApply(ss.soundMute.State() == widget.WidgetChecked, float64(ss.soundVolume.Current)/100.0, ss.musicMute.State() == widget.WidgetChecked, float64(args.Current)/100.0)
+			onApply(ss.soundMute.State() == widget.WidgetChecked, float64(ss.soundVolume.Current)/100.0, ss.musicMute.State() == widget.WidgetChecked, float64(args.Current)/100.0, ss.chatEnabled.State() == widget.WidgetChecked)
 		},
 	)
 	ss.musicMute = musicRow.checkbox
 	ss.musicVolume = musicRow.slider
 	ss.musicVolumeText = musicRow.volumeText
+
+	// Chat Section (simple checkbox, no volume slider)
+	chatRow := ss.createSimpleCheckboxRow(
+		"Enable Chat",
+		chatEnabled,
+		func(checked bool) {
+			// Chat enabled checkbox changed
+			onApply(ss.soundMute.State() == widget.WidgetChecked, float64(ss.soundVolume.Current)/100.0, ss.musicMute.State() == widget.WidgetChecked, float64(ss.musicVolume.Current)/100.0, checked)
+		},
+	)
+	ss.chatEnabled = chatRow.checkbox
 
 	// Close button
 	closeButton := widget.NewButton(
@@ -147,6 +159,7 @@ func NewSettingsScreen(soundMuted bool, soundVolume float64, musicMuted bool, mu
 					float64(ss.soundVolume.Current)/100.0,
 					ss.musicMute.State() == widget.WidgetChecked,
 					float64(ss.musicVolume.Current)/100.0,
+					ss.chatEnabled.State() == widget.WidgetChecked,
 				)
 			}
 		}),
@@ -156,6 +169,7 @@ func NewSettingsScreen(soundMuted bool, soundVolume float64, musicMuted bool, mu
 	contentContainer.AddChild(titleText)
 	contentContainer.AddChild(soundEffectsRow.container)
 	contentContainer.AddChild(musicRow.container)
+	contentContainer.AddChild(chatRow.container)
 	contentContainer.AddChild(closeButton)
 
 	// Add content to root container
@@ -300,6 +314,66 @@ func (ss *SettingsScreen) createSettingsRow(label string, muted bool, volume flo
 		checkbox:   checkbox,
 		slider:     slider,
 		volumeText: volumeText,
+	}
+}
+
+type simpleCheckboxRow struct {
+	container *widget.Container
+	checkbox  *widget.Checkbox
+}
+
+// createSimpleCheckboxRow creates a row with just a label and checkbox (no volume slider)
+func (ss *SettingsScreen) createSimpleCheckboxRow(label string, checked bool,
+	onCheckboxChanged func(bool)) simpleCheckboxRow {
+
+	// Row container
+	rowContainer := widget.NewContainer(
+		widget.ContainerOpts.Layout(widget.NewRowLayout(
+			widget.RowLayoutOpts.Direction(widget.DirectionHorizontal),
+			widget.RowLayoutOpts.Spacing(15),
+		)),
+		widget.ContainerOpts.WidgetOpts(
+			widget.WidgetOpts.LayoutData(widget.RowLayoutData{
+				Stretch: true,
+			}),
+		),
+	)
+
+	// Label text
+	labelText := widget.NewText(
+		widget.TextOpts.Text(label, &ss.font, color.NRGBA{255, 255, 255, 255}),
+		widget.TextOpts.WidgetOpts(
+			widget.WidgetOpts.LayoutData(widget.RowLayoutData{
+				Position: widget.RowLayoutPositionStart,
+			}),
+		),
+	)
+
+	// Checkbox
+	checkbox := widget.NewCheckbox(
+		widget.CheckboxOpts.WidgetOpts(
+			widget.WidgetOpts.MinSize(20, 20),
+		),
+		widget.CheckboxOpts.Image(&widget.CheckboxImage{
+			Unchecked: ebitenui_image.NewNineSliceColor(color.NRGBA{100, 100, 100, 255}),
+			Checked:   ebitenui_image.NewNineSliceColor(color.NRGBA{100, 255, 100, 255}),
+		}),
+		widget.CheckboxOpts.StateChangedHandler(func(args *widget.CheckboxChangedEventArgs) {
+			onCheckboxChanged(args.State == widget.WidgetChecked)
+		}),
+	)
+
+	// Set initial state
+	if checked {
+		checkbox.SetState(widget.WidgetChecked)
+	}
+
+	rowContainer.AddChild(labelText)
+	rowContainer.AddChild(checkbox)
+
+	return simpleCheckboxRow{
+		container: rowContainer,
+		checkbox:  checkbox,
 	}
 }
 

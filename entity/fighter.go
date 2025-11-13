@@ -172,8 +172,12 @@ func (b *BaseShip) TakeDamage(amount int, attackerID int, ctx GameContext) {
 		// Spawn explosion
 		ctx.SpawnExplosion(b.X, b.Y)
 
+		// Notify chat window of ship destruction
+		ctx.OnShipDestroyed(b.ID, attackerID)
+
 		// Update score if killed by player
-		if attacker := ctx.GetShip(attackerID); attacker != nil && attacker.IsPlayerControlled() {
+		attacker := ctx.GetShip(attackerID)
+		if attacker != nil && attacker.IsPlayerControlled() {
 			ctx.AddKill()
 			ctx.AddScore(10) // 10 points per kill
 		}

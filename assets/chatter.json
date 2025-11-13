@@ -1,0 +1,72 @@
+{
+  "killed_fighter": [
+    "Enemy ship down",
+    "Bogey eliminated",
+    "Target destroyed",
+    "Score another for me!",
+    "I'm cooking, fam",
+    "Set 'em up and knock 'em down",
+    "Fighter down",
+    "You're in for a long walk home, flyboy",
+    "I've got so many kills I'm starting to lose count",
+    "Splash one bandit",
+    "Got him!",
+    "Target neutralized",
+    "Guess who's walking home",
+    "Another one bites the dust",
+    "I’m on fire today!"
+  ],
+  "killed_destroyer": [
+    "Enemy ship down",
+    "Bogey eliminated",
+    "Target destroyed",
+    "Aw yeah! Enemy destroyer down",
+    "Took down an enemy destroyer",
+    "That destroyer is toast!",
+    "Enemy destroyer eliminated",
+    "That's a confirmed kill on the destroyer",
+    "Scratch one capital ship",
+    "Heavy target destroyed",
+    "Boom! That’s how it’s done",
+    "That’s one less thorn in our side",
+    "Another destroyer down...keep pushing!",
+    "Clean shot! She's breaking apart"
+  ],
+  "killed_testudon": [
+    "Enemy ship down",
+    "Bogey eliminated",
+    "Target destroyed",
+    "Turtle go boom",
+    "Enemy Testudon down! You boys owe me a drink",
+    "Took down an enemy Testudon",
+    "Big one’s going down!",
+    "Guess the turtle couldn’t hide in its shell",
+    "One less Testudon to worry about",
+    "Target shell breached. She's going under",
+    "That's a tough one down, good work",
+    "Testudon's hull just gave way. Confirmed kill"
+  ],
+  "under_attack": [
+    "I can't shake this guy!",
+    "Bogey on my six",
+    "Little help here?",
+    "Shields...holding. For now",
+    "I can't take many more of those hits",
+    "Requesting support",
+    "Taking heavy fire!",
+    "I need backup!",
+    "They’re all over me!",
+    "I’m hit!",
+    "I’ve got bandits crawling up my tail",
+    "Somebody get this guy off me!"
+  ],
+  "friendly_destroyer_down": [
+  	"Friendly destroyer down",
+  	"Allied destroyer is gone"
+  ],
+  "friendly_testudon_down": [
+  	"Friendly Testudon down",
+  	"Allied Testudon destroyed",
+  	"Oh no! We lost a Testudon!"
+  ]
+}

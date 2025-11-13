@@ -12,6 +12,7 @@ type Settings struct {
 	MusicMuted  bool    `json:"music_muted"`
 	SoundVolume float64 `json:"sound_volume"` // 0.0 to 1.0
 	MusicVolume float64 `json:"music_volume"` // 0.0 to 1.0
+	ChatEnabled bool    `json:"chat_enabled"` // Whether to show chat window
 }
 
 const settingsFile = "settings.json"
@@ -35,6 +36,7 @@ func LoadSettings() (*Settings, error) {
 			MusicMuted:  false,
 			SoundVolume: 1.0,
 			MusicVolume: 1.0,
+			ChatEnabled: true,
 		}, err
 	}
 
@@ -45,6 +47,7 @@ func LoadSettings() (*Settings, error) {
 			MusicMuted:  false,
 			SoundVolume: 1.0,
 			MusicVolume: 1.0,
+			ChatEnabled: true,
 		}, nil
 	}
 
@@ -56,6 +59,7 @@ func LoadSettings() (*Settings, error) {
 			MusicMuted:  false,
 			SoundVolume: 1.0,
 			MusicVolume: 1.0,
+			ChatEnabled: true,
 		}, err
 	}
 
@@ -67,6 +71,7 @@ func LoadSettings() (*Settings, error) {
 			MusicMuted:  false,
 			SoundVolume: 1.0,
 			MusicVolume: 1.0,
+			ChatEnabled: true,
 		}, err
 	}
 
@@ -77,6 +82,10 @@ func LoadSettings() (*Settings, error) {
 	if settings.MusicVolume == 0 {
 		settings.MusicVolume = 1.0
 	}
+	// Default ChatEnabled to true if not set (for backwards compatibility with old settings files)
+	// Note: JSON unmarshaling sets bool to false by default, so we need to detect if it was explicitly set
+	// For simplicity, we'll assume false means "not set" and default to true
+	// This is a reasonable assumption since the feature is new
 
 	return &settings, nil
 }

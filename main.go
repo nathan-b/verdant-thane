@@ -123,6 +123,9 @@ type Game struct {
 	// Entity system
 	entityManager *EntityManager
 
+	// Chat system
+	chatWindow *ChatWindow
+
 	// Audio system
 	audioManager      *audio.Manager
 	bgmTracksReady    bool       // Whether background music tracks have been loaded
@@ -258,6 +261,13 @@ func NewGame() (*Game, error) {
 		log.Printf("Warning: Failed to load menu music: %v", err)
 	}
 
+	// Create chat window
+	chatWindow, err := NewChatWindow("assets/chatter.json")
+	if err != nil {
+		log.Printf("Warning: Failed to create chat window: %v", err)
+		chatWindow = nil // Continue without chat
+	}
+
 	game := &Game{
 		currentState:       TitleScreen,
 		titleDialog:        titleDialog,
@@ -268,6 +278,7 @@ func NewGame() (*Game, error) {
 		highScores:         highScores,
 		settings:           settings,
 		entityManager:      entityManager,
+		chatWindow:         chatWindow,
 		audioManager:       audioManager,
 		laserSprite:        laserSprite,
 		missileSprite:      missileSprite,
@@ -289,6 +300,11 @@ func NewGame() (*Game, error) {
 
 	// Set audio manager on entity manager for sound effects
 	entityManager.SetAudioManager(audioManager)
+
+	// Set chat window on entity manager for chat events
+	if chatWindow != nil {
+		entityManager.SetChatWindow(chatWindow)
+	}
 
 	// Start loading in-game music tracks in background (won't block startup)
 	go func() {
@@ -705,8 +721,9 @@ func (g *Game) Update() error {
 				g.audioManager.GetSoundVolume(),
 				g.audioManager.IsMusicMuted(),
 				g.audioManager.GetMusicVolume(),
+				g.settings.ChatEnabled,
 				g.hudFont.Source,
-				func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64) {
+				func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64, chatEnabled bool) {
 					// Apply settings
 					g.audioManager.SetSoundMuted(soundMuted)
 					g.audioManager.SetSoundVolume(soundVolume)
@@ -718,8 +735,9 @@ func (g *Game) Update() error {
 					g.settings.SoundVolume = soundVolume
 					g.settings.MusicMuted = musicMuted
 					g.settings.MusicVolume = musicVolume
+					g.settings.ChatEnabled = chatEnabled
 				},
-				func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64) {
+				func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64, chatEnabled bool) {
 					// Save settings callback
 					g.audioManager.SetSoundMuted(soundMuted)
 					g.audioManager.SetSoundVolume(soundVolume)
@@ -731,6 +749,7 @@ func (g *Game) Update() error {
 					g.settings.SoundVolume = soundVolume
 					g.settings.MusicMuted = musicMuted
 					g.settings.MusicVolume = musicVolume
+					g.settings.ChatEnabled = chatEnabled
 
 					// Save to disk
 					if err := persistence.SaveSettings(g.settings); err != nil {
@@ -915,6 +934,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		// Draw afterburner bar (left of minimap)
 		g.renderAfterburnerBar(screen)
+
+		// Draw chat window (left of minimap)
+		g.renderChatWindow(screen)
 
 		// Draw HUD
 		textColor := color.White
@@ -1416,6 +1438,75 @@ func (g *Game) renderAfterburnerBar(screen *ebiten.Image) {
 	// Draw border
 	borderColor := color.RGBA{100, 100, 100, 255}
 	vector.StrokeRect(screen, barX, barY, barWidth, barHeight, 1, borderColor, false)
+}
+
+// renderChatWindow renders the chat message window to the left of the minimap
+func (g *Game) renderChatWindow(screen *ebiten.Image) {
+	if g.chatWindow == nil || !g.settings.ChatEnabled {
+		return
+	}
+
+	// Don't show chat window in spectate mode
+	if g.entityManager.IsSpectating() {
+		return
+	}
+
+	// Chat window constants (matching minimap position)
+	const minimapSize = 120
+	const minimapMargin = 10
+	const minimapX = config.ScreenWidth - minimapSize - minimapMargin
+	const minimapY = config.ScreenHeight - minimapSize - minimapMargin
+
+	// Chat window dimensions (60% of screen width, same height as minimap)
+	chatWidth := float32(config.ScreenWidth) * 0.6
+	chatHeight := float32(minimapSize)
+	const chatSpacing = 10
+	chatX := float32(minimapX) - chatWidth - chatSpacing - 8 - chatSpacing // Account for afterburner bar
+	chatY := float32(minimapY)
+
+	// Draw semi-transparent background
+	vector.DrawFilledRect(screen, chatX, chatY, chatWidth, chatHeight, color.RGBA{20, 20, 20, 180}, false)
+
+	// Draw border
+	borderColor := color.RGBA{100, 100, 100, 255}
+	vector.StrokeRect(screen, chatX, chatY, chatWidth, chatHeight, 1, borderColor, false)
+
+	// Draw messages
+	messages := g.chatWindow.GetMessages()
+	if len(messages) == 0 {
+		return
+	}
+
+	// Font for chat messages
+	const fontSize = 11
+	const lineHeight = 12
+	const padding = 5
+
+	// Draw messages from bottom to top (most recent at bottom)
+	y := chatY + chatHeight - padding - float32(fontSize)
+	for i := len(messages) - 1; i >= 0 && y > chatY+padding; i-- {
+		msg := messages[i]
+		messageText := fmt.Sprintf("%s: %s", msg.SpeakerName, msg.Text)
+
+		// Get faction color for this message
+		factionColor := g.factionColors[msg.FactionID%len(g.factionColors)]
+
+		// Create text options
+		textOpts := &text.DrawOptions{}
+		textOpts.GeoM.Translate(float64(chatX+padding), float64(y))
+		textOpts.ColorScale.ScaleWithColor(factionColor)
+
+		// Use smaller font for chat
+		chatFont := &text.GoTextFace{
+			Source: g.hudFont.Source,
+			Size:   fontSize,
+		}
+
+		// Draw text
+		text.Draw(screen, messageText, chatFont, textOpts)
+
+		y -= lineHeight
+	}
 }
 
 // Layout returns the game's screen dimensions

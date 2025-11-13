@@ -60,8 +60,20 @@ type EntityManager struct {
 	// Audio manager (optional)
 	audioManager *audio.Manager
 
+	// Chat window (optional)
+	chatWindow ChatWindowInterface
+
 	// Spatial grid for optimized queries (rebuilt each frame)
 	spatialGrid *spatialGrid
+}
+
+// ChatWindowInterface defines the interface for chat window callbacks
+type ChatWindowInterface interface {
+	OnKillFighter(killerFactionID, killerShipID int)
+	OnKillDestroyer(killerFactionID, killerShipID int)
+	OnKillTestudon(killerFactionID, killerShipID int)
+	OnFriendlyDestroyerDestroyed(observerFactionID, observerShipID int)
+	OnFriendlyTestudonDestroyed(observerFactionID, observerShipID int)
 }
 
 // NewEntityManager creates a new entity manager
@@ -387,10 +399,62 @@ func (em *EntityManager) SetAudioManager(am *audio.Manager) {
 	em.audioManager = am
 }
 
+// SetChatWindow sets the chat window for event notifications
+func (em *EntityManager) SetChatWindow(cw ChatWindowInterface) {
+	em.chatWindow = cw
+}
+
 // PlayImpactSound plays impact sound only if the target ship is player-controlled
 func (em *EntityManager) PlayImpactSound(targetShip entity.Ship) {
 	if em.audioManager != nil && targetShip.IsPlayerControlled() {
 		em.audioManager.PlaySound("impact")
+	}
+}
+
+// OnShipDestroyed handles chat events when a ship is destroyed
+func (em *EntityManager) OnShipDestroyed(victimShipID int, killerShipID int) {
+	if em.chatWindow == nil {
+		return
+	}
+
+	victimShip := em.GetShip(victimShipID)
+	killerShip := em.GetShip(killerShipID)
+
+	if victimShip == nil || killerShip == nil {
+		return
+	}
+
+	killerFaction := killerShip.GetFaction()
+	killerID := killerShip.GetID()
+	victimClass := victimShip.GetClass()
+	victimFaction := victimShip.GetFaction()
+
+	// Killer announces their kill
+	switch victimClass {
+	case entity.ClassFighter:
+		em.chatWindow.OnKillFighter(killerFaction, killerID)
+	case entity.ClassDestroyer:
+		em.chatWindow.OnKillDestroyer(killerFaction, killerID)
+	case entity.ClassTestudon:
+		em.chatWindow.OnKillTestudon(killerFaction, killerID)
+	}
+
+	// Friendly ships react to capital ship losses
+	if killerFaction != victimFaction {
+		// Find a random friendly ship to comment on the loss
+		friendlyShips := em.GetShipsByFaction(victimFaction)
+		if len(friendlyShips) > 0 {
+			observer := friendlyShips[rand.Intn(len(friendlyShips))]
+			observerID := observer.GetID()
+			observerFaction := observer.GetFaction()
+
+			switch victimClass {
+			case entity.ClassDestroyer:
+				em.chatWindow.OnFriendlyDestroyerDestroyed(observerFaction, observerID)
+			case entity.ClassTestudon:
+				em.chatWindow.OnFriendlyTestudonDestroyed(observerFaction, observerID)
+			}
+		}
 	}
 }
 
