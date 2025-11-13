@@ -35,6 +35,7 @@ type EntityManager struct {
 	ships       map[int]entity.Ship
 	projectiles map[int]entity.Projectile
 	explosions  map[int]*entity.Explosion
+	particles   map[int]*entity.Particle
 
 	// Faction spawn points
 	factionSpawnPoints map[int]struct{ x, y float64 }
@@ -70,6 +71,7 @@ func NewEntityManager(laserSprite, missileSprite, explosionSprite *ebiten.Image,
 		ships:              make(map[int]entity.Ship),
 		projectiles:        make(map[int]entity.Projectile),
 		explosions:         make(map[int]*entity.Explosion),
+		particles:          make(map[int]*entity.Particle),
 		factionSpawnPoints: make(map[int]struct{ x, y float64 }),
 		playerShipID:       -1,
 		isSpectating:       false,
@@ -134,6 +136,15 @@ func (em *EntityManager) SpawnExplosion(x, y float64) {
 	if em.audioManager != nil {
 		em.audioManager.PlaySound("explosion")
 	}
+}
+
+// SpawnParticle creates a new particle (e.g., afterburner exhaust)
+func (em *EntityManager) SpawnParticle(x, y, vx, vy float64) {
+	id := em.nextID
+	em.nextID++
+
+	particle := entity.NewAfterburnerParticle(id, x, y, vx, vy)
+	em.particles[id] = particle
 }
 
 // GetShip returns a ship by ID
@@ -527,6 +538,14 @@ func (em *EntityManager) UpdateAll() {
 	}
 	if em.profiler != nil {
 		em.profiler.RecordExplosions(time.Since(explosionStart))
+	}
+
+	// Update particles (afterburner exhaust, etc.)
+	for id, particle := range em.particles {
+		particle.Update(em)
+		if !particle.IsAlive() {
+			delete(em.particles, id)
+		}
 	}
 
 	// Handle collisions (projectiles vs ships)

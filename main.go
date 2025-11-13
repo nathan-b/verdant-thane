@@ -903,10 +903,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 		g.profileData.RenderExplosions += time.Since(t)
 
+		// Draw particles (afterburner exhaust, etc.)
+		for _, particle := range g.entityManager.particles {
+			particle.Render(screen, g.cameraX, g.cameraY)
+		}
+
 		// Draw minimap
 		t = time.Now()
 		g.renderMinimap(screen)
 		g.profileData.RenderMinimap += time.Since(t)
+
+		// Draw afterburner bar (left of minimap)
+		g.renderAfterburnerBar(screen)
 
 		// Draw HUD
 		textColor := color.White
@@ -1361,6 +1369,53 @@ func (g *Game) renderMinimap(screen *ebiten.Image) {
 		// Vertical line
 		vector.FillRect(screen, playerX, playerY-3, 1, 7, playerMarkerColor, false)
 	}
+}
+
+// renderAfterburnerBar renders the afterburner charge bar to the left of the minimap
+func (g *Game) renderAfterburnerBar(screen *ebiten.Image) {
+	// Get player ship
+	playerShip := g.entityManager.GetPlayerShip()
+	if playerShip == nil || !playerShip.IsAlive() {
+		return
+	}
+
+	// Only show for ships with afterburner (fighters and destroyers)
+	if !playerShip.HasAfterburner() {
+		return
+	}
+
+	// Bar constants (matching minimap position)
+	const minimapSize = 120
+	const minimapMargin = 10
+	const minimapX = config.ScreenWidth - minimapSize - minimapMargin
+	const minimapY = config.ScreenHeight - minimapSize - minimapMargin
+
+	// Bar position (10 pixels to the left of minimap)
+	const barWidth = 8
+	const barSpacing = 10
+	const barX = minimapX - barWidth - barSpacing
+	const barY = minimapY
+	const barHeight = minimapSize
+
+	// Draw bar background (dark gray)
+	vector.DrawFilledRect(screen, barX, barY, barWidth, barHeight, color.RGBA{40, 40, 40, 200}, false)
+
+	// Calculate fill height based on charge (0-360)
+	charge := playerShip.GetAfterburnerCharge()
+	maxCharge := 360.0
+	fillRatio := charge / maxCharge
+	fillHeight := float32(barHeight) * float32(fillRatio)
+
+	// Draw fill from bottom to top (orange for afterburner)
+	if fillHeight > 0 {
+		fillY := barY + barHeight - fillHeight
+		fillColor := color.RGBA{255, 140, 0, 255} // Orange
+		vector.DrawFilledRect(screen, barX, fillY, barWidth, fillHeight, fillColor, false)
+	}
+
+	// Draw border
+	borderColor := color.RGBA{100, 100, 100, 255}
+	vector.StrokeRect(screen, barX, barY, barWidth, barHeight, 1, borderColor, false)
 }
 
 // Layout returns the game's screen dimensions

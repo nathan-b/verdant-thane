@@ -50,6 +50,11 @@ type Ship interface {
 	FireWeapon(mouseX, mouseY float64, ctx GameContext)
 	CanFireWeapon() bool
 
+	// Afterburner (fighters and destroyers only)
+	GetAfterburnerCharge() float64
+	IsAfterburnerActive() bool
+	HasAfterburner() bool
+
 	// Update subsystems (for profiling)
 	UpdateWeapons()
 	UpdateAI(ctx GameContext)
@@ -74,6 +79,7 @@ type GameContext interface {
 	SpawnProjectile(config MainGunConfig)
 	SpawnMissile(config MissileConfig)
 	SpawnExplosion(x, y float64)
+	SpawnParticle(x, y, vx, vy float64)
 
 	// Entity queries
 	GetShip(id int) Ship

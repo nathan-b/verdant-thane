@@ -104,6 +104,10 @@ func (m *MockGameContext) PlayImpactSound(targetShip Ship) {
 	// No-op for tests
 }
 
+func (m *MockGameContext) SpawnParticle(x, y, vx, vy float64) {
+	// No-op for tests
+}
+
 // Test Fighter Creation
 func TestNewFighter(t *testing.T) {
 	fighter := NewFighter(1, 0, 100, 200, nil)

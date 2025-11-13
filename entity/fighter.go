@@ -37,6 +37,12 @@ type BaseShip struct {
 	WeaponChargeRate float64
 	FiringCone       float64 // Radians
 
+	// Afterburner (fighters and destroyers only, not testudons)
+	AfterburnerCharge    float64 // 0.0 to 360.0
+	AfterburnerActive    bool
+	AfterburnerMaxCharge float64
+	HasAfterburnerSystem bool
+
 	// AI State
 	AITargetID      int // Entity ID of current AI target
 	AIRetargetTimer int // Ticks until next target re-evaluation
@@ -58,28 +64,32 @@ func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Figh
 	chars := config.GetShipCharacteristics(ClassFighter)
 
 	base := &BaseShip{
-		ID:               id,
-		FactionID:        factionID,
-		Class:            ClassFighter,
-		X:                x,
-		Y:                y,
-		VelocityX:        0,
-		VelocityY:        0,
-		Rotation:         0,
-		Health:           chars.MaxShield,
-		MaxHealth:        chars.MaxShield,
-		Speed:            0,
-		MaxSpeed:         chars.MaxSpeed,
-		Accel:            chars.Acceleration,
-		CollisionRadius:  chars.CollisionRadius,
-		PlayerControlled: false,
-		WeaponCapacitor:  1.0, // Start fully charged
-		WeaponChargeRate: chars.CapacitorChargeRate,
-		FiringCone:       chars.FiringCone,
-		AITargetID:       -1, // No target initially
-		AIRetargetTimer:  config.AIRetargetInterval,
-		Sprite:           sprite,
-		Alive:            true,
+		ID:                   id,
+		FactionID:            factionID,
+		Class:                ClassFighter,
+		X:                    x,
+		Y:                    y,
+		VelocityX:            0,
+		VelocityY:            0,
+		Rotation:             0,
+		Health:               chars.MaxShield,
+		MaxHealth:            chars.MaxShield,
+		Speed:                0,
+		MaxSpeed:             chars.MaxSpeed,
+		Accel:                chars.Acceleration,
+		CollisionRadius:      chars.CollisionRadius,
+		PlayerControlled:     false,
+		WeaponCapacitor:      1.0, // Start fully charged
+		WeaponChargeRate:     chars.CapacitorChargeRate,
+		FiringCone:           chars.FiringCone,
+		AfterburnerCharge:    360.0, // Start fully charged
+		AfterburnerActive:    false,
+		AfterburnerMaxCharge: 360.0,
+		HasAfterburnerSystem: true, // Fighters have afterburner
+		AITargetID:           -1,   // No target initially
+		AIRetargetTimer:      config.AIRetargetInterval,
+		Sprite:               sprite,
+		Alive:                true,
 	}
 
 	return &Fighter{BaseShip: base}
@@ -283,16 +293,40 @@ func (b *BaseShip) CanFireMissile() bool {
 	return false // Base ships (fighters, testudons) don't have missiles
 }
 
+// GetAfterburnerCharge returns current afterburner charge (BaseShip method)
+func (b *BaseShip) GetAfterburnerCharge() float64 {
+	return b.AfterburnerCharge
+}
+
+// IsAfterburnerActive returns whether afterburner is currently active (BaseShip method)
+func (b *BaseShip) IsAfterburnerActive() bool {
+	return b.AfterburnerActive
+}
+
+// HasAfterburner returns whether this ship has an afterburner system (BaseShip method)
+func (b *BaseShip) HasAfterburner() bool {
+	return b.HasAfterburnerSystem
+}
+
 // ============================================================================
 // Update Methods
 // ============================================================================
 
-// UpdateWeapons charges the weapon capacitor (BaseShip method)
+// UpdateWeapons charges the weapon capacitor and afterburner (BaseShip method)
 func (b *BaseShip) UpdateWeapons() {
+	// Charge weapon capacitor first
 	if b.WeaponCapacitor < 1.0 {
 		b.WeaponCapacitor += b.WeaponChargeRate
 		if b.WeaponCapacitor > 1.0 {
 			b.WeaponCapacitor = 1.0
+		}
+	} else if b.HasAfterburnerSystem && !b.AfterburnerActive {
+		// Only charge afterburner when weapon capacitor is full and afterburner is not active
+		if b.AfterburnerCharge < b.AfterburnerMaxCharge {
+			b.AfterburnerCharge += 1.0 // Charge at 1 per tick
+			if b.AfterburnerCharge > b.AfterburnerMaxCharge {
+				b.AfterburnerCharge = b.AfterburnerMaxCharge
+			}
 		}
 	}
 }
@@ -325,17 +359,47 @@ func (b *BaseShip) UpdatePlayerInput(ctx GameContext) {
 		b.Rotation = NormalizeAngle(b.Rotation)
 	}
 
+	// Afterburner activation (space bar)
+	if b.HasAfterburnerSystem {
+		if ebiten.IsKeyPressed(ebiten.KeySpace) && b.AfterburnerCharge > 0 {
+			b.AfterburnerActive = true
+			// Consume fuel at 3 per tick
+			b.AfterburnerCharge -= 3.0
+			if b.AfterburnerCharge < 0 {
+				b.AfterburnerCharge = 0
+			}
+
+			// Spawn afterburner particles (orange exhaust from rear of ship)
+			// Rear direction is opposite of rotation (rotation + π)
+			rearAngle := b.Rotation + math.Pi
+			particleOffset := 15.0
+			particleX := b.X + math.Sin(rearAngle)*particleOffset
+			particleY := b.Y + -math.Cos(rearAngle)*particleOffset
+
+			// Spawn 1-2 particles per tick when afterburner is active
+			ctx.SpawnParticle(particleX, particleY, b.VelocityX, b.VelocityY)
+		} else {
+			b.AfterburnerActive = false
+		}
+	}
+
+	// Determine effective acceleration (double if afterburner active)
+	effectiveAccel := b.Accel
+	if b.AfterburnerActive {
+		effectiveAccel *= 2.0
+	}
+
 	// Acceleration/Deceleration (modify Speed scalar, not velocity)
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		// Accelerate
-		b.Speed += b.Accel
+		b.Speed += effectiveAccel
 		if b.Speed > b.MaxSpeed {
 			b.Speed = b.MaxSpeed
 		}
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
 		// Decelerate
-		decel := b.Accel * 0.5
+		decel := effectiveAccel * 0.5
 		b.Speed -= decel
 		if b.Speed < 0 {
 			b.Speed = 0
@@ -343,7 +407,7 @@ func (b *BaseShip) UpdatePlayerInput(ctx GameContext) {
 	}
 
 	// Weapon firing (handled externally since it needs mouse position)
-	// The game will call FireWeapon() when space is pressed
+	// The game will call FireWeapon() when mouse button is pressed
 }
 
 // UpdateAI handles AI decision-making and movement

@@ -26,28 +26,32 @@ func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *De
 	missileChargeRate := 1.0 / (missileChars.ChargeTime * 60.0)
 
 	base := &BaseShip{
-		ID:               id,
-		FactionID:        factionID,
-		Class:            ClassDestroyer,
-		X:                x,
-		Y:                y,
-		VelocityX:        0,
-		VelocityY:        0,
-		Rotation:         0,
-		Health:           chars.MaxShield,
-		MaxHealth:        chars.MaxShield,
-		Speed:            0,
-		MaxSpeed:         chars.MaxSpeed,
-		Accel:            chars.Acceleration,
-		CollisionRadius:  chars.CollisionRadius,
-		PlayerControlled: false,
-		WeaponCapacitor:  1.0,
-		WeaponChargeRate: chars.CapacitorChargeRate,
-		FiringCone:       chars.FiringCone,
-		AITargetID:       -1,
-		AIRetargetTimer:  config.AIRetargetInterval,
-		Sprite:           sprite,
-		Alive:            true,
+		ID:                   id,
+		FactionID:            factionID,
+		Class:                ClassDestroyer,
+		X:                    x,
+		Y:                    y,
+		VelocityX:            0,
+		VelocityY:            0,
+		Rotation:             0,
+		Health:               chars.MaxShield,
+		MaxHealth:            chars.MaxShield,
+		Speed:                0,
+		MaxSpeed:             chars.MaxSpeed,
+		Accel:                chars.Acceleration,
+		CollisionRadius:      chars.CollisionRadius,
+		PlayerControlled:     false,
+		WeaponCapacitor:      1.0,
+		WeaponChargeRate:     chars.CapacitorChargeRate,
+		FiringCone:           chars.FiringCone,
+		AfterburnerCharge:    360.0, // Start fully charged
+		AfterburnerActive:    false,
+		AfterburnerMaxCharge: 360.0,
+		HasAfterburnerSystem: true, // Destroyers have afterburner
+		AITargetID:           -1,
+		AIRetargetTimer:      config.AIRetargetInterval,
+		Sprite:               sprite,
+		Alive:                true,
 	}
 
 	return &Destroyer{
@@ -186,4 +190,6 @@ func (d *Destroyer) UpdateMissileWeapon() {
 			d.MissileCapacitor = 1.0
 		}
 	}
+	// Note: Afterburner charging is handled in UpdateWeapons (BaseShip method)
+	// which charges afterburner when the main weapon capacitor is full
 }

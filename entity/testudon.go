@@ -25,28 +25,32 @@ func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *Tes
 	chars := config.GetShipCharacteristics(ClassTestudon)
 
 	base := &BaseShip{
-		ID:               id,
-		FactionID:        factionID,
-		Class:            ClassTestudon,
-		X:                x,
-		Y:                y,
-		VelocityX:        0,
-		VelocityY:        0,
-		Rotation:         0,
-		Health:           chars.MaxShield,
-		MaxHealth:        chars.MaxShield,
-		Speed:            0,
-		MaxSpeed:         chars.MaxSpeed,
-		Accel:            chars.Acceleration,
-		CollisionRadius:  chars.CollisionRadius,
-		PlayerControlled: false,
-		WeaponCapacitor:  0.0, // Testudons don't use projectile weapons
-		WeaponChargeRate: 0.0,
-		FiringCone:       0.0, // 360° beam weapon
-		AITargetID:       -1,
-		AIRetargetTimer:  config.AIRetargetInterval,
-		Sprite:           sprite,
-		Alive:            true,
+		ID:                   id,
+		FactionID:            factionID,
+		Class:                ClassTestudon,
+		X:                    x,
+		Y:                    y,
+		VelocityX:            0,
+		VelocityY:            0,
+		Rotation:             0,
+		Health:               chars.MaxShield,
+		MaxHealth:            chars.MaxShield,
+		Speed:                0,
+		MaxSpeed:             chars.MaxSpeed,
+		Accel:                chars.Acceleration,
+		CollisionRadius:      chars.CollisionRadius,
+		PlayerControlled:     false,
+		WeaponCapacitor:      0.0, // Testudons don't use projectile weapons
+		WeaponChargeRate:     0.0,
+		FiringCone:           0.0, // 360° beam weapon
+		AfterburnerCharge:    0.0,
+		AfterburnerActive:    false,
+		AfterburnerMaxCharge: 0.0,
+		HasAfterburnerSystem: false, // Testudons do NOT have afterburner
+		AITargetID:           -1,
+		AIRetargetTimer:      config.AIRetargetInterval,
+		Sprite:               sprite,
+		Alive:                true,
 	}
 
 	return &Testudon{
