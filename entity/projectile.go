@@ -77,13 +77,16 @@ func (l *MainGunProjectile) Render(screen *ebiten.Image, cameraX, cameraY float6
 		return
 	}
 
+	// Get wrapped screen position (handles world wrapping)
+	screenX, screenY := GetWrappedScreenPosition(l.X, l.Y, cameraX, cameraY)
+
 	opts := &ebiten.DrawImageOptions{}
 
 	// Center sprite
 	opts.GeoM.Translate(-float64(l.Sprite.Bounds().Dx())/2, -float64(l.Sprite.Bounds().Dy())/2)
 
-	// Position (relative to camera)
-	opts.GeoM.Translate(l.X-cameraX, l.Y-cameraY)
+	// Position (relative to camera, accounting for world wrapping)
+	opts.GeoM.Translate(screenX, screenY)
 
 	screen.DrawImage(l.Sprite, opts)
 }
@@ -219,14 +222,17 @@ func (m *MissileProjectile) Render(screen *ebiten.Image, cameraX, cameraY float6
 		return
 	}
 
+	// Get wrapped screen position (handles world wrapping)
+	screenX, screenY := GetWrappedScreenPosition(m.X, m.Y, cameraX, cameraY)
+
 	opts := &ebiten.DrawImageOptions{}
 
 	// Rotation
 	opts.GeoM.Translate(-float64(m.Sprite.Bounds().Dx())/2, -float64(m.Sprite.Bounds().Dy())/2)
 	opts.GeoM.Rotate(m.Rotation)
 
-	// Position (relative to camera)
-	opts.GeoM.Translate(m.X-cameraX, m.Y-cameraY)
+	// Position (relative to camera, accounting for world wrapping)
+	opts.GeoM.Translate(screenX, screenY)
 
 	screen.DrawImage(m.Sprite, opts)
 }

@@ -73,3 +73,15 @@ func WrapPosition(x, y float64) (float64, float64) {
 	}
 	return x, y
 }
+
+// GetWrappedScreenPosition calculates the screen position of an entity,
+// accounting for world wrapping. Returns the primary screen position.
+// If the entity should be visible at multiple wrapped positions, this returns
+// the position closest to the camera center.
+func GetWrappedScreenPosition(entityX, entityY, cameraX, cameraY float64) (float64, float64) {
+	// Use wrapped distance to get shortest path from camera to entity
+	dx, dy := GetWrappedDistance(cameraX, cameraY, entityX, entityY)
+
+	// Screen position is just the wrapped offset from camera
+	return dx, dy
+}

@@ -121,8 +121,8 @@ type Game struct {
 
 	// System managers
 	entityManager *EntityManager
-	chatWindow *ChatWindow
-	audioManager *audio.Manager
+	chatWindow    *ChatWindow
+	audioManager  *audio.Manager
 
 	// Shared resources
 	laserSprite     *ebiten.Image           // Shared sprite for all laser projectiles
@@ -809,38 +809,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			for gridY := minGridY; gridY <= maxGridY; gridY++ {
 				stars := systems.GenerateStarsForGrid(gridX, gridY)
 				for _, star := range stars {
-					// Convert star position to screen coordinates
-					// We need to handle wrapping: stars might need to be drawn at wrapped positions
-					drawStarAtPosition := func(worldX, worldY float64) {
-						screenX := worldX - g.cameraX
-						screenY := worldY - g.cameraY
+					// Use wrapped screen position to handle world wrapping correctly
+					screenX, screenY := entity.GetWrappedScreenPosition(star.X, star.Y, g.cameraX, g.cameraY)
 
-						// Only draw if on screen
-						if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
-							vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
-						}
-					}
-
-					// Draw star at its primary position
-					drawStarAtPosition(star.X, star.Y)
-
-					// Also check if we should draw the star at wrapped positions
-					// This handles the case where the camera is near world boundaries
-					if star.X < g.cameraX {
-						// Star is to the left of camera, try drawing wrapped to the right
-						drawStarAtPosition(star.X+float64(config.GameWidth), star.Y)
-					}
-					if star.X > g.cameraX+float64(config.ScreenWidth) {
-						// Star is to the right of camera, try drawing wrapped to the left
-						drawStarAtPosition(star.X-float64(config.GameWidth), star.Y)
-					}
-					if star.Y < g.cameraY {
-						// Star is above camera, try drawing wrapped below
-						drawStarAtPosition(star.X, star.Y+float64(config.GameHeight))
-					}
-					if star.Y > g.cameraY+float64(config.ScreenHeight) {
-						// Star is below camera, try drawing wrapped above
-						drawStarAtPosition(star.X, star.Y-float64(config.GameHeight))
+					// Only draw if on screen
+					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
+						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
 					}
 				}
 			}
@@ -869,16 +843,24 @@ func (g *Game) Draw(screen *ebiten.Image) {
 							shipX, shipY := testudon.GetPosition()
 							targetX, targetY := target.GetPosition()
 
-							// Convert to screen coordinates
-							screenX1 := float32(shipX - g.cameraX)
-							screenY1 := float32(shipY - g.cameraY)
-							screenX2 := float32(targetX - g.cameraX)
-							screenY2 := float32(targetY - g.cameraY)
+							// Convert to screen coordinates using wrapped positions
+							screenX1, screenY1 := entity.GetWrappedScreenPosition(shipX, shipY, g.cameraX, g.cameraY)
+							screenX2, screenY2 := entity.GetWrappedScreenPosition(targetX, targetY, g.cameraX, g.cameraY)
 
-							// Draw beam line using testudon's faction color
-							factionID := testudon.GetFaction()
-							beamColor := g.factionColors[factionID%len(g.factionColors)]
-							vector.StrokeLine(screen, screenX1, screenY1, screenX2, screenY2, 2, beamColor, false)
+							// Check if at least one endpoint is visible
+							// This prevents drawing beams "the long way" when both endpoints
+							// are off-screen on opposite sides
+							testudonVisible := screenX1 >= 0 && screenX1 < float64(config.ScreenWidth) &&
+								screenY1 >= 0 && screenY1 < float64(config.ScreenHeight)
+							targetVisible := screenX2 >= 0 && screenX2 < float64(config.ScreenWidth) &&
+								screenY2 >= 0 && screenY2 < float64(config.ScreenHeight)
+
+							if testudonVisible || targetVisible {
+								// Draw beam line using testudon's faction color
+								factionID := testudon.GetFaction()
+								beamColor := g.factionColors[factionID%len(g.factionColors)]
+								vector.StrokeLine(screen, float32(screenX1), float32(screenY1), float32(screenX2), float32(screenY2), 2, beamColor, false)
+							}
 						}
 					}
 				}

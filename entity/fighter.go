@@ -148,14 +148,17 @@ func (b *BaseShip) Render(screen *ebiten.Image, cameraX, cameraY float64) {
 		return
 	}
 
+	// Get wrapped screen position (handles world wrapping)
+	screenX, screenY := GetWrappedScreenPosition(b.X, b.Y, cameraX, cameraY)
+
 	opts := &ebiten.DrawImageOptions{}
 
 	// Rotation
 	opts.GeoM.Translate(-float64(b.Sprite.Bounds().Dx())/2, -float64(b.Sprite.Bounds().Dy())/2)
 	opts.GeoM.Rotate(b.Rotation)
 
-	// Position (relative to camera)
-	opts.GeoM.Translate(b.X-cameraX, b.Y-cameraY)
+	// Position (relative to camera, accounting for world wrapping)
+	opts.GeoM.Translate(screenX, screenY)
 
 	screen.DrawImage(b.Sprite, opts)
 }

@@ -73,13 +73,16 @@ func (e *Explosion) Render(screen *ebiten.Image, cameraX, cameraY float64) {
 	frameRect.Max.X = frameX + frameWidth
 	currentFrameImage := e.Sprite.SubImage(frameRect).(*ebiten.Image)
 
+	// Get wrapped screen position (handles world wrapping)
+	screenX, screenY := GetWrappedScreenPosition(e.X, e.Y, cameraX, cameraY)
+
 	opts := &ebiten.DrawImageOptions{}
 
 	// Center sprite
 	opts.GeoM.Translate(-float64(frameWidth)/2, -float64(frameHeight)/2)
 
-	// Position (relative to camera)
-	opts.GeoM.Translate(e.X-cameraX, e.Y-cameraY)
+	// Position (relative to camera, accounting for world wrapping)
+	opts.GeoM.Translate(screenX, screenY)
 
 	screen.DrawImage(currentFrameImage, opts)
 }

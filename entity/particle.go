@@ -74,11 +74,11 @@ func (p *Particle) Render(screen *ebiten.Image, cameraX, cameraY float64) {
 
 	fadeColor := color.RGBA{p.Color.R, p.Color.G, p.Color.B, alpha}
 
-	// Draw small circle
-	screenX := float32(p.X - cameraX)
-	screenY := float32(p.Y - cameraY)
+	// Get wrapped screen position (handles world wrapping)
+	screenX, screenY := GetWrappedScreenPosition(p.X, p.Y, cameraX, cameraY)
 
-	vector.DrawFilledCircle(screen, screenX, screenY, float32(p.Size), fadeColor, false)
+	// Draw small circle
+	vector.DrawFilledCircle(screen, float32(screenX), float32(screenY), float32(p.Size), fadeColor, false)
 }
 
 // GetID returns the particle's ID

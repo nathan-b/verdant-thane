@@ -229,6 +229,224 @@ func TestIsInRange(t *testing.T) {
 	}
 }
 
+func TestGetWrappedScreenPosition(t *testing.T) {
+	tests := []struct {
+		name                     string
+		entityX, entityY         float64
+		cameraX, cameraY         float64
+		expectedScreenX, screenY float64
+	}{
+		// No wrapping cases
+		{
+			name:            "Entity and camera at same position",
+			entityX:         1000,
+			entityY:         1000,
+			cameraX:         1000,
+			cameraY:         1000,
+			expectedScreenX: 0,
+			screenY:         0,
+		},
+		{
+			name:            "Entity directly in front of camera",
+			entityX:         1000,
+			entityY:         1000,
+			cameraX:         500,
+			cameraY:         500,
+			expectedScreenX: 500,
+			screenY:         500,
+		},
+		{
+			name:            "Entity behind camera (negative offset)",
+			entityX:         500,
+			entityY:         500,
+			cameraX:         1000,
+			cameraY:         1000,
+			expectedScreenX: -500,
+			screenY:         -500,
+		},
+		{
+			name:            "Entity to the right of camera",
+			entityX:         2500,
+			entityY:         1000,
+			cameraX:         2000,
+			cameraY:         1000,
+			expectedScreenX: 500,
+			screenY:         0,
+		},
+		{
+			name:            "Entity below camera",
+			entityX:         1000,
+			entityY:         2500,
+			cameraX:         1000,
+			cameraY:         2000,
+			expectedScreenX: 0,
+			screenY:         500,
+		},
+
+		// Horizontal wrapping cases
+		{
+			name:    "Entity near left edge, camera near right edge (wrap right to left)",
+			entityX: 100,
+			entityY: 2500,
+			cameraX: float64(config.GameWidth) - 100, // Near right edge
+			cameraY: 2500,
+			// Wrapped distance: 100 - (5040-100) = 100 - 4940 = -4840
+			// But wrapping: dx > GameWidth/2, so dx -= GameWidth = -4840 - (-5040) = 200
+			// Wait, let me recalculate. dx = 100 - 4940 = -4840
+			// Since dx < -GameWidth/2 (-2520), we add GameWidth: -4840 + 5040 = 200
+			expectedScreenX: 200,
+			screenY:         0,
+		},
+		{
+			name:    "Entity near right edge, camera near left edge (wrap left to right)",
+			entityX: float64(config.GameWidth) - 100, // Near right edge
+			entityY: 2500,
+			cameraX: 100,
+			cameraY: 2500,
+			// dx = (5040-100) - 100 = 4840
+			// Since dx > GameWidth/2 (2520), we subtract GameWidth: 4840 - 5040 = -200
+			expectedScreenX: -200,
+			screenY:         0,
+		},
+
+		// Vertical wrapping cases
+		{
+			name:    "Entity near top edge, camera near bottom edge (wrap bottom to top)",
+			entityX: 2500,
+			entityY: 100,
+			cameraX: 2500,
+			cameraY: float64(config.GameHeight) - 100, // Near bottom edge
+			// dy = 100 - (5040-100) = 100 - 4940 = -4840
+			// Since dy < -GameHeight/2 (-2520), we add GameHeight: -4840 + 5040 = 200
+			expectedScreenX: 0,
+			screenY:         200,
+		},
+		{
+			name:    "Entity near bottom edge, camera near top edge (wrap top to bottom)",
+			entityX: 2500,
+			entityY: float64(config.GameHeight) - 100, // Near bottom edge
+			cameraX: 2500,
+			cameraY: 100,
+			// dy = (5040-100) - 100 = 4840
+			// Since dy > GameHeight/2 (2520), we subtract GameHeight: 4840 - 5040 = -200
+			expectedScreenX: 0,
+			screenY:         -200,
+		},
+
+		// Corner wrapping cases (both axes)
+		{
+			name:    "Entity at top-left corner, camera at bottom-right corner",
+			entityX: 100,
+			entityY: 100,
+			cameraX: float64(config.GameWidth) - 100,
+			cameraY: float64(config.GameHeight) - 100,
+			// dx: 100 - 4940 = -4840, wrapped = 200
+			// dy: 100 - 4940 = -4840, wrapped = 200
+			expectedScreenX: 200,
+			screenY:         200,
+		},
+		{
+			name:    "Entity at bottom-right corner, camera at top-left corner",
+			entityX: float64(config.GameWidth) - 100,
+			entityY: float64(config.GameHeight) - 100,
+			cameraX: 100,
+			cameraY: 100,
+			// dx: 4940 - 100 = 4840, wrapped = -200
+			// dy: 4940 - 100 = 4840, wrapped = -200
+			expectedScreenX: -200,
+			screenY:         -200,
+		},
+		{
+			name:    "Entity at top-right corner, camera at bottom-left corner",
+			entityX: float64(config.GameWidth) - 100,
+			entityY: 100,
+			cameraX: 100,
+			cameraY: float64(config.GameHeight) - 100,
+			// dx: 4940 - 100 = 4840, wrapped = -200
+			// dy: 100 - 4940 = -4840, wrapped = 200
+			expectedScreenX: -200,
+			screenY:         200,
+		},
+
+		// Edge cases at world boundaries
+		{
+			name:            "Entity at world origin, camera at world origin",
+			entityX:         0,
+			entityY:         0,
+			cameraX:         0,
+			cameraY:         0,
+			expectedScreenX: 0,
+			screenY:         0,
+		},
+		{
+			name:    "Entity at world max, camera at world origin",
+			entityX: float64(config.GameWidth) - 1,
+			entityY: float64(config.GameHeight) - 1,
+			cameraX: 0,
+			cameraY: 0,
+			// dx: (5040-1) - 0 = 5039, wrapped = -1 (wraps around)
+			// dy: (5040-1) - 0 = 5039, wrapped = -1
+			expectedScreenX: -1,
+			screenY:         -1,
+		},
+
+		// Cases at exactly half-world distance (boundary between wrapping/not wrapping)
+		{
+			name:    "At exactly half world width apart",
+			entityX: 0,
+			entityY: 1000,
+			cameraX: float64(config.GameWidth) / 2,
+			cameraY: 1000,
+			// dx: 0 - 2520 = -2520 (exactly at boundary, should not wrap)
+			expectedScreenX: -float64(config.GameWidth) / 2,
+			screenY:         0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			screenX, screenY := GetWrappedScreenPosition(tt.entityX, tt.entityY, tt.cameraX, tt.cameraY)
+			if math.Abs(screenX-tt.expectedScreenX) > 1e-9 || math.Abs(screenY-tt.screenY) > 1e-9 {
+				t.Errorf("GetWrappedScreenPosition(entity: %f,%f, camera: %f,%f) = (%f, %f), expected (%f, %f)",
+					tt.entityX, tt.entityY, tt.cameraX, tt.cameraY,
+					screenX, screenY, tt.expectedScreenX, tt.screenY)
+			}
+		})
+	}
+}
+
+// Test that GetWrappedScreenPosition is consistent with GetWrappedDistance
+func TestGetWrappedScreenPositionConsistency(t *testing.T) {
+	testPositions := []struct {
+		entityX, entityY float64
+		cameraX, cameraY float64
+	}{
+		{100, 100, 200, 200},
+		{4900, 100, 100, 200},
+		{100, 4900, 200, 100},
+		{4900, 4900, 100, 100},
+		{2520, 2520, 100, 100},
+		{0, 0, 5039, 5039},
+	}
+
+	for _, pos := range testPositions {
+		t.Run("", func(t *testing.T) {
+			// GetWrappedScreenPosition should return the same values as GetWrappedDistance
+			screenX, screenY := GetWrappedScreenPosition(pos.entityX, pos.entityY, pos.cameraX, pos.cameraY)
+			dx, dy := GetWrappedDistance(pos.cameraX, pos.cameraY, pos.entityX, pos.entityY)
+
+			if math.Abs(screenX-dx) > 1e-9 || math.Abs(screenY-dy) > 1e-9 {
+				t.Errorf("GetWrappedScreenPosition and GetWrappedDistance inconsistent:\n"+
+					"  entity: (%f, %f), camera: (%f, %f)\n"+
+					"  GetWrappedScreenPosition: (%f, %f)\n"+
+					"  GetWrappedDistance: (%f, %f)",
+					pos.entityX, pos.entityY, pos.cameraX, pos.cameraY,
+					screenX, screenY, dx, dy)
+			}
+		})
+	}
+}
+
 // Benchmark tests
 func BenchmarkDistance(b *testing.B) {
 	for i := 0; i < b.N; i++ {
@@ -245,5 +463,11 @@ func BenchmarkDistanceSquared(b *testing.B) {
 func BenchmarkWrapPosition(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		WrapPosition(float64(config.GameWidth)+100, float64(config.GameHeight)+100)
+	}
+}
+
+func BenchmarkGetWrappedScreenPosition(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		GetWrappedScreenPosition(100, 100, 4900, 4900)
 	}
 }

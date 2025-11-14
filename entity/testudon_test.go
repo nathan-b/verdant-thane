@@ -675,6 +675,208 @@ func TestTestudonWorldWrapping(t *testing.T) {
 }
 
 // ============================================================================
+// World Wrapping and Range Calculation
+// ============================================================================
+
+func TestTestudonBeamRangeAcrossWorldEdge(t *testing.T) {
+	tests := []struct {
+		name                 string
+		testudonX, testudonY float64
+		enemyX, enemyY       float64
+		beamRange            float64
+		expectInRange        bool
+	}{
+		{
+			name:          "Enemy near left edge, testudon near right edge (wraps)",
+			testudonX:     float64(config.GameWidth) - 50,
+			testudonY:     2500,
+			enemyX:        50,
+			enemyY:        2500,
+			beamRange:     150,
+			expectInRange: true, // Wrapped distance: 100 pixels
+		},
+		{
+			name:          "Enemy near right edge, testudon near left edge (wraps)",
+			testudonX:     50,
+			testudonY:     2500,
+			enemyX:        float64(config.GameWidth) - 50,
+			enemyY:        2500,
+			beamRange:     150,
+			expectInRange: true, // Wrapped distance: 100 pixels
+		},
+		{
+			name:          "Enemy near top edge, testudon near bottom edge (wraps)",
+			testudonX:     2500,
+			testudonY:     float64(config.GameHeight) - 50,
+			enemyX:        2500,
+			enemyY:        50,
+			beamRange:     150,
+			expectInRange: true, // Wrapped distance: 100 pixels
+		},
+		{
+			name:          "Enemy near bottom edge, testudon near top edge (wraps)",
+			testudonX:     2500,
+			testudonY:     50,
+			enemyX:        2500,
+			enemyY:        float64(config.GameHeight) - 50,
+			beamRange:     150,
+			expectInRange: true, // Wrapped distance: 100 pixels
+		},
+		{
+			name:          "Corner wrapping - both axes (in range)",
+			testudonX:     float64(config.GameWidth) - 50,
+			testudonY:     float64(config.GameHeight) - 50,
+			enemyX:        50,
+			enemyY:        50,
+			beamRange:     200,
+			expectInRange: true, // Wrapped distance: sqrt(100^2 + 100^2) = 141.4 pixels
+		},
+		{
+			name:          "Corner wrapping - both axes (out of range)",
+			testudonX:     float64(config.GameWidth) - 50,
+			testudonY:     float64(config.GameHeight) - 50,
+			enemyX:        50,
+			enemyY:        50,
+			beamRange:     100,
+			expectInRange: false, // Wrapped distance: 141.4 pixels > 100
+		},
+		{
+			name:          "Appears far without wrapping, actually close with wrapping",
+			testudonX:     100,
+			testudonY:     2500,
+			enemyX:        float64(config.GameWidth) - 100,
+			enemyY:        2500,
+			beamRange:     250,
+			expectInRange: true, // Direct: 4840, Wrapped: 200
+		},
+		{
+			name:          "Appears close without wrapping, actually far with wrapping",
+			testudonX:     100,
+			testudonY:     2500,
+			enemyX:        float64(config.GameWidth) - 100,
+			enemyY:        2500,
+			beamRange:     150,
+			expectInRange: false, // Wrapped: 200 > 150
+		},
+		{
+			name:          "No wrapping needed - simple in range",
+			testudonX:     500,
+			testudonY:     500,
+			enemyX:        600,
+			enemyY:        500,
+			beamRange:     150,
+			expectInRange: true, // Distance: 100 pixels
+		},
+		{
+			name:          "No wrapping needed - simple out of range",
+			testudonX:     500,
+			testudonY:     500,
+			enemyX:        800,
+			enemyY:        500,
+			beamRange:     150,
+			expectInRange: false, // Distance: 300 pixels > 150
+		},
+		{
+			name:          "At exactly half world distance (boundary case)",
+			testudonX:     0,
+			testudonY:     2500,
+			enemyX:        float64(config.GameWidth) / 2,
+			enemyY:        2500,
+			beamRange:     float64(config.GameWidth)/2 + 10,
+			expectInRange: true, // Exactly at wrapping boundary
+		},
+		{
+			name:          "Diagonal across world edge (in range)",
+			testudonX:     100,
+			testudonY:     100,
+			enemyX:        float64(config.GameWidth) - 100,
+			enemyY:        float64(config.GameHeight) - 100,
+			beamRange:     300,
+			expectInRange: true, // Wrapped diagonal: sqrt(200^2 + 200^2) = 282.8
+		},
+		{
+			name:          "Diagonal across world edge (out of range)",
+			testudonX:     100,
+			testudonY:     100,
+			enemyX:        float64(config.GameWidth) - 100,
+			enemyY:        float64(config.GameHeight) - 100,
+			beamRange:     250,
+			expectInRange: false, // Wrapped diagonal: 282.8 > 250
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testudon := NewTestudon(1, 0, tt.testudonX, tt.testudonY, nil)
+			testudon.BeamRange = tt.beamRange
+			ctx := NewMockGameContext()
+
+			enemy := NewFighter(2, 1, tt.enemyX, tt.enemyY, nil)
+			ctx.ships[2] = enemy
+
+			testudon.BeamTargetID = 2
+			testudon.UpdateBeamWeapon(ctx)
+
+			// Verify correct in-range/out-of-range behavior
+			if tt.expectInRange {
+				if testudon.BeamFiringAtID != 2 {
+					actualDist := Distance(tt.testudonX, tt.testudonY, tt.enemyX, tt.enemyY)
+					t.Errorf("Expected to fire at enemy (in range with wrapping). "+
+						"BeamFiringAtID=%d, actual wrapped distance=%.2f, beam range=%.2f",
+						testudon.BeamFiringAtID, actualDist, tt.beamRange)
+				}
+				if testudon.BeamDamageAccumulator == 0 {
+					t.Error("Expected damage accumulator to increase when firing")
+				}
+			} else {
+				if testudon.BeamFiringAtID != -1 {
+					actualDist := Distance(tt.testudonX, tt.testudonY, tt.enemyX, tt.enemyY)
+					t.Errorf("Expected NOT to fire at enemy (out of range). "+
+						"BeamFiringAtID=%d, actual wrapped distance=%.2f, beam range=%.2f",
+						testudon.BeamFiringAtID, actualDist, tt.beamRange)
+				}
+				if testudon.BeamDamageAccumulator != 0 {
+					t.Error("Expected damage accumulator to be zero when not firing")
+				}
+			}
+		})
+	}
+}
+
+func TestTestudonTargetingAcrossWorldEdge(t *testing.T) {
+	// Test that testudon correctly selects nearest target considering world wrapping
+	testudon := NewTestudon(1, 0, 100, 100, nil)
+	ctx := NewMockGameContext()
+
+	// Enemy 1: Direct distance ~141
+	enemy1 := NewFighter(2, 1, 200, 200, nil)
+	// Enemy 2: Appears far without wrapping (~6848), but closer WITH wrapping (~283)
+	enemy2 := NewFighter(3, 1, float64(config.GameWidth)-100, float64(config.GameHeight)-100, nil)
+
+	ctx.ships[2] = enemy1
+	ctx.ships[3] = enemy2
+
+	testudon.SelectTarget(ctx)
+
+	// Verify the wrapped distance calculation is being used
+	dist1 := Distance(testudon.X, testudon.Y, enemy1.X, enemy1.Y)
+	dist2 := Distance(testudon.X, testudon.Y, enemy2.X, enemy2.Y)
+
+	// Without wrapping, enemy2 would be ~6848 pixels away
+	// With wrapping, enemy2 should be ~283 pixels away
+	if dist2 > 400 {
+		t.Errorf("Expected wrapped distance calculation to be used. "+
+			"Distance to enemy2 = %.2f (should be ~283 with wrapping)", dist2)
+	}
+
+	// Enemy1 is closer (141 vs 283), so should be selected
+	if testudon.BeamTargetID != 2 {
+		t.Errorf("Expected testudon to target nearest enemy (ID 2, distance=%.2f), got ID %d (distance to 3=%.2f)",
+			dist1, testudon.BeamTargetID, dist2)
+	}
+}
+
+// ============================================================================
 // Integration Tests
 // ============================================================================
 
