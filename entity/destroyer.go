@@ -35,16 +35,29 @@ func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *De
 		Accel:            chars.Acceleration,
 		CollisionRadius:  chars.CollisionRadius,
 		PlayerControlled: false,
+		// Weapons stored in priority order (lower priority number = higher priority = earlier in array)
 		Weapons: []Weapon{
-			{
-				WeaponCapacitor:  1.0, // Main gun - start fully charged
-				WeaponChargeRate: chars.Weapons[0].CapacitorChargeRate,
-				FiringCone:       chars.Weapons[0].FiringCone,
-			},
 			{
 				WeaponCapacitor:  1.0, // Missile launcher - start fully charged
 				WeaponChargeRate: chars.Weapons[1].CapacitorChargeRate,
 				FiringCone:       chars.Weapons[1].FiringCone,
+				MaxRange:         chars.Weapons[1].MaxRange, // From config
+				Priority:         1,                         // Higher priority than main gun
+				RequiresTarget:   true,                      // Missiles require target lock
+				Exclusive:        true,                      // When missiles fire, don't fire other weapons
+				RearFacing:       true,                      // Fires from rear
+				ProjectileType:   config.MissileProjectile,
+			},
+			{
+				WeaponCapacitor:  1.0, // Main gun - start fully charged
+				WeaponChargeRate: chars.Weapons[0].CapacitorChargeRate,
+				FiringCone:       chars.Weapons[0].FiringCone,
+				MaxRange:         chars.Weapons[0].MaxRange, // From config
+				Priority:         2,
+				RequiresTarget:   false,
+				Exclusive:        false,
+				RearFacing:       false,
+				ProjectileType:   config.LaserProjectile,
 			},
 		},
 		AfterburnerCharge:    360.0, // Start fully charged
@@ -96,8 +109,9 @@ func (d *Destroyer) UpdateAI(ctx GameContext) {
 	fighter.UpdateAI(ctx)
 
 	// Additional destroyer behavior: Fire missiles at rear targets
-	if d.CanFireMissile() {
-		rearTarget, _ := ctx.FindNearestEnemyInArc(d, d.Weapons[1].FiringCone, 2000.0, true) // 2000px range, rear-facing
+	if d.CanFireMissile() && len(d.Weapons) > 0 {
+		// Missile launcher is now at index 0 (highest priority)
+		rearTarget, _ := ctx.FindNearestEnemyInArc(d, d.Weapons[0].FiringCone, d.Weapons[0].MaxRange, true)
 		if rearTarget != nil {
 			d.FireMissile(rearTarget.GetID(), ctx)
 		}
@@ -109,20 +123,8 @@ func (d *Destroyer) UpdateAI(ctx GameContext) {
 // ============================================================================
 
 func (d *Destroyer) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
-	playerShip := ctx.GetShip(d.ID)
-	// Find nearest enemy in rear arc for missile
-	nearestEnemy, dist := ctx.FindNearestEnemyInArc(
-		playerShip,
-		math.Pi, // 180 degree arc
-		1000.0,  // Max range (TODO: make this part of the projectile stats)
-		true,    // Rear-facing
-	)
-	if d.CanFireMissile() && nearestEnemy != nil && dist < 1000.0 { // TODO: definitely don't hardcode this twice
-		d.FireMissile(nearestEnemy.GetID(), ctx)
-	} else {
-		// No valid target for a missile, just fire the main gun
-		d.BaseShip.FireWeapon(mouseX, mouseY, ctx)
-	}
+	// Use the unified weapon system which already handles priority and target requirements
+	d.BaseShip.FireWeapon(mouseX, mouseY, ctx)
 }
 
 // FireMissile fires a homing missile at a target (this is a destroyer-specific method)
@@ -139,8 +141,8 @@ func (d *Destroyer) FireMissile(targetID int, ctx GameContext) {
 		return
 	}
 
-	// Consume capacitor
-	d.Weapons[1].WeaponCapacitor = 0.0
+	// Consume capacitor (missile launcher is at index 0)
+	d.Weapons[0].WeaponCapacitor = 0.0
 
 	// Get missile characteristics
 	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
@@ -174,5 +176,6 @@ func (d *Destroyer) FireMissile(targetID int, ctx GameContext) {
 
 // CanFireMissile returns whether missiles can be fired
 func (d *Destroyer) CanFireMissile() bool {
-	return d.Alive && len(d.Weapons) > 1 && d.Weapons[1].WeaponCapacitor >= 1.0
+	// Missile launcher is at index 0 (highest priority)
+	return d.Alive && len(d.Weapons) > 0 && d.Weapons[0].WeaponCapacitor >= 1.0
 }

@@ -82,9 +82,19 @@ func TestDestroyerMainGun(t *testing.T) {
 		t.Errorf("Expected projectile Y < 95 (spawned above ship), got %f", cfg.Y)
 	}
 
-	// Can't fire again immediately
-	if destroyer.CanFireWeapon() {
-		t.Error("Should not be able to fire immediately after shooting")
+	// Main gun capacitor should be discharged (main gun is now at index 1)
+	if len(destroyer.Weapons) > 1 && destroyer.Weapons[1].WeaponCapacitor != 0.0 {
+		t.Errorf("Expected main gun capacitor to be 0.0 after firing, got %f", destroyer.Weapons[1].WeaponCapacitor)
+	}
+
+	// However, destroyer can still fire (missiles are still charged)
+	if !destroyer.CanFireWeapon() {
+		t.Error("Destroyer should still be able to fire (missiles are charged)")
+	}
+
+	// Verify missile launcher is still charged (missile launcher is now at index 0)
+	if len(destroyer.Weapons) > 0 && destroyer.Weapons[0].WeaponCapacitor < 1.0 {
+		t.Error("Missile launcher should still be charged")
 	}
 }
 
@@ -170,6 +180,7 @@ func TestDestroyerAI(t *testing.T) {
 	destroyer := NewDestroyer(1, 0, 100, 100, nil)
 	destroyer.PlayerControlled = false
 	ctx := NewMockGameContext()
+	ctx.ships[1] = destroyer // Add destroyer to context
 
 	// Spawn enemy target
 	enemy := NewFighter(2, 1, 200, 100, nil)
@@ -358,6 +369,265 @@ func TestDestroyerPlayerControl(t *testing.T) {
 
 	if !destroyer.IsPlayerControlled() {
 		t.Error("Destroyer should be player controlled after setting")
+	}
+}
+
+// Test Destroyer Exclusive Weapon Behavior
+// When missiles fire (exclusive weapon), main gun should NOT fire in same call
+func TestDestroyerExclusiveWeaponBehavior(t *testing.T) {
+	destroyer := NewDestroyer(1, 0, 100, 100, nil)
+	destroyer.SetPlayerControlled(true)
+	destroyer.Rotation = 0 // Facing UP
+	ctx := NewMockGameContext()
+	ctx.ships[1] = destroyer
+
+	// Create two targets:
+	// 1. Enemy in REAR arc (for missile - 180° rear arc when facing UP means below)
+	// Place this CLOSER than forward enemy to ensure it's selected
+	rearEnemy := NewFighter(2, 1, 100, 180, nil) // 80 pixels below (within missile range from config)
+	ctx.ships[2] = rearEnemy
+
+	// 2. Enemy in FORWARD arc (for main gun - 30° forward arc when facing UP)
+	forwardEnemy := NewFighter(3, 1, 100, 10, nil) // 90 pixels above (farther)
+	ctx.ships[3] = forwardEnemy
+
+	// Verify both weapons are fully charged
+	if !destroyer.CanFireWeapon() {
+		t.Fatal("Destroyer should be able to fire (both weapons charged)")
+	}
+	if !destroyer.CanFireMissile() {
+		t.Fatal("Missile launcher should be charged")
+	}
+	if len(destroyer.Weapons) < 2 || destroyer.Weapons[1].WeaponCapacitor < 1.0 {
+		t.Fatal("Main gun should be charged")
+	}
+
+	// Fire weapon with forward target position
+	// Even though we're aiming forward, the missile should fire (higher priority)
+	// because there's a valid target in the rear arc
+	forwardX, forwardY := forwardEnemy.GetPosition()
+	destroyer.FireWeapon(forwardX, forwardY, ctx)
+
+	// CRITICAL ASSERTION: Because missile has Exclusive=true and higher priority,
+	// ONLY the missile should fire, NOT the main gun
+	if len(ctx.spawnedMissiles) != 1 {
+		t.Errorf("Expected exactly 1 missile to fire, got %d", len(ctx.spawnedMissiles))
+	}
+	if len(ctx.spawnedProjectiles) != 0 {
+		t.Errorf("Expected 0 projectiles (main gun should NOT fire due to exclusive missile), got %d", len(ctx.spawnedProjectiles))
+	}
+
+	// Verify missile targets the rear enemy
+	if len(ctx.spawnedMissiles) > 0 {
+		missile := ctx.spawnedMissiles[0]
+		if missile.TargetID != 2 {
+			t.Errorf("Expected missile to target rear enemy (ID 2), got target ID %d", missile.TargetID)
+		}
+	}
+
+	// Verify weapon capacitor states
+	if destroyer.Weapons[0].WeaponCapacitor != 0.0 {
+		t.Errorf("Missile launcher capacitor should be discharged, got %f", destroyer.Weapons[0].WeaponCapacitor)
+	}
+	if len(destroyer.Weapons) > 1 && destroyer.Weapons[1].WeaponCapacitor != 1.0 {
+		t.Errorf("Main gun capacitor should still be charged (didn't fire), got %f", destroyer.Weapons[1].WeaponCapacitor)
+	}
+}
+
+// Test Destroyer Missile Orientation - Ship Facing UP
+func TestDestroyerMissileOrientationFacingUp(t *testing.T) {
+	destroyer := NewDestroyer(1, 0, 1000, 1000, nil)
+	destroyer.SetPlayerControlled(true)
+	destroyer.Rotation = 0 // Facing UP (sprites face UP by default)
+	ctx := NewMockGameContext()
+	ctx.ships[1] = destroyer
+
+	// Create enemy target behind destroyer (below it, since facing UP)
+	enemy := NewFighter(2, 1, 1000, 1100, nil) // 100 pixels below
+	ctx.ships[2] = enemy
+
+	// Fire weapon (should trigger missile due to rear target)
+	destroyer.FireWeapon(1000, 900, ctx) // Aiming forward, but missile has priority
+
+	// Verify missile was spawned
+	if len(ctx.spawnedMissiles) != 1 {
+		t.Fatalf("Expected 1 missile, got %d", len(ctx.spawnedMissiles))
+	}
+
+	missile := ctx.spawnedMissiles[0]
+
+	// Missile should spawn behind (below) the ship
+	if missile.Y <= destroyer.Y {
+		t.Errorf("Missile should spawn below ship (Y > ship.Y), got missile.Y=%f, ship.Y=%f", missile.Y, destroyer.Y)
+	}
+	if math.Abs(missile.X-destroyer.X) > 1.0 {
+		t.Errorf("Missile should spawn at same X as ship, got missile.X=%f, ship.X=%f", missile.X, destroyer.X)
+	}
+
+	// Missile rotation should point DOWN (π radians)
+	// Normalize to [0, 2π) for comparison
+	normalizedRotation := NormalizeAngle(missile.Rotation)
+	if normalizedRotation < 0 {
+		normalizedRotation += 2 * math.Pi
+	}
+	expectedRotation := math.Pi
+	if math.Abs(normalizedRotation-expectedRotation) > 0.01 {
+		t.Errorf("Missile rotation should be π (DOWN), got %f (expected %f)", normalizedRotation, expectedRotation)
+	}
+
+	// Missile velocity should be pointing DOWN (positive Y)
+	if missile.VelocityY <= 0 {
+		t.Errorf("Missile should have positive Y velocity (DOWN), got %f", missile.VelocityY)
+	}
+	if math.Abs(missile.VelocityX) > 0.1 {
+		t.Errorf("Missile should have near-zero X velocity, got %f", missile.VelocityX)
+	}
+}
+
+// Test Destroyer Missile Orientation - Ship Facing RIGHT
+func TestDestroyerMissileOrientationFacingRight(t *testing.T) {
+	destroyer := NewDestroyer(1, 0, 1000, 1000, nil)
+	destroyer.SetPlayerControlled(true)
+	destroyer.Rotation = math.Pi / 2 // Facing RIGHT
+	ctx := NewMockGameContext()
+	ctx.ships[1] = destroyer
+
+	// Create enemy target behind destroyer (to the left, since facing RIGHT)
+	enemy := NewFighter(2, 1, 900, 1000, nil) // 100 pixels to the left
+	ctx.ships[2] = enemy
+
+	// Fire weapon
+	destroyer.FireWeapon(1100, 1000, ctx)
+
+	// Verify missile was spawned
+	if len(ctx.spawnedMissiles) != 1 {
+		t.Fatalf("Expected 1 missile, got %d", len(ctx.spawnedMissiles))
+	}
+
+	missile := ctx.spawnedMissiles[0]
+
+	// Missile should spawn to the left of the ship
+	if missile.X >= destroyer.X {
+		t.Errorf("Missile should spawn left of ship (X < ship.X), got missile.X=%f, ship.X=%f", missile.X, destroyer.X)
+	}
+	if math.Abs(missile.Y-destroyer.Y) > 1.0 {
+		t.Errorf("Missile should spawn at same Y as ship, got missile.Y=%f, ship.Y=%f", missile.Y, destroyer.Y)
+	}
+
+	// Missile rotation should point LEFT (-π/2 or 3π/2 radians)
+	normalizedRotation := NormalizeAngle(missile.Rotation)
+	if normalizedRotation < 0 {
+		normalizedRotation += 2 * math.Pi
+	}
+	expectedRotation := 3 * math.Pi / 2 // LEFT
+	if math.Abs(normalizedRotation-expectedRotation) > 0.01 {
+		t.Errorf("Missile rotation should be 3π/2 (LEFT), got %f (expected %f)", normalizedRotation, expectedRotation)
+	}
+
+	// Missile velocity should be pointing LEFT (negative X)
+	if missile.VelocityX >= 0 {
+		t.Errorf("Missile should have negative X velocity (LEFT), got %f", missile.VelocityX)
+	}
+	if math.Abs(missile.VelocityY) > 0.1 {
+		t.Errorf("Missile should have near-zero Y velocity, got %f", missile.VelocityY)
+	}
+}
+
+// Test Destroyer Missile Orientation - Ship Facing DOWN
+func TestDestroyerMissileOrientationFacingDown(t *testing.T) {
+	destroyer := NewDestroyer(1, 0, 1000, 1000, nil)
+	destroyer.SetPlayerControlled(true)
+	destroyer.Rotation = math.Pi // Facing DOWN
+	ctx := NewMockGameContext()
+	ctx.ships[1] = destroyer
+
+	// Create enemy target behind destroyer (above it, since facing DOWN)
+	enemy := NewFighter(2, 1, 1000, 900, nil) // 100 pixels above
+	ctx.ships[2] = enemy
+
+	// Fire weapon
+	destroyer.FireWeapon(1000, 1100, ctx)
+
+	// Verify missile was spawned
+	if len(ctx.spawnedMissiles) != 1 {
+		t.Fatalf("Expected 1 missile, got %d", len(ctx.spawnedMissiles))
+	}
+
+	missile := ctx.spawnedMissiles[0]
+
+	// Missile should spawn above the ship
+	if missile.Y >= destroyer.Y {
+		t.Errorf("Missile should spawn above ship (Y < ship.Y), got missile.Y=%f, ship.Y=%f", missile.Y, destroyer.Y)
+	}
+	if math.Abs(missile.X-destroyer.X) > 1.0 {
+		t.Errorf("Missile should spawn at same X as ship, got missile.X=%f, ship.Y=%f", missile.X, destroyer.X)
+	}
+
+	// Missile rotation should point UP (0 or 2π radians)
+	normalizedRotation := NormalizeAngle(missile.Rotation)
+	if normalizedRotation < 0 {
+		normalizedRotation += 2 * math.Pi
+	}
+	// Could be 0 or ~2π
+	if normalizedRotation > 0.01 && math.Abs(normalizedRotation-2*math.Pi) > 0.01 {
+		t.Errorf("Missile rotation should be 0 or 2π (UP), got %f", normalizedRotation)
+	}
+
+	// Missile velocity should be pointing UP (negative Y)
+	if missile.VelocityY >= 0 {
+		t.Errorf("Missile should have negative Y velocity (UP), got %f", missile.VelocityY)
+	}
+	if math.Abs(missile.VelocityX) > 0.1 {
+		t.Errorf("Missile should have near-zero X velocity, got %f", missile.VelocityX)
+	}
+}
+
+// Test Destroyer Missile Orientation - Ship Facing LEFT
+func TestDestroyerMissileOrientationFacingLeft(t *testing.T) {
+	destroyer := NewDestroyer(1, 0, 1000, 1000, nil)
+	destroyer.SetPlayerControlled(true)
+	destroyer.Rotation = -math.Pi / 2 // Facing LEFT
+	ctx := NewMockGameContext()
+	ctx.ships[1] = destroyer
+
+	// Create enemy target behind destroyer (to the right, since facing LEFT)
+	enemy := NewFighter(2, 1, 1100, 1000, nil) // 100 pixels to the right
+	ctx.ships[2] = enemy
+
+	// Fire weapon
+	destroyer.FireWeapon(900, 1000, ctx)
+
+	// Verify missile was spawned
+	if len(ctx.spawnedMissiles) != 1 {
+		t.Fatalf("Expected 1 missile, got %d", len(ctx.spawnedMissiles))
+	}
+
+	missile := ctx.spawnedMissiles[0]
+
+	// Missile should spawn to the right of the ship
+	if missile.X <= destroyer.X {
+		t.Errorf("Missile should spawn right of ship (X > ship.X), got missile.X=%f, ship.X=%f", missile.X, destroyer.X)
+	}
+	if math.Abs(missile.Y-destroyer.Y) > 1.0 {
+		t.Errorf("Missile should spawn at same Y as ship, got missile.Y=%f, ship.Y=%f", missile.Y, destroyer.Y)
+	}
+
+	// Missile rotation should point RIGHT (π/2 radians)
+	normalizedRotation := NormalizeAngle(missile.Rotation)
+	if normalizedRotation < 0 {
+		normalizedRotation += 2 * math.Pi
+	}
+	expectedRotation := math.Pi / 2 // RIGHT
+	if math.Abs(normalizedRotation-expectedRotation) > 0.01 {
+		t.Errorf("Missile rotation should be π/2 (RIGHT), got %f (expected %f)", normalizedRotation, expectedRotation)
+	}
+
+	// Missile velocity should be pointing RIGHT (positive X)
+	if missile.VelocityX <= 0 {
+		t.Errorf("Missile should have positive X velocity (RIGHT), got %f", missile.VelocityX)
+	}
+	if math.Abs(missile.VelocityY) > 0.1 {
+		t.Errorf("Missile should have near-zero Y velocity, got %f", missile.VelocityY)
 	}
 }
 

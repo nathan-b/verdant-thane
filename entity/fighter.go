@@ -12,7 +12,13 @@ import (
 type Weapon struct {
 	WeaponCapacitor  float64 // 0.0 to 1.0
 	WeaponChargeRate float64
-	FiringCone       float64 // Radians
+	FiringCone       float64               // Radians
+	MaxRange         float64               // Maximum range for weapons that need it
+	Priority         int                   // Lower number = higher priority
+	RequiresTarget   bool                  // Whether weapon needs a target (e.g., missiles)
+	Exclusive        bool                  // Whether other weapons can fire simultaneously
+	RearFacing       bool                  // Whether weapon fires to the rear
+	ProjectileType   config.ProjectileType // Type of projectile (laser or missile)
 }
 
 // BaseShip contains common data for all ship types
@@ -39,6 +45,7 @@ type BaseShip struct {
 	PlayerControlled bool
 
 	// Weapons
+	// Stored in priority order (lower index = higher priority)
 	Weapons []Weapon
 
 	// Afterburner (fighters and destroyers only, not testudons)
@@ -88,6 +95,12 @@ func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Figh
 				WeaponCapacitor:  1.0, // Start fully charged
 				WeaponChargeRate: chars.Weapons[0].CapacitorChargeRate,
 				FiringCone:       chars.Weapons[0].FiringCone,
+				MaxRange:         chars.Weapons[0].MaxRange, // From config
+				Priority:         1,
+				RequiresTarget:   false,
+				Exclusive:        false,
+				RearFacing:       false,
+				ProjectileType:   config.LaserProjectile,
 			},
 		},
 		AfterburnerCharge:    360.0, // Start fully charged
@@ -238,56 +251,35 @@ func (b *BaseShip) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
 		return
 	}
 
-	// Calculate angle to target
-	// Sprites face UP (Y-axis), so use atan2(dx, -dy) instead of atan2(dy, dx)
-	dx, dy := GetWrappedDistance(b.X, b.Y, mouseX, mouseY)
-	angleToTarget := math.Atan2(dx, -dy)
+	fired := false // Has some weapon been fired yet?
 
-	// Check if target is within firing cone (use primary weapon)
-	angleFromForward := NormalizeAngle(angleToTarget - b.Rotation)
-	halfCone := b.Weapons[0].FiringCone / 2
+	// Weapons are already stored in priority order (lower index = higher priority)
+	for i := range b.Weapons {
+		weapon := &b.Weapons[i]
+		if b.canFireWeapon(weapon, fired) {
+			targetX, targetY := mouseX, mouseY
+			if weapon.RequiresTarget {
+				// Weapon requires a target, see if we have a target
+				nearestEnemy, dist := ctx.FindNearestEnemyInArc(
+					ctx.GetShip(b.ID),
+					weapon.FiringCone,
+					weapon.MaxRange,
+					weapon.RearFacing,
+				)
+				if nearestEnemy == nil || dist > weapon.MaxRange {
+					continue // No valid target
+				}
+				targetX, targetY = nearestEnemy.GetPosition()
+			}
+			b.fireWeapon(weapon, targetX, targetY, ctx)
+			fired = true
 
-	var firingAngle float64
-	if math.Abs(angleFromForward) <= halfCone {
-		// Target is in cone, fire directly at it
-		firingAngle = angleToTarget
-	} else {
-		// Target is outside cone, fire along nearest cone edge
-		if angleFromForward > 0 {
-			firingAngle = NormalizeAngle(b.Rotation + halfCone)
-		} else {
-			firingAngle = NormalizeAngle(b.Rotation - halfCone)
+			// If weapon is exclusive, stop firing other weapons
+			if weapon.Exclusive {
+				break
+			}
 		}
 	}
-
-	// Consume capacitor
-	b.Weapons[0].WeaponCapacitor = 0.0
-
-	// Calculate projectile velocity
-	// Sprites face UP (Y-axis), so use sin/cos adjusted for sprite orientation
-	projectileSpeed := 12.0 // 2x max ship speed
-	projectileVX := math.Sin(firingAngle) * projectileSpeed
-	projectileVY := -math.Cos(firingAngle) * projectileSpeed
-
-	// Add ship velocity to projectile (inheritance)
-	projectileVX += b.VelocityX
-	projectileVY += b.VelocityY
-
-	// Spawn offset (spawn in front of ship)
-	spawnOffset := 20.0
-	spawnX := b.X + math.Sin(firingAngle)*spawnOffset
-	spawnY := b.Y + -math.Cos(firingAngle)*spawnOffset
-
-	// Spawn projectile via context
-	ctx.SpawnProjectile(MainGunConfig{
-		X:         spawnX,
-		Y:         spawnY,
-		VelocityX: projectileVX,
-		VelocityY: projectileVY,
-		OwnerID:   b.ID,
-		FactionID: b.FactionID,
-		Sprite:    nil, // Will be set by spawner
-	})
 }
 
 // FireMissile is not available on base ships (BaseShip method, overridden by Destroyer)
@@ -295,9 +287,17 @@ func (b *BaseShip) FireMissile(targetID int, ctx GameContext) {
 	// Base ships don't have missiles
 }
 
-// CanFireWeapon returns whether the weapon can be fired (BaseShip method)
+// CanFireWeapon returns whether at least one weapon can be fired
 func (b *BaseShip) CanFireWeapon() bool {
-	return b.Alive && len(b.Weapons) > 0 && b.Weapons[0].WeaponCapacitor >= 1.0
+	if !b.Alive {
+		return false
+	}
+	for i := range b.Weapons {
+		if b.Weapons[i].WeaponCapacitor >= 1.0 {
+			return true
+		}
+	}
+	return false
 }
 
 // CanFireMissile returns whether missiles can be fired (BaseShip method, overridden by Destroyer)
@@ -318,6 +318,133 @@ func (b *BaseShip) IsAfterburnerActive() bool {
 // HasAfterburner returns whether this ship has an afterburner system (BaseShip method)
 func (b *BaseShip) HasAfterburner() bool {
 	return b.HasAfterburnerSystem
+}
+
+// canFireWeapon checks if a specific weapon can be fired given current state
+func (b *BaseShip) canFireWeapon(weapon *Weapon, fired bool) bool {
+	if weapon.WeaponCapacitor < 1.0 {
+		return false
+	}
+	if weapon.Exclusive && fired {
+		return false
+	}
+	return true
+}
+
+func (b *BaseShip) fireWeapon(weapon *Weapon, targetX, targetY float64, ctx GameContext) {
+	// Calculate direction to target
+	dx := targetX - b.X
+	dy := targetY - b.Y
+	angleToTarget := math.Atan2(dx, -dy) // Sprites face UP (Y-axis)
+
+	// Get the weapon's firing direction (forward or rear)
+	weaponAngle := b.Rotation
+	if weapon.RearFacing {
+		weaponAngle = b.Rotation + math.Pi
+		// Normalize to [0, 2π) range to avoid -π/+π ambiguity in sprite rendering
+		for weaponAngle < 0 {
+			weaponAngle += 2 * math.Pi
+		}
+		for weaponAngle >= 2*math.Pi {
+			weaponAngle -= 2 * math.Pi
+		}
+	}
+
+	// Check if target is within firing cone
+	angleFromWeapon := NormalizeAngle(angleToTarget - weaponAngle)
+	halfCone := weapon.FiringCone / 2.0
+
+	// Clamp firing angle to weapon cone
+	var firingAngle float64
+	if math.Abs(angleFromWeapon) <= halfCone {
+		// Target within cone, fire directly at it
+		firingAngle = angleToTarget
+	} else {
+		// Target outside cone, fire along nearest edge of cone
+		if angleFromWeapon > 0 {
+			firingAngle = NormalizeAngle(weaponAngle + halfCone)
+		} else {
+			firingAngle = NormalizeAngle(weaponAngle - halfCone)
+		}
+	}
+
+	// Get projectile characteristics
+	projChars := config.GetProjectileCharacteristics(weapon.ProjectileType)
+
+	// Calculate spawn position
+	// - Rear-facing weapons: spawn at weapon mount (rear of ship)
+	// - Forward-facing weapons: spawn toward target (firing direction)
+	spawnOffset := 20.0
+	var spawnX, spawnY float64
+	if weapon.RearFacing {
+		// Rear-facing: spawn at weapon mount
+		spawnX = b.X + math.Sin(weaponAngle)*spawnOffset
+		spawnY = b.Y + -math.Cos(weaponAngle)*spawnOffset
+	} else {
+		// Forward-facing: spawn toward target
+		spawnX = b.X + math.Sin(firingAngle)*spawnOffset
+		spawnY = b.Y + -math.Cos(firingAngle)*spawnOffset
+	}
+
+	// Calculate projectile velocity and initial rotation
+	var projVX, projVY, initialRotation float64
+	if weapon.ProjectileType == config.MissileProjectile {
+		// Missiles: Launch straight from weapon mount direction
+		// The tracking system will turn them toward target on subsequent frames
+		// NOTE: Missiles do NOT inherit ship velocity because they need to track targets
+		// independently of the launching ship's movement
+		projVX = math.Sin(weaponAngle) * projChars.Speed
+		projVY = -math.Cos(weaponAngle) * projChars.Speed
+		initialRotation = weaponAngle
+	} else {
+		// Non-tracking projectiles: Launch toward firing direction and inherit ship velocity
+		projVX = math.Sin(firingAngle)*projChars.Speed + b.VelocityX
+		projVY = -math.Cos(firingAngle)*projChars.Speed + b.VelocityY
+		initialRotation = firingAngle
+	}
+
+	// Consume capacitor
+	weapon.WeaponCapacitor = 0.0
+
+	// Spawn appropriate projectile type
+	if weapon.ProjectileType == config.MissileProjectile {
+		// For missiles, we need a target - this should have been validated by caller
+		// Find the target enemy that was validated earlier
+		nearestEnemy, dist := ctx.FindNearestEnemyInArc(
+			ctx.GetShip(b.ID),
+			weapon.FiringCone,
+			weapon.MaxRange,
+			weapon.RearFacing,
+		)
+		if nearestEnemy == nil || dist > weapon.MaxRange {
+			return // No valid target, don't fire
+		}
+
+		// Spawn missile with rotation matching weapon mount direction
+		// (tracking will adjust on first update)
+		ctx.SpawnMissile(MissileConfig{
+			X:         spawnX,
+			Y:         spawnY,
+			VelocityX: projVX,
+			VelocityY: projVY,
+			Rotation:  initialRotation,
+			OwnerID:   b.ID,
+			FactionID: b.FactionID,
+			TargetID:  nearestEnemy.GetID(),
+			Sprite:    nil, // Will be set by spawner
+		})
+	} else {
+		// Spawn laser/main gun projectile
+		ctx.SpawnProjectile(MainGunConfig{
+			X:         spawnX,
+			Y:         spawnY,
+			VelocityX: projVX,
+			VelocityY: projVY,
+			OwnerID:   b.ID,
+			FactionID: b.FactionID,
+			Sprite:    nil, // Will be set by spawner
+		})
+	}
 }
 
 // ============================================================================
@@ -483,8 +610,8 @@ func (f *Fighter) UpdateAI(ctx GameContext) {
 			}
 		}
 
-		// Fire weapon if target in arc
-		if f.CanFireWeapon() {
+		// Fire weapon if target in arc (check first weapon's firing cone)
+		if f.CanFireWeapon() && len(f.Weapons) > 0 {
 			angleFromForward := math.Abs(NormalizeAngle(angleToTarget - f.Rotation))
 			if angleFromForward <= f.Weapons[0].FiringCone/2 {
 				// 50% accurate, 25% random, 25% no fire

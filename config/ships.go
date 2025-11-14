@@ -12,6 +12,7 @@ const (
 type WeaponCharacteristics struct {
 	CapacitorChargeRate float64 // Charge per tick (1.0 = fully charged)
 	FiringCone          float64 // Radians
+	MaxRange            float64 // Maximum effective range in pixels (0 = unlimited)
 }
 
 // ShipCharacteristics defines the gameplay stats for a ship class
@@ -34,6 +35,7 @@ var ShipDatabase = map[ShipClass]ShipCharacteristics{
 			{
 				CapacitorChargeRate: 1.0 / ((600.0 / 1000.0) * 60.0), // 600ms charge time
 				FiringCone:          30.0 * 0.017453292519943295,     // 30 degrees in radians
+				MaxRange:            0.0,                             // Unlimited range
 			},
 		},
 		CollisionRadius: 14.0, // 24x24 sprite, slightly larger than half-width for better gameplay
@@ -47,10 +49,12 @@ var ShipDatabase = map[ShipClass]ShipCharacteristics{
 			{
 				CapacitorChargeRate: 1.0 / ((600.0 / 1000.0) * 60.0), // 600ms charge time
 				FiringCone:          30.0 * 0.017453292519943295,     // 30 degrees in radians
+				MaxRange:            0.0,                             // Unlimited range
 			},
 			{
 				CapacitorChargeRate: 1.0 / ((2000.0 / 1000.0) * 60.0), // 2000ms charge time
 				FiringCone:          180.0 * 0.017453292519943295,     // Rear 180 degrees
+				MaxRange:            1200.0,                           // Missile lock-on range
 			},
 		},
 		CollisionRadius: 30.0, // 40x60 sprite, approximate average radius
