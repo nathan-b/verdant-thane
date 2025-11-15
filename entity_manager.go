@@ -813,6 +813,15 @@ func (em *EntityManager) RespawnIntoSpectatedShip() bool {
 		return false
 	}
 
+	// Replenish shields when taking control
+	// We need to access the underlying implementation to restore health
+	switch s := ship.(type) {
+	case *entity.Fighter:
+		s.Health = s.MaxHealth
+	case *entity.Destroyer:
+		s.Health = s.MaxHealth
+	}
+
 	// Take control
 	em.SetPlayerShip(em.spectatedShipID)
 	em.isSpectating = false

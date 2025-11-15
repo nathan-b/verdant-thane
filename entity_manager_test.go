@@ -459,3 +459,199 @@ func TestEntityManagerIDGeneration(t *testing.T) {
 		t.Errorf("Expected 100 unique IDs, got %d", len(ids))
 	}
 }
+
+// ============================================================================
+// Spectate Mode Tests
+// ============================================================================
+
+// Test GetSpectatedShip returns spectated ship health
+func TestSpectatedShipHealthDisplay(t *testing.T) {
+	em := NewEntityManager(nil, nil, nil, nil)
+
+	// Spawn player ship and friendly ship
+	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
+	friendlyShip := em.SpawnShip(entity.ClassFighter, 0, 200, 200)
+
+	playerID := playerShip.GetID()
+	friendlyID := friendlyShip.GetID()
+
+	em.SetPlayerShip(playerID)
+
+	// Damage the friendly ship
+	friendlyShip.TakeDamage(3, -1, em)
+	damagedHealth, _ := friendlyShip.GetHealth()
+
+	// Kill player ship to enter spectate mode
+	playerShip.TakeDamage(1000, -1, em)
+	em.UpdateAll()
+
+	// Verify in spectate mode
+	if !em.IsSpectating() {
+		t.Fatal("Player should be in spectate mode after death")
+	}
+
+	// Get spectated ship
+	spectatedShip := em.GetSpectatedShip()
+	if spectatedShip == nil {
+		t.Fatal("Should be spectating a ship")
+	}
+
+	// Verify spectated ship is the friendly ship
+	if spectatedShip.GetID() != friendlyID {
+		t.Errorf("Expected to spectate ship ID %d, got %d", friendlyID, spectatedShip.GetID())
+	}
+
+	// BUG TEST: GetSpectatedShip should return the damaged ship's actual health
+	spectatedHealth, _ := spectatedShip.GetHealth()
+	if spectatedHealth != damagedHealth {
+		t.Errorf("Spectated ship health mismatch: expected %d, got %d", damagedHealth, spectatedHealth)
+	}
+
+	// This test verifies we CAN get the spectated ship's health
+	// The actual bug is in main.go where it doesn't check for spectate mode
+	// when displaying shield HUD
+}
+
+// Test RespawnIntoSpectatedShip replenishes shields
+func TestRespawnIntoSpectatedShipReplenishesShields(t *testing.T) {
+	em := NewEntityManager(nil, nil, nil, nil)
+
+	// Spawn player ship and friendly ship
+	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
+	friendlyShip := em.SpawnShip(entity.ClassFighter, 0, 200, 200)
+
+	playerID := playerShip.GetID()
+	em.SetPlayerShip(playerID)
+
+	// Damage the friendly ship significantly
+	friendlyShip.TakeDamage(5, -1, em)
+	damagedHealth, maxHealth := friendlyShip.GetHealth()
+
+	if damagedHealth >= maxHealth {
+		t.Fatal("Friendly ship should be damaged for this test")
+	}
+
+	// Kill player ship to enter spectate mode
+	playerShip.TakeDamage(1000, -1, em)
+	em.UpdateAll()
+
+	// Verify in spectate mode
+	if !em.IsSpectating() {
+		t.Fatal("Player should be in spectate mode")
+	}
+
+	// Respawn into spectated ship
+	success := em.RespawnIntoSpectatedShip()
+	if !success {
+		t.Fatal("Should be able to respawn into spectated ship")
+	}
+
+	// Verify no longer spectating
+	if em.IsSpectating() {
+		t.Error("Should not be spectating after respawn")
+	}
+
+	// Get the player ship (now controlling the formerly spectated ship)
+	newPlayerShip := em.GetPlayerShip()
+	if newPlayerShip == nil {
+		t.Fatal("Player ship should exist after respawn")
+	}
+
+	// BUG TEST: Shield should be replenished to maximum
+	currentHealth, currentMaxHealth := newPlayerShip.GetHealth()
+	if currentHealth != currentMaxHealth {
+		t.Errorf("Shield should be replenished to maximum after respawn. Got %d/%d (expected %d/%d)",
+			currentHealth, currentMaxHealth, currentMaxHealth, currentMaxHealth)
+	}
+}
+
+// Test CycleSpectateNext and CycleSpectatePrevious work correctly
+func TestSpectateModeCycling(t *testing.T) {
+	em := NewEntityManager(nil, nil, nil, nil)
+
+	// Spawn player and three friendly ships
+	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
+	em.SpawnShip(entity.ClassFighter, 0, 200, 200) // friendly1
+	em.SpawnShip(entity.ClassFighter, 0, 300, 300) // friendly2
+	em.SpawnShip(entity.ClassFighter, 0, 400, 400) // friendly3
+
+	em.SetPlayerShip(playerShip.GetID())
+
+	// Kill player to enter spectate
+	playerShip.TakeDamage(1000, -1, em)
+	em.UpdateAll()
+
+	if !em.IsSpectating() {
+		t.Fatal("Should be in spectate mode")
+	}
+
+	// Should initially spectate first friendly ship
+	spectated := em.GetSpectatedShip()
+	if spectated == nil {
+		t.Fatal("Should be spectating a ship")
+	}
+	firstID := spectated.GetID()
+
+	// Cycle to next
+	em.CycleSpectateNext()
+	spectated = em.GetSpectatedShip()
+	if spectated.GetID() == firstID {
+		// Might wrap around if only one ship, but we have 3
+		if em.GetShipsByFaction(0)[0].GetID() == firstID && len(em.GetShipsByFaction(0)) > 1 {
+			t.Error("Should cycle to different ship")
+		}
+	}
+
+	// Cycle to previous
+	em.CycleSpectatePrevious()
+	spectated = em.GetSpectatedShip()
+	if spectated.GetID() != firstID {
+		// Should cycle back
+		t.Logf("Cycled from %d, back to %d (might not equal %d depending on order)", firstID, spectated.GetID(), firstID)
+	}
+
+	// Verify all spectated ships are faction 0
+	for i := 0; i < 5; i++ {
+		spectated = em.GetSpectatedShip()
+		if spectated.GetFaction() != 0 {
+			t.Errorf("Spectated ship should be faction 0, got faction %d", spectated.GetFaction())
+		}
+		em.CycleSpectateNext()
+	}
+}
+
+// Test Cannot Respawn Into Testudon
+func TestCannotRespawnIntoTestudon(t *testing.T) {
+	em := NewEntityManager(nil, nil, nil, nil)
+
+	// Spawn player and testudon
+	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
+	testudon := em.SpawnShip(entity.ClassTestudon, 0, 200, 200)
+
+	em.SetPlayerShip(playerShip.GetID())
+
+	// Kill player to enter spectate
+	playerShip.TakeDamage(1000, -1, em)
+	em.UpdateAll()
+
+	// Force spectate testudon (cycle until we find it)
+	for i := 0; i < 10; i++ {
+		spectated := em.GetSpectatedShip()
+		if spectated != nil && spectated.GetID() == testudon.GetID() {
+			break
+		}
+		em.CycleSpectateNext()
+	}
+
+	spectated := em.GetSpectatedShip()
+	if spectated != nil && spectated.GetClass() == entity.ClassTestudon {
+		// Attempt respawn
+		success := em.RespawnIntoSpectatedShip()
+		if success {
+			t.Error("Should not be able to respawn into testudon")
+		}
+		if !em.IsSpectating() {
+			t.Error("Should still be spectating after failed respawn")
+		}
+	}
+}

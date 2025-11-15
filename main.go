@@ -904,9 +904,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		// Get player state from EntityManager
 		playerScore, playerKills, _ := g.entityManager.GetPlayerStats()
 		var playerShield int
-		playerShip := g.entityManager.GetPlayerShip()
-		if playerShip != nil {
-			playerShield, _ = playerShip.GetHealth()
+
+		// Display shield of currently controlled or spectated ship
+		if g.entityManager.IsSpectating() {
+			spectatedShip := g.entityManager.GetSpectatedShip()
+			if spectatedShip != nil {
+				playerShield, _ = spectatedShip.GetHealth()
+			}
+		} else {
+			playerShip := g.entityManager.GetPlayerShip()
+			if playerShip != nil {
+				playerShield, _ = playerShip.GetHealth()
+			}
 		}
 
 		// Upper left: Score
