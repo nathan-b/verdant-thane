@@ -23,6 +23,8 @@ type MainGunProjectile struct {
 	Lifetime             int
 	MaxLifetime          int
 	Alive                bool
+	Damage               int
+	CollisionRadius      float64
 }
 
 // NewMainGunProjectile creates a new projectile for the figter and destroyer main gun
@@ -30,17 +32,19 @@ func NewMainGunProjectile(id int, cfg MainGunConfig) *MainGunProjectile {
 	chars := config.GetProjectileCharacteristics(config.LaserProjectile)
 
 	return &MainGunProjectile{
-		ID:          id,
-		X:           cfg.X,
-		Y:           cfg.Y,
-		VelocityX:   cfg.VelocityX,
-		VelocityY:   cfg.VelocityY,
-		OwnerID:     cfg.OwnerID,
-		FactionID:   cfg.FactionID,
-		Sprite:      cfg.Sprite,
-		Lifetime:    chars.Lifetime,
-		MaxLifetime: chars.Lifetime,
-		Alive:       true,
+		ID:              id,
+		X:               cfg.X,
+		Y:               cfg.Y,
+		VelocityX:       cfg.VelocityX,
+		VelocityY:       cfg.VelocityY,
+		OwnerID:         cfg.OwnerID,
+		FactionID:       cfg.FactionID,
+		Sprite:          cfg.Sprite,
+		Lifetime:        chars.Lifetime,
+		MaxLifetime:     chars.Lifetime,
+		Alive:           true,
+		Damage:          chars.Damage,
+		CollisionRadius: chars.CollisionRadius,
 	}
 }
 
@@ -117,7 +121,7 @@ func (l *MainGunProjectile) GetOwnerID() int {
 
 // GetDamage returns the damage this projectile deals
 func (l *MainGunProjectile) GetDamage() int {
-	return 1 // Lasers deal 1 damage
+	return l.Damage
 }
 
 // CheckCollision checks if this projectile collides with a ship
@@ -135,8 +139,8 @@ func (l *MainGunProjectile) CheckCollision(ship Ship) bool {
 	shipX, shipY := ship.GetPosition()
 	dist := Distance(l.X, l.Y, shipX, shipY)
 
-	// Collision if within ship's collision radius + projectile radius (2.0)
-	return dist <= ship.GetCollisionRadius()+2.0
+	// Collision if within ship's collision radius + projectile radius
+	return dist <= ship.GetCollisionRadius()+l.CollisionRadius
 }
 
 // GetFaction returns the faction ID (inherited from owner)
@@ -162,6 +166,8 @@ type MissileProjectile struct {
 	MaxLifetime          int
 	Acceleration         float64
 	Alive                bool
+	Damage               int
+	CollisionRadius      float64
 }
 
 // NewMissileProjectile creates a new missile projectile
@@ -169,20 +175,22 @@ func NewMissileProjectile(id int, cfg MissileConfig) *MissileProjectile {
 	chars := config.GetProjectileCharacteristics(config.MissileProjectile)
 
 	return &MissileProjectile{
-		ID:           id,
-		X:            cfg.X,
-		Y:            cfg.Y,
-		VelocityX:    cfg.VelocityX,
-		VelocityY:    cfg.VelocityY,
-		Rotation:     cfg.Rotation,
-		OwnerID:      cfg.OwnerID,
-		FactionID:    cfg.FactionID,
-		TargetID:     cfg.TargetID,
-		Sprite:       cfg.Sprite,
-		Lifetime:     chars.Lifetime,
-		MaxLifetime:  chars.Lifetime,
-		Acceleration: chars.Acceleration,
-		Alive:        true,
+		ID:              id,
+		X:               cfg.X,
+		Y:               cfg.Y,
+		VelocityX:       cfg.VelocityX,
+		VelocityY:       cfg.VelocityY,
+		Rotation:        cfg.Rotation,
+		OwnerID:         cfg.OwnerID,
+		FactionID:       cfg.FactionID,
+		TargetID:        cfg.TargetID,
+		Sprite:          cfg.Sprite,
+		Lifetime:        chars.Lifetime,
+		MaxLifetime:     chars.Lifetime,
+		Acceleration:    chars.Acceleration,
+		Alive:           true,
+		Damage:          chars.Damage,
+		CollisionRadius: chars.CollisionRadius,
 	}
 }
 
@@ -263,7 +271,7 @@ func (m *MissileProjectile) GetOwnerID() int {
 
 // GetDamage returns the damage this missile deals
 func (m *MissileProjectile) GetDamage() int {
-	return 1 // Missiles deal 1 damage
+	return m.Damage
 }
 
 // CheckCollision checks if this missile collides with a ship
@@ -281,8 +289,8 @@ func (m *MissileProjectile) CheckCollision(ship Ship) bool {
 	shipX, shipY := ship.GetPosition()
 	dist := Distance(m.X, m.Y, shipX, shipY)
 
-	// Collision if within ship's collision radius + projectile radius (2.0)
-	return dist <= ship.GetCollisionRadius()+2.0
+	// Collision if within ship's collision radius + projectile radius
+	return dist <= ship.GetCollisionRadius()+m.CollisionRadius
 }
 
 // GetFaction returns the faction ID (inherited from owner)

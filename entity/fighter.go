@@ -14,6 +14,7 @@ type Weapon struct {
 	WeaponChargeRate float64
 	FiringCone       float64               // Radians
 	MaxRange         float64               // Maximum range for weapons that need it
+	SpawnOffset      float64               // Distance from ship center where projectiles spawn
 	Priority         int                   // Lower number = higher priority
 	RequiresTarget   bool                  // Whether weapon needs a target (e.g., missiles)
 	Exclusive        bool                  // Whether other weapons can fire simultaneously
@@ -49,14 +50,22 @@ type BaseShip struct {
 	Weapons []Weapon
 
 	// Afterburner (fighters and destroyers only, not testudons)
-	AfterburnerCharge    float64 // 0.0 to 360.0
-	AfterburnerActive    bool
-	AfterburnerMaxCharge float64
-	HasAfterburnerSystem bool
+	AfterburnerCharge          float64 // 0.0 to 360.0
+	AfterburnerActive          bool
+	AfterburnerMaxCharge       float64
+	HasAfterburnerSystem       bool
+	AfterburnerDrain           float64 // Fuel consumed per tick when active
+	AfterburnerRecharge        float64 // Recharge rate per tick when inactive
+	AfterburnerAccelMultiplier float64 // Acceleration multiplier when active
 
 	// AI State
-	AITargetID      int // Entity ID of current AI target
-	AIRetargetTimer int // Ticks until next target re-evaluation
+	AITargetID                int     // Entity ID of current AI target
+	AIRetargetTimer           int     // Ticks until next target re-evaluation
+	AIAccurateShotProbability float64 // Probability of accurate shots (0.0-1.0)
+	AIRandomShotProbability   float64 // Probability of random shots within cone (0.0-1.0)
+
+	// Scoring
+	KillScore int // Points awarded for destroying this ship
 
 	// Rendering
 	Sprite *ebiten.Image
@@ -95,7 +104,8 @@ func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Figh
 				WeaponCapacitor:  1.0, // Start fully charged
 				WeaponChargeRate: chars.Weapons[0].CapacitorChargeRate,
 				FiringCone:       chars.Weapons[0].FiringCone,
-				MaxRange:         chars.Weapons[0].MaxRange, // From config
+				MaxRange:         chars.Weapons[0].MaxRange,
+				SpawnOffset:      chars.Weapons[0].SpawnOffset,
 				Priority:         1,
 				RequiresTarget:   false,
 				Exclusive:        false,
@@ -103,14 +113,20 @@ func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Figh
 				ProjectileType:   config.LaserProjectile,
 			},
 		},
-		AfterburnerCharge:    360.0, // Start fully charged
-		AfterburnerActive:    false,
-		AfterburnerMaxCharge: 360.0,
-		HasAfterburnerSystem: true, // Fighters have afterburner
-		AITargetID:           -1,   // No target initially
-		AIRetargetTimer:      config.AIRetargetInterval,
-		Sprite:               sprite,
-		Alive:                true,
+		AfterburnerCharge:          360.0, // Start fully charged
+		AfterburnerActive:          false,
+		AfterburnerMaxCharge:       360.0,
+		HasAfterburnerSystem:       true, // Fighters have afterburner
+		AfterburnerDrain:           chars.AfterburnerDrain,
+		AfterburnerRecharge:        chars.AfterburnerRecharge,
+		AfterburnerAccelMultiplier: chars.AfterburnerAccelMultiplier,
+		AITargetID:                 -1, // No target initially
+		AIRetargetTimer:            config.AIRetargetInterval,
+		AIAccurateShotProbability:  chars.AIAccurateShotProbability,
+		AIRandomShotProbability:    chars.AIRandomShotProbability,
+		KillScore:                  chars.KillScore,
+		Sprite:                     sprite,
+		Alive:                      true,
 	}
 
 	return &Fighter{BaseShip: base}
@@ -203,7 +219,7 @@ func (b *BaseShip) TakeDamage(amount int, attackerID int, ctx GameContext) {
 		attacker := ctx.GetShip(attackerID)
 		if attacker != nil && attacker.IsPlayerControlled() {
 			ctx.AddKill()
-			ctx.AddScore(10) // 10 points per kill
+			ctx.AddScore(b.KillScore)
 		}
 	}
 }
@@ -377,16 +393,15 @@ func (b *BaseShip) fireWeapon(weapon *Weapon, targetX, targetY float64, ctx Game
 	// Calculate spawn position
 	// - Rear-facing weapons: spawn at weapon mount (rear of ship)
 	// - Forward-facing weapons: spawn toward target (firing direction)
-	spawnOffset := 20.0
 	var spawnX, spawnY float64
 	if weapon.RearFacing {
 		// Rear-facing: spawn at weapon mount
-		spawnX = b.X + math.Sin(weaponAngle)*spawnOffset
-		spawnY = b.Y + -math.Cos(weaponAngle)*spawnOffset
+		spawnX = b.X + math.Sin(weaponAngle)*weapon.SpawnOffset
+		spawnY = b.Y + -math.Cos(weaponAngle)*weapon.SpawnOffset
 	} else {
 		// Forward-facing: spawn toward target
-		spawnX = b.X + math.Sin(firingAngle)*spawnOffset
-		spawnY = b.Y + -math.Cos(firingAngle)*spawnOffset
+		spawnX = b.X + math.Sin(firingAngle)*weapon.SpawnOffset
+		spawnY = b.Y + -math.Cos(firingAngle)*weapon.SpawnOffset
 	}
 
 	// Calculate projectile velocity and initial rotation
@@ -472,7 +487,7 @@ func (b *BaseShip) UpdateWeapons() {
 	// Only charge afterburner when all weapon capacitors are full and afterburner is not active
 	if allWeaponsCharged && b.HasAfterburnerSystem && !b.AfterburnerActive {
 		if b.AfterburnerCharge < b.AfterburnerMaxCharge {
-			b.AfterburnerCharge += 1.0 // Charge at 1 per tick
+			b.AfterburnerCharge += b.AfterburnerRecharge
 			if b.AfterburnerCharge > b.AfterburnerMaxCharge {
 				b.AfterburnerCharge = b.AfterburnerMaxCharge
 			}
@@ -512,8 +527,8 @@ func (b *BaseShip) UpdatePlayerInput(ctx GameContext) {
 	if b.HasAfterburnerSystem {
 		if ebiten.IsKeyPressed(ebiten.KeySpace) && b.AfterburnerCharge > 0 {
 			b.AfterburnerActive = true
-			// Consume fuel at 3 per tick
-			b.AfterburnerCharge -= 3.0
+			// Consume fuel
+			b.AfterburnerCharge -= b.AfterburnerDrain
 			if b.AfterburnerCharge < 0 {
 				b.AfterburnerCharge = 0
 			}
@@ -532,10 +547,10 @@ func (b *BaseShip) UpdatePlayerInput(ctx GameContext) {
 		}
 	}
 
-	// Determine effective acceleration (double if afterburner active)
+	// Determine effective acceleration (multiply if afterburner active)
 	effectiveAccel := b.Accel
 	if b.AfterburnerActive {
-		effectiveAccel *= 2.0
+		effectiveAccel *= b.AfterburnerAccelMultiplier
 	}
 
 	// Acceleration/Deceleration (modify Speed scalar, not velocity)
@@ -617,12 +632,12 @@ func (f *Fighter) UpdateAI(ctx GameContext) {
 		if f.CanFireWeapon() && len(f.Weapons) > 0 {
 			angleFromForward := math.Abs(NormalizeAngle(angleToTarget - f.Rotation))
 			if angleFromForward <= f.Weapons[0].FiringCone/2 {
-				// 50% accurate, 25% random, 25% no fire
+				// Probabilistic firing based on config
 				roll := rand.Float64()
-				if roll < 0.50 {
+				if roll < f.AIAccurateShotProbability {
 					// Accurate shot
 					f.FireWeapon(targetX, targetY, ctx)
-				} else if roll < 0.75 {
+				} else if roll < f.AIAccurateShotProbability+f.AIRandomShotProbability {
 					// Random shot within cone
 					randomAngle := f.Rotation + (rand.Float64()-0.5)*f.Weapons[0].FiringCone
 					randomTargetX := f.X + math.Cos(randomAngle)*1000

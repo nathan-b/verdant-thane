@@ -23,37 +23,44 @@ type Testudon struct {
 // NewTestudon creates a new testudon ship
 func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *Testudon {
 	chars := config.GetShipCharacteristics(ClassTestudon)
+	beamWeapon := config.WeaponDatabase["beam"]
 
 	base := &BaseShip{
-		ID:                   id,
-		FactionID:            factionID,
-		Class:                ClassTestudon,
-		X:                    x,
-		Y:                    y,
-		VelocityX:            0,
-		VelocityY:            0,
-		Rotation:             0,
-		Health:               chars.MaxShield,
-		MaxHealth:            chars.MaxShield,
-		Speed:                0,
-		MaxSpeed:             chars.MaxSpeed,
-		Accel:                chars.Acceleration,
-		CollisionRadius:      chars.CollisionRadius,
-		PlayerControlled:     false,
-		Weapons:              []Weapon{}, // Testudons don't use projectile weapons (beam weapon only)
-		AfterburnerCharge:    0.0,
-		AfterburnerActive:    false,
-		AfterburnerMaxCharge: 0.0,
-		HasAfterburnerSystem: false, // Testudons do NOT have afterburner
-		AITargetID:           -1,
-		AIRetargetTimer:      config.AIRetargetInterval,
-		Sprite:               sprite,
-		Alive:                true,
+		ID:                         id,
+		FactionID:                  factionID,
+		Class:                      ClassTestudon,
+		X:                          x,
+		Y:                          y,
+		VelocityX:                  0,
+		VelocityY:                  0,
+		Rotation:                   0,
+		Health:                     chars.MaxShield,
+		MaxHealth:                  chars.MaxShield,
+		Speed:                      0,
+		MaxSpeed:                   chars.MaxSpeed,
+		Accel:                      chars.Acceleration,
+		CollisionRadius:            chars.CollisionRadius,
+		PlayerControlled:           false,
+		Weapons:                    []Weapon{}, // Testudons don't use projectile weapons (beam weapon only)
+		AfterburnerCharge:          0.0,
+		AfterburnerActive:          false,
+		AfterburnerMaxCharge:       0.0,
+		HasAfterburnerSystem:       false, // Testudons do NOT have afterburner
+		AfterburnerDrain:           chars.AfterburnerDrain,
+		AfterburnerRecharge:        chars.AfterburnerRecharge,
+		AfterburnerAccelMultiplier: chars.AfterburnerAccelMultiplier,
+		AITargetID:                 -1,
+		AIRetargetTimer:            config.AIRetargetInterval,
+		AIAccurateShotProbability:  chars.AIAccurateShotProbability,
+		AIRandomShotProbability:    chars.AIRandomShotProbability,
+		KillScore:                  chars.KillScore,
+		Sprite:                     sprite,
+		Alive:                      true,
 	}
 
 	return &Testudon{
 		BaseShip:  base,
-		BeamRange: 200.0, // Short range
+		BeamRange: beamWeapon.MaxRange,
 		// IMPORTANT: BeamDamagePerTick must be exactly representable in binary floating point
 		// to avoid accumulation errors that affect game balance.
 		//
@@ -66,8 +73,8 @@ func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *Tes
 		//   This creates a ~10% DPS reduction from intended design.
 		//
 		// Safe values are powers of 2: 0.5 (1/2), 0.25 (1/4), 0.125 (1/8), 0.0625 (1/16)
-		// Current setting: 8 ticks per 1 damage = 7.5 DPS at 60 TPS
-		BeamDamagePerTick:     0.125,
+		// Current setting from config: 8 ticks per 1 damage = 7.5 DPS at 60 TPS
+		BeamDamagePerTick:     beamWeapon.DamagePerTick,
 		BeamDamageAccumulator: 0.0,
 		BeamTargetID:          -1,
 		BeamFiringAtID:        -1,
@@ -124,7 +131,7 @@ func (t *Testudon) TakeDamage(amount int, attackerID int, ctx GameContext) {
 		attacker := ctx.GetShip(attackerID)
 		if attacker != nil && attacker.IsPlayerControlled() {
 			ctx.AddKill()
-			ctx.AddScore(50) // 50 points for killing a testudon (worth more than fighter)
+			ctx.AddScore(t.KillScore)
 		}
 	} else {
 		// Track attacker for defensive AI

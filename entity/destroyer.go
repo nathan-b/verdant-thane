@@ -41,18 +41,20 @@ func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *De
 				WeaponCapacitor:  1.0, // Missile launcher - start fully charged
 				WeaponChargeRate: chars.Weapons[1].CapacitorChargeRate,
 				FiringCone:       chars.Weapons[1].FiringCone,
-				MaxRange:         chars.Weapons[1].MaxRange, // From config
-				Priority:         1,                         // Higher priority than main gun
-				RequiresTarget:   true,                      // Missiles require target lock
-				Exclusive:        true,                      // When missiles fire, don't fire other weapons
-				RearFacing:       true,                      // Fires from rear
+				MaxRange:         chars.Weapons[1].MaxRange,
+				SpawnOffset:      chars.Weapons[1].SpawnOffset,
+				Priority:         1,    // Higher priority than main gun
+				RequiresTarget:   true, // Missiles require target lock
+				Exclusive:        true, // When missiles fire, don't fire other weapons
+				RearFacing:       true, // Fires from rear
 				ProjectileType:   config.MissileProjectile,
 			},
 			{
 				WeaponCapacitor:  1.0, // Main gun - start fully charged
 				WeaponChargeRate: chars.Weapons[0].CapacitorChargeRate,
 				FiringCone:       chars.Weapons[0].FiringCone,
-				MaxRange:         chars.Weapons[0].MaxRange, // From config
+				MaxRange:         chars.Weapons[0].MaxRange,
+				SpawnOffset:      chars.Weapons[0].SpawnOffset,
 				Priority:         2,
 				RequiresTarget:   false,
 				Exclusive:        false,
@@ -60,14 +62,20 @@ func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *De
 				ProjectileType:   config.LaserProjectile,
 			},
 		},
-		AfterburnerCharge:    360.0, // Start fully charged
-		AfterburnerActive:    false,
-		AfterburnerMaxCharge: 360.0,
-		HasAfterburnerSystem: true, // Destroyers have afterburner
-		AITargetID:           -1,
-		AIRetargetTimer:      config.AIRetargetInterval,
-		Sprite:               sprite,
-		Alive:                true,
+		AfterburnerCharge:          360.0, // Start fully charged
+		AfterburnerActive:          false,
+		AfterburnerMaxCharge:       360.0,
+		HasAfterburnerSystem:       true, // Destroyers have afterburner
+		AfterburnerDrain:           chars.AfterburnerDrain,
+		AfterburnerRecharge:        chars.AfterburnerRecharge,
+		AfterburnerAccelMultiplier: chars.AfterburnerAccelMultiplier,
+		AITargetID:                 -1,
+		AIRetargetTimer:            config.AIRetargetInterval,
+		AIAccurateShotProbability:  chars.AIAccurateShotProbability,
+		AIRandomShotProbability:    chars.AIRandomShotProbability,
+		KillScore:                  chars.KillScore,
+		Sprite:                     sprite,
+		Alive:                      true,
 	}
 
 	return &Destroyer{
