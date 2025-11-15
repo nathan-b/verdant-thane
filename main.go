@@ -757,10 +757,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case TitleScreen:
 		// Draw stars background (static, camera at origin)
 		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(cameraX) / config.StarGridSize
-		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
-		minGridY := int(cameraY) / config.StarGridSize
-		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
+		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
+		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
+		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
 
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
 			for gridY := minGridY; gridY <= maxGridY; gridY++ {
@@ -799,10 +799,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		// Draw stars
 		starsStart := time.Now()
 		// Determine which grid cells are visible
-		minGridX := int(g.cameraX) / config.StarGridSize
-		maxGridX := int(g.cameraX+float64(config.ScreenWidth)) / config.StarGridSize
-		minGridY := int(g.cameraY) / config.StarGridSize
-		maxGridY := int(g.cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+		// Use floor division to handle negative camera coordinates correctly
+		minGridX := int(math.Floor(g.cameraX / float64(config.StarGridSize)))
+		maxGridX := int(math.Floor((g.cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
+		minGridY := int(math.Floor(g.cameraY / float64(config.StarGridSize)))
+		maxGridY := int(math.Floor((g.cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
 
 		// Draw stars for visible grid cells
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
@@ -1061,10 +1062,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case Victory:
 		// Draw stars background
 		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(cameraX) / config.StarGridSize
-		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
-		minGridY := int(cameraY) / config.StarGridSize
-		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
+		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
+		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
+		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
 		centerX := float64(config.ScreenWidth) / 2.0
 		centerY := float64(config.ScreenHeight) / 2.0
 
@@ -1130,10 +1131,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case GameOver:
 		// Draw stars background
 		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(cameraX) / config.StarGridSize
-		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
-		minGridY := int(cameraY) / config.StarGridSize
-		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
+		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
+		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
+		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
 
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
 			for gridY := minGridY; gridY <= maxGridY; gridY++ {
@@ -1156,10 +1157,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case Instructions:
 		// Draw stars background
 		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(cameraX) / config.StarGridSize
-		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
-		minGridY := int(cameraY) / config.StarGridSize
-		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
+		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
+		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
+		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
 
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
 			for gridY := minGridY; gridY <= maxGridY; gridY++ {
@@ -1182,10 +1183,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case HighScores:
 		// Draw stars background
 		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(cameraX) / config.StarGridSize
-		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
-		minGridY := int(cameraY) / config.StarGridSize
-		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
+		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
+		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
+		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
 
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
 			for gridY := minGridY; gridY <= maxGridY; gridY++ {
@@ -1208,10 +1209,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case Interstitial:
 		// Draw stars background
 		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(cameraX) / config.StarGridSize
-		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
-		minGridY := int(cameraY) / config.StarGridSize
-		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
+		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
+		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
+		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
 
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
 			for gridY := minGridY; gridY <= maxGridY; gridY++ {
@@ -1275,10 +1276,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case Settings:
 		// Draw stars background
 		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(cameraX) / config.StarGridSize
-		maxGridX := int(cameraX+float64(config.ScreenWidth)) / config.StarGridSize
-		minGridY := int(cameraY) / config.StarGridSize
-		maxGridY := int(cameraY+float64(config.ScreenHeight)) / config.StarGridSize
+		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
+		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
+		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
+		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
 
 		for gridX := minGridX; gridX <= maxGridX; gridX++ {
 			for gridY := minGridY; gridY <= maxGridY; gridY++ {

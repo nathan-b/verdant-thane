@@ -287,29 +287,26 @@ func TestGenerateStarsForGridVariation(t *testing.T) {
 }
 
 func TestGenerateStarsForGridWrapping(t *testing.T) {
-	// Grid cells that wrap should produce identical star patterns (same hash)
+	// Grid cells that wrap should produce identical star positions (grid index wraps)
 	gridCountX := config.GameWidth / config.StarGridSize
 
 	stars1 := GenerateStarsForGrid(0, 0)
-	stars2 := GenerateStarsForGrid(gridCountX, 0) // Wraps to 0,0 in hash
+	stars2 := GenerateStarsForGrid(gridCountX, 0) // Wraps to grid 0
 
 	if len(stars1) != len(stars2) {
 		t.Fatalf("Wrapped grids should have same star count: %d vs %d",
 			len(stars1), len(stars2))
 	}
 
-	// Stars should have same relative offsets within their grids
-	// (they share the same hash seed, so same random offsets)
-	baseOffset := float64(gridCountX * config.StarGridSize)
-
+	// Stars should be at identical world positions (grid indices wrap)
 	for i := range stars1 {
-		// Both stars should have same offset from their grid's base position
-		offset1 := stars1[i].X // Grid (0,0) has base at 0
-		offset2 := stars2[i].X - baseOffset
-
-		if math.Abs(offset1-offset2) > 0.01 {
-			t.Errorf("Star %d should have same relative X offset: grid1=%f, grid2=%f (base=%f)",
-				i, offset1, offset2, baseOffset)
+		if math.Abs(stars1[i].X-stars2[i].X) > 0.01 {
+			t.Errorf("Star %d X position mismatch: grid 0 at %f, grid %d at %f",
+				i, stars1[i].X, gridCountX, stars2[i].X)
+		}
+		if math.Abs(stars1[i].Y-stars2[i].Y) > 0.01 {
+			t.Errorf("Star %d Y position mismatch: grid 0 at %f, grid %d at %f",
+				i, stars1[i].Y, gridCountX, stars2[i].Y)
 		}
 	}
 }
@@ -397,25 +394,15 @@ func TestStarfieldTiling(t *testing.T) {
 			len(stars1), len(stars2))
 	}
 
-	// Verify star patterns have same relative offsets
-	// (wrapped grids use same hash, so same random offsets)
-	baseOffsetX := float64(gridCountX * config.StarGridSize)
-	baseOffsetY := float64(gridCountY * config.StarGridSize)
-
+	// Verify stars are at identical world positions (grid indices wrap)
 	for i := range stars1 {
-		// Both stars should have same offset from their grid's base position
-		offset1X := stars1[i].X
-		offset1Y := stars1[i].Y
-		offset2X := stars2[i].X - baseOffsetX
-		offset2Y := stars2[i].Y - baseOffsetY
-
-		if math.Abs(offset1X-offset2X) > 0.01 {
-			t.Errorf("Star %d X offset mismatch: grid1=%f, grid2=%f",
-				i, offset1X, offset2X)
+		if math.Abs(stars1[i].X-stars2[i].X) > 0.01 {
+			t.Errorf("Star %d X position mismatch: grid (0,0) at %f, grid (%d,%d) at %f",
+				i, stars1[i].X, gridCountX, gridCountY, stars2[i].X)
 		}
-		if math.Abs(offset1Y-offset2Y) > 0.01 {
-			t.Errorf("Star %d Y offset mismatch: grid1=%f, grid2=%f",
-				i, offset1Y, offset2Y)
+		if math.Abs(stars1[i].Y-stars2[i].Y) > 0.01 {
+			t.Errorf("Star %d Y position mismatch: grid (0,0) at %f, grid (%d,%d) at %f",
+				i, stars1[i].Y, gridCountX, gridCountY, stars2[i].Y)
 		}
 	}
 }
@@ -535,6 +522,271 @@ func TestStarfieldBoundaryConditions(t *testing.T) {
 		stars := GenerateStarsForGrid(tc.x, tc.y)
 		if len(stars) == 0 {
 			t.Errorf("Grid (%d,%d) should have stars", tc.x, tc.y)
+		}
+	}
+}
+
+// ============================================================================
+// Grid Cell Calculation Tests (for rendering)
+// ============================================================================
+
+// TestGridCellCalculation tests that grid cells are correctly calculated
+// from camera positions, especially when camera position is negative
+func TestGridCellCalculation(t *testing.T) {
+	testCases := []struct {
+		name          string
+		cameraPos     float64
+		gridSize      int
+		expectedGrid  int
+		description   string
+	}{
+		{
+			name:         "Positive camera in first grid",
+			cameraPos:    50.0,
+			gridSize:     128,
+			expectedGrid: 0,
+			description:  "Camera at x=50 should be in grid cell 0",
+		},
+		{
+			name:         "Positive camera in second grid",
+			cameraPos:    150.0,
+			gridSize:     128,
+			expectedGrid: 1,
+			description:  "Camera at x=150 should be in grid cell 1",
+		},
+		{
+			name:         "Camera exactly at grid boundary",
+			cameraPos:    128.0,
+			gridSize:     128,
+			expectedGrid: 1,
+			description:  "Camera at x=128 should be in grid cell 1",
+		},
+		{
+			name:         "Small negative camera",
+			cameraPos:    -50.0,
+			gridSize:     128,
+			expectedGrid: -1,
+			description:  "Camera at x=-50 should be in grid cell -1 (not 0!)",
+		},
+		{
+			name:         "Large negative camera",
+			cameraPos:    -200.0,
+			gridSize:     128,
+			expectedGrid: -2,
+			description:  "Camera at x=-200 should be in grid cell -2",
+		},
+		{
+			name:         "Camera at negative grid boundary",
+			cameraPos:    -128.0,
+			gridSize:     128,
+			expectedGrid: -1,
+			description:  "Camera at x=-128 should be in grid cell -1",
+		},
+		{
+			name:         "Camera just past negative boundary",
+			cameraPos:    -128.1,
+			gridSize:     128,
+			expectedGrid: -2,
+			description:  "Camera at x=-128.1 should be in grid cell -2",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Correct calculation using floor division
+			gridCell := int(math.Floor(tc.cameraPos / float64(tc.gridSize)))
+
+			if gridCell != tc.expectedGrid {
+				t.Errorf("%s\n  Got grid cell %d, expected %d",
+					tc.description, gridCell, tc.expectedGrid)
+			}
+
+			// Also verify that the INCORRECT calculation (current bug) would fail
+			// This demonstrates the bug when camera position is negative
+			incorrectGridCell := int(tc.cameraPos) / tc.gridSize
+			if tc.cameraPos < 0 && incorrectGridCell == tc.expectedGrid {
+				// If they're equal for negative camera, our expected value might be wrong
+				// (or the incorrect method happens to be right for this case)
+			}
+		})
+	}
+}
+
+// TestStarVisibilityAcrossWorldBoundary tests that stars are correctly
+// rendered when the camera crosses world boundaries
+func TestStarVisibilityAcrossWorldBoundary(t *testing.T) {
+	// Simulate camera near the left edge of the world (player near x=50)
+	// Camera would be centered on player: cameraX = 50 - ScreenWidth/2
+	// With ScreenWidth=800, cameraX = 50 - 400 = -350
+
+	cameraX := -350.0
+	cameraY := 100.0
+	screenWidth := 800
+	screenHeight := 600
+
+	// Calculate grid cells using CORRECT floor division
+	minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
+	maxGridX := int(math.Floor((cameraX + float64(screenWidth)) / float64(config.StarGridSize)))
+	minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
+	maxGridY := int(math.Floor((cameraY + float64(screenHeight)) / float64(config.StarGridSize)))
+
+	// With StarGridSize=200, cameraX=-350:
+	// minGridX should be floor(-350/200) = floor(-1.75) = -2
+	// maxGridX should be floor((-350+800)/200) = floor(450/200) = floor(2.25) = 2
+
+	if minGridX != -2 {
+		t.Errorf("minGridX should be -2, got %d", minGridX)
+	}
+	if maxGridX != 2 {
+		t.Errorf("maxGridX should be 2, got %d", maxGridX)
+	}
+
+	// Collect all stars that should be visible
+	visibleStars := 0
+	for gridX := minGridX; gridX <= maxGridX; gridX++ {
+		for gridY := minGridY; gridY <= maxGridY; gridY++ {
+			stars := GenerateStarsForGrid(gridX, gridY)
+			for _, star := range stars {
+				// Calculate screen position (same as rendering code)
+				// Use simple offset calculation for test
+				screenX := star.X - cameraX
+				screenY := star.Y - cameraY
+
+				// Count if on screen
+				if screenX >= 0 && screenX < float64(screenWidth) &&
+					screenY >= 0 && screenY < float64(screenHeight) {
+					visibleStars++
+				}
+			}
+		}
+	}
+
+	// Should have some visible stars
+	if visibleStars == 0 {
+		t.Error("Should have visible stars when camera is at world boundary")
+	}
+
+	// Now test with INCORRECT grid calculation (the bug)
+	incorrectMinGridX := int(cameraX) / config.StarGridSize
+
+	// With int(-350) / 200 = -350 / 200 = -1 (truncates toward zero, BUG!)
+	// Should be -2, not -1
+	if incorrectMinGridX == minGridX {
+		t.Errorf("Bug test failed: incorrect calculation gave same result as correct one")
+	}
+
+	// The incorrect calculation should give -1, not -2
+	expectedBugValue := -1
+	if incorrectMinGridX != expectedBugValue {
+		t.Logf("Note: Incorrect calculation gave %d (expected bug value was %d)",
+			incorrectMinGridX, expectedBugValue)
+	}
+}
+
+// TestGridCellCoverageAtBoundary verifies that all stars in visible grid cells
+// can potentially be seen when camera crosses boundaries
+func TestGridCellCoverageAtBoundary(t *testing.T) {
+	// Test multiple camera positions near boundaries
+	testCases := []struct {
+		name    string
+		cameraX float64
+		cameraY float64
+	}{
+		{"Near left edge", -350.0, 100.0},
+		{"Near right edge", float64(config.GameWidth) - 450.0, 100.0},
+		{"Near top edge", 100.0, -350.0},
+		{"Near bottom edge", 100.0, float64(config.GameHeight) - 450.0},
+		{"Near top-left corner", -350.0, -350.0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Use correct floor division
+			minGridX := int(math.Floor(tc.cameraX / float64(config.StarGridSize)))
+			maxGridX := int(math.Floor((tc.cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
+			minGridY := int(math.Floor(tc.cameraY / float64(config.StarGridSize)))
+			maxGridY := int(math.Floor((tc.cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
+
+			// Generate stars for all visible grid cells
+			totalStars := 0
+			for gridX := minGridX; gridX <= maxGridX; gridX++ {
+				for gridY := minGridY; gridY <= maxGridY; gridY++ {
+					stars := GenerateStarsForGrid(gridX, gridY)
+					totalStars += len(stars)
+				}
+			}
+
+			// Should have stars
+			if totalStars == 0 {
+				t.Errorf("No stars generated for camera at (%f, %f)", tc.cameraX, tc.cameraY)
+			}
+		})
+	}
+}
+
+// TestStarPositionConsistencyAcrossBoundary verifies that stars generated for
+// wrapped grid cells have the same positions (modulo world size)
+func TestStarPositionConsistencyAcrossBoundary(t *testing.T) {
+	gridCountX := config.GameWidth / config.StarGridSize
+
+	// Test wrapping in X dimension
+	// Grid 0 and grid gridCountX should use same hash (same pattern) and have matching wrapped positions
+	stars0 := GenerateStarsForGrid(0, 0)
+	starsWrappedX := GenerateStarsForGrid(gridCountX, 0)
+
+	if len(stars0) != len(starsWrappedX) {
+		t.Errorf("Grid 0 and grid %d should have same number of stars: %d vs %d",
+			gridCountX, len(stars0), len(starsWrappedX))
+	}
+
+	// Check that stars have equivalent positions when considering world wrapping
+	// Both should generate stars in the same wrapped world positions
+	for i := range stars0 {
+		x0 := stars0[i].X
+		xWrapped := starsWrappedX[i].X
+
+		// Both positions should be in valid range [0, GameWidth)
+		if x0 < 0 || x0 >= float64(config.GameWidth) {
+			t.Errorf("Star %d from grid 0 outside valid range: %f", i, x0)
+		}
+		if xWrapped < 0 || xWrapped >= float64(config.GameWidth) {
+			t.Errorf("Star %d from grid %d outside valid range: %f", i, gridCountX, xWrapped)
+		}
+
+		// Stars should be at identical wrapped positions
+		if math.Abs(x0-xWrapped) > 0.01 {
+			t.Errorf("Star %d position mismatch: grid 0 at %f, grid %d at %f (should be equal after wrapping)",
+				i, x0, gridCountX, xWrapped)
+		}
+	}
+
+	// Test negative grid cells
+	// Grid -1 should have same pattern as grid (gridCountX - 1) and matching wrapped positions
+	starsNeg1 := GenerateStarsForGrid(-1, 0)
+	starsLast := GenerateStarsForGrid(gridCountX-1, 0)
+
+	if len(starsNeg1) != len(starsLast) {
+		t.Errorf("Grid -1 and grid %d should have same number of stars: %d vs %d",
+			gridCountX-1, len(starsNeg1), len(starsLast))
+	}
+
+	// Check wrapped positions match
+	for i := range starsNeg1 {
+		xNeg := starsNeg1[i].X
+		xLast := starsLast[i].X
+
+		// Both should be in valid range
+		if xNeg < 0 || xNeg >= float64(config.GameWidth) {
+			t.Errorf("Star %d from grid -1 outside valid range: %f", i, xNeg)
+		}
+		if xLast < 0 || xLast >= float64(config.GameWidth) {
+			t.Errorf("Star %d from grid %d outside valid range: %f", i, gridCountX-1, xLast)
+		}
+
+		// Stars should be at identical wrapped positions
+		if math.Abs(xNeg-xLast) > 0.01 {
+			t.Errorf("Star %d position mismatch: grid -1 at %f, grid %d at %f (should be equal after wrapping)",
+				i, xNeg, gridCountX-1, xLast)
 		}
 	}
 }

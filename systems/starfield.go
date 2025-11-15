@@ -43,6 +43,19 @@ func GenerateStarsForGrid(gridX, gridY int) []Star {
 	area := float64(config.StarGridSize * config.StarGridSize)
 	numStars := int(area * config.StarDensity)
 
+	// Calculate grid count (how many grids fit in the world)
+	gridCountX := config.GameWidth / config.StarGridSize
+	gridCountY := config.GameHeight / config.StarGridSize
+
+	// Wrap grid indices to ensure seamless tiling
+	// This handles cases where GameWidth/Height don't evenly divide by StarGridSize
+	wrappedGridX := modulo(gridX, gridCountX)
+	wrappedGridY := modulo(gridY, gridCountY)
+
+	// Calculate base position using wrapped grid indices
+	baseX := float64(wrappedGridX * config.StarGridSize)
+	baseY := float64(wrappedGridY * config.StarGridSize)
+
 	// Generate deterministic "random" positions within this grid
 	for i := 0; i < numStars; i++ {
 		// Simple LCG (Linear Congruential Generator) for deterministic randomness
@@ -52,13 +65,17 @@ func GenerateStarsForGrid(gridX, gridY int) []Star {
 		seed = (seed*1103515245 + 12345) & 0x7fffffff
 		offsetY := float64(seed % config.StarGridSize)
 
-		// Calculate base position for this grid cell
-		baseX := float64(gridX * config.StarGridSize)
-		baseY := float64(gridY * config.StarGridSize)
-
-		// Star position in world coordinates
+		// Star position in world coordinates (base already wrapped, add offset)
 		x := baseX + offsetX
 		y := baseY + offsetY
+
+		// Wrap again in case offset pushes us past the boundary
+		for x >= float64(config.GameWidth) {
+			x -= float64(config.GameWidth)
+		}
+		for y >= float64(config.GameHeight) {
+			y -= float64(config.GameHeight)
+		}
 
 		stars = append(stars, Star{X: x, Y: y})
 	}
