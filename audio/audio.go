@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/audio/mp3"
@@ -13,9 +12,6 @@ import (
 )
 
 const sampleRate = 44100
-
-// EnableProfiling controls whether PlayMusic outputs timing information
-var EnableProfiling = false
 
 // SoundEffect represents a loaded sound effect
 type SoundEffect struct {
@@ -121,76 +117,39 @@ func (m *Manager) LoadMusic(name string, filepath string) error {
 // PlayMusic plays a music track by name (loops infinitely)
 // Stops any currently playing music
 func (m *Manager) PlayMusic(name string) error {
-	funcStart := time.Now()
-	var t time.Time
-
 	// Stop current music if playing
-	t = time.Now()
 	m.StopMusic()
-	stopMusicTime := time.Since(t)
 
 	if m.musicMuted {
 		return nil
 	}
 
-	t = time.Now()
 	compressedData, exists := m.musicFiles[name]
 	if !exists {
 		return fmt.Errorf("music %s not loaded", name)
 	}
-	lookupTime := time.Since(t)
 
-	// Decode MP3 stream (this happens quickly since it's streaming, not loading all at once)
-	t = time.Now()
+	// Decode MP3 stream
 	stream, err := mp3.DecodeWithoutResampling(bytes.NewReader(compressedData))
 	if err != nil {
 		return fmt.Errorf("failed to decode MP3: %w", err)
 	}
-	decodeTime := time.Since(t)
 
 	// Get the stream length for looping
-	// We need to read the entire stream once to get its length
-	t = time.Now()
-	data, err := io.ReadAll(stream)
-	if err != nil {
-		return fmt.Errorf("failed to read decoded stream: %w", err)
-	}
-	readAllTime := time.Since(t)
+	streamLength := stream.Length()
 
-	// Create infinite loop from the decoded data
-	t = time.Now()
-	infiniteLoop := audio.NewInfiniteLoop(bytes.NewReader(data), int64(len(data)))
-	loopTime := time.Since(t)
+	// Create infinite loop from the stream
+	infiniteLoop := audio.NewInfiniteLoop(stream, streamLength)
 
 	// Create player from infinite loop
-	t = time.Now()
 	player, err := m.context.NewPlayer(infiniteLoop)
 	if err != nil {
 		return fmt.Errorf("failed to create music player: %w", err)
 	}
-	newPlayerTime := time.Since(t)
 
-	t = time.Now()
 	m.musicPlayer = player
 	player.SetVolume(m.musicVolume)
 	player.Play()
-	playTime := time.Since(t)
-
-	totalTime := time.Since(funcStart)
-
-	if EnableProfiling {
-		fmt.Printf("\n=== PlayMusic(\"%s\") Profiling ===\n", name)
-		fmt.Printf("  StopMusic():                %6.2f ms\n", float64(stopMusicTime.Microseconds())/1000.0)
-		fmt.Printf("  Lookup music data:          %6.2f ms\n", float64(lookupTime.Microseconds())/1000.0)
-		fmt.Printf("  mp3.DecodeWithoutResampling:%6.2f ms\n", float64(decodeTime.Microseconds())/1000.0)
-		fmt.Printf("  io.ReadAll(stream):         %6.2f ms (decoded %d bytes)\n", float64(readAllTime.Microseconds())/1000.0, len(data))
-		fmt.Printf("  audio.NewInfiniteLoop():    %6.2f ms\n", float64(loopTime.Microseconds())/1000.0)
-		fmt.Printf("  context.NewPlayer():        %6.2f ms (!)\n", float64(newPlayerTime.Microseconds())/1000.0)
-		fmt.Printf("  SetVolume() + Play():       %6.2f ms\n", float64(playTime.Microseconds())/1000.0)
-		fmt.Printf("  ---\n")
-		fmt.Printf("  TOTAL PlayMusic():          %6.2f ms\n", float64(totalTime.Microseconds())/1000.0)
-		fmt.Printf("======================================\n\n")
-	}
 
 	return nil
 }

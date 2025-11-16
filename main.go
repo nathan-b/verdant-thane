@@ -290,11 +290,6 @@ func NewGame() (*Game, error) {
 	audioManager.SetMusicVolume(settings.MusicVolume)
 	startupProfile.CreateAudioManager = time.Since(t)
 
-	// Enable audio profiling if startup profiling is enabled
-	if *profileStartup {
-		audio.EnableProfiling = true
-	}
-
 	// Load sound effects
 	t = time.Now()
 	if err := audioManager.LoadSound("laser", "assets/laser.wav"); err != nil {
