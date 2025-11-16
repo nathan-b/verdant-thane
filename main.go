@@ -26,13 +26,15 @@ import (
 
 var (
 	// Command-line flags for performance testing
-	perfTest     = flag.Bool("perf", false, "Enable performance testing mode with large fleets")
-	perfShips    = flag.Int("ships", 800, "Total number of ships for performance testing")
-	perfFactions = flag.Int("factions", 4, "Number of factions for performance testing")
-	showFPS      = flag.Bool("fps", false, "Show FPS/TPS counter")
-	showProfile  = flag.Bool("profile", false, "Show detailed performance profiling data")
-	useDestroyer = flag.Bool("destroyer", false, "Spawn player and opponents as destroyers instead of fighters")
-	useTestudon  = flag.Bool("testudon", false, "Guarantee each faction spawns with one AI-controlled testudon")
+	perfTest       = flag.Bool("perf", false, "Enable performance testing mode with large fleets")
+	perfShips      = flag.Int("ships", 800, "Total number of ships for performance testing")
+	perfFactions   = flag.Int("factions", 4, "Number of factions for performance testing")
+	showFPS        = flag.Bool("fps", false, "Show FPS/TPS counter")
+	showProfile    = flag.Bool("profile", false, "Show detailed in-game performance profiling data")
+	profileStartup = flag.Bool("profile-startup", false, "Profile startup time from main() to title screen")
+	profileNewGame = flag.Bool("profile-newgame", false, "Profile new game initialization time")
+	useDestroyer   = flag.Bool("destroyer", false, "Spawn player and opponents as destroyers instead of fighters")
+	useTestudon    = flag.Bool("testudon", false, "Guarantee each faction spawns with one AI-controlled testudon")
 )
 
 // GameState represents the current state of the game
@@ -104,6 +106,34 @@ func (p *ProfileData) Reset() {
 	p.TotalDraw = 0
 }
 
+// StartupProfileData tracks timing for game startup (main() to title screen)
+type StartupProfileData struct {
+	LoadLaserSprite     time.Duration
+	LoadMissileSprite   time.Duration
+	LoadExplosionSprite time.Duration
+	LoadFactionSprites  time.Duration
+	LoadFont            time.Duration
+	CreateUIDialogs     time.Duration
+	LoadPersistence     time.Duration
+	CreateEntityManager time.Duration
+	CreateAudioManager  time.Duration
+	LoadSoundEffects    time.Duration
+	LoadMenuMusic       time.Duration
+	CreateChatWindow    time.Duration
+	LoadBGMTracks       time.Duration
+	Total               time.Duration
+}
+
+// NewGameProfileData tracks timing for new game initialization (Play Game to game loaded)
+type NewGameProfileData struct {
+	ClearEntities      time.Duration
+	InitializeFactions time.Duration
+	SpawnShips         time.Duration
+	InitializeCamera   time.Duration
+	LoadGameMusic      time.Duration
+	Total              time.Duration
+}
+
 // Game represents the main game state
 type Game struct {
 	// Game state
@@ -146,6 +176,7 @@ type Game struct {
 	profileData       ProfileData
 	profileFrameCount int
 	lastProfileTime   time.Time
+	newGameProfile    NewGameProfileData
 
 	// Pause state
 	paused bool
@@ -161,30 +192,42 @@ type Game struct {
 
 // NewGame creates and initializes a new game, starting at the title screen
 func NewGame() (*Game, error) {
+	var startupProfile StartupProfileData
+	totalStart := time.Now()
+
 	// Load shared assets
+	t := time.Now()
 	laserSprite, _, err := ebitenutil.NewImageFromFile("assets/laser.png")
 	if err != nil {
 		return nil, err
 	}
+	startupProfile.LoadLaserSprite = time.Since(t)
 
+	t = time.Now()
 	missileSprite, _, err := ebitenutil.NewImageFromFile("assets/missile.png")
 	if err != nil {
 		return nil, err
 	}
+	startupProfile.LoadMissileSprite = time.Since(t)
 
 	// Load explosion sprite sheet (400x70, 4 frames of 100x70 each)
+	t = time.Now()
 	explosionSprite, _, err := ebitenutil.NewImageFromFile("assets/explosion.png")
 	if err != nil {
 		return nil, err
 	}
+	startupProfile.LoadExplosionSprite = time.Since(t)
 
 	// Load faction sprites
+	t = time.Now()
 	factionSprites, err := systems.LoadFactionSprites()
 	if err != nil {
 		return nil, err
 	}
+	startupProfile.LoadFactionSprites = time.Since(t)
 
 	// Load font for HUD
+	t = time.Now()
 	fontBytes, err := os.ReadFile("assets/orbitron.ttf")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load font: %w", err)
@@ -199,8 +242,10 @@ func NewGame() (*Game, error) {
 		Source: fontSource,
 		Size:   14,
 	}
+	startupProfile.LoadFont = time.Since(t)
 
 	// Create title screen dialog
+	t = time.Now()
 	titleDialog := ui.CreateTitleScreen()
 
 	// Create instructions dialog
@@ -208,8 +253,10 @@ func NewGame() (*Game, error) {
 
 	// Create high scores dialog
 	highScoresDialog := ui.CreateHighScoresDialog()
+	startupProfile.CreateUIDialogs = time.Since(t)
 
 	// Load high scores
+	t = time.Now()
 	highScores, err := persistence.LoadHighScores()
 	if err != nil {
 		log.Printf("Warning: Failed to load high scores: %v", err)
@@ -222,11 +269,15 @@ func NewGame() (*Game, error) {
 		log.Printf("Warning: Failed to load settings: %v", err)
 		settings = &persistence.Settings{SoundMuted: false, MusicMuted: false}
 	}
+	startupProfile.LoadPersistence = time.Since(t)
 
 	// Create entity manager
+	t = time.Now()
 	entityManager := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	startupProfile.CreateEntityManager = time.Since(t)
 
 	// Create audio manager and load sound effects
+	t = time.Now()
 	audioManager, err := audio.NewManager()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create audio manager: %w", err)
@@ -237,8 +288,15 @@ func NewGame() (*Game, error) {
 	audioManager.SetMusicMuted(settings.MusicMuted)
 	audioManager.SetSoundVolume(settings.SoundVolume)
 	audioManager.SetMusicVolume(settings.MusicVolume)
+	startupProfile.CreateAudioManager = time.Since(t)
+
+	// Enable audio profiling if startup profiling is enabled
+	if *profileStartup {
+		audio.EnableProfiling = true
+	}
 
 	// Load sound effects
+	t = time.Now()
 	if err := audioManager.LoadSound("laser", "assets/laser.wav"); err != nil {
 		log.Printf("Warning: Failed to load laser sound: %v", err)
 	}
@@ -248,19 +306,25 @@ func NewGame() (*Game, error) {
 	if err := audioManager.LoadSound("explosion", "assets/explosion.wav"); err != nil {
 		log.Printf("Warning: Failed to load explosion sound: %v", err)
 	}
+	startupProfile.LoadSoundEffects = time.Since(t)
 
 	// Load menu music (needed immediately)
+	t = time.Now()
 	if err := audioManager.LoadMusic("menu", "assets/energy-electrowave.mp3"); err != nil {
 		log.Printf("Warning: Failed to load menu music: %v", err)
 	}
+	startupProfile.LoadMenuMusic = time.Since(t)
 
 	// Create chat window
+	t = time.Now()
 	chatWindow, err := NewChatWindow("assets/chatter.json")
 	if err != nil {
 		log.Printf("Warning: Failed to create chat window: %v", err)
 		chatWindow = nil // Continue without chat
 	}
+	startupProfile.CreateChatWindow = time.Since(t)
 
+	t = time.Now()
 	game := &Game{
 		currentState:       TitleScreen,
 		titleDialog:        titleDialog,
@@ -287,7 +351,9 @@ func NewGame() (*Game, error) {
 		lastFPSTime:     time.Now(),
 		lastProfileTime: time.Now(),
 	}
+	createGameStruct := time.Since(t)
 
+	t = time.Now()
 	// Set profiler on entity manager for performance tracking
 	entityManager.SetProfiler(&game.profileData)
 
@@ -298,8 +364,10 @@ func NewGame() (*Game, error) {
 	if chatWindow != nil {
 		entityManager.SetChatWindow(chatWindow)
 	}
+	wireUpGame := time.Since(t)
 
 	// Load in-game music tracks
+	t = time.Now()
 	bgmTracks := []string{
 		"assets/bgm/0-top.mp3",
 		"assets/bgm/adrenaline-rush.mp3",
@@ -313,10 +381,62 @@ func NewGame() (*Game, error) {
 			log.Printf("Warning: Failed to load BGM track %s: %v", track, err)
 		}
 	}
+	startupProfile.LoadBGMTracks = time.Since(t)
 
 	// Start menu music
+	t = time.Now()
 	if err := audioManager.PlayMusic("menu"); err != nil {
 		log.Printf("Warning: Failed to play menu music: %v", err)
+	}
+	startMenuMusic := time.Since(t)
+
+	// Calculate total startup time
+	startupProfile.Total = time.Since(totalStart)
+
+	// Print startup profiling data if enabled
+	if *profileStartup {
+		// Calculate total measured time
+		measured := startupProfile.LoadLaserSprite +
+			startupProfile.LoadMissileSprite +
+			startupProfile.LoadExplosionSprite +
+			startupProfile.LoadFactionSprites +
+			startupProfile.LoadFont +
+			startupProfile.CreateUIDialogs +
+			startupProfile.LoadPersistence +
+			startupProfile.CreateEntityManager +
+			startupProfile.CreateAudioManager +
+			startupProfile.LoadSoundEffects +
+			startupProfile.LoadMenuMusic +
+			startupProfile.CreateChatWindow +
+			startupProfile.LoadBGMTracks +
+			createGameStruct +
+			wireUpGame +
+			startMenuMusic
+
+		unaccounted := startupProfile.Total - measured
+
+		fmt.Printf("\n=== Startup Profiling (main() to title screen) ===\n")
+		fmt.Printf("  Load Laser Sprite:      %6.2f ms\n", float64(startupProfile.LoadLaserSprite.Microseconds())/1000.0)
+		fmt.Printf("  Load Missile Sprite:    %6.2f ms\n", float64(startupProfile.LoadMissileSprite.Microseconds())/1000.0)
+		fmt.Printf("  Load Explosion Sprite:  %6.2f ms\n", float64(startupProfile.LoadExplosionSprite.Microseconds())/1000.0)
+		fmt.Printf("  Load Faction Sprites:   %6.2f ms\n", float64(startupProfile.LoadFactionSprites.Microseconds())/1000.0)
+		fmt.Printf("  Load Font:              %6.2f ms\n", float64(startupProfile.LoadFont.Microseconds())/1000.0)
+		fmt.Printf("  Create UI Dialogs:      %6.2f ms\n", float64(startupProfile.CreateUIDialogs.Microseconds())/1000.0)
+		fmt.Printf("  Load Persistence:       %6.2f ms\n", float64(startupProfile.LoadPersistence.Microseconds())/1000.0)
+		fmt.Printf("  Create Entity Manager:  %6.2f ms\n", float64(startupProfile.CreateEntityManager.Microseconds())/1000.0)
+		fmt.Printf("  Create Audio Manager:   %6.2f ms\n", float64(startupProfile.CreateAudioManager.Microseconds())/1000.0)
+		fmt.Printf("  Load Sound Effects:     %6.2f ms\n", float64(startupProfile.LoadSoundEffects.Microseconds())/1000.0)
+		fmt.Printf("  Load Menu Music:        %6.2f ms\n", float64(startupProfile.LoadMenuMusic.Microseconds())/1000.0)
+		fmt.Printf("  Create Chat Window:     %6.2f ms\n", float64(startupProfile.CreateChatWindow.Microseconds())/1000.0)
+		fmt.Printf("  Load BGM Tracks:        %6.2f ms\n", float64(startupProfile.LoadBGMTracks.Microseconds())/1000.0)
+		fmt.Printf("  Create Game Struct:     %6.2f ms\n", float64(createGameStruct.Microseconds())/1000.0)
+		fmt.Printf("  Wire Up Game:           %6.2f ms\n", float64(wireUpGame.Microseconds())/1000.0)
+		fmt.Printf("  Start Menu Music:       %6.2f ms\n", float64(startMenuMusic.Microseconds())/1000.0)
+		fmt.Printf("  ---\n")
+		fmt.Printf("  Total Measured:         %6.2f ms\n", float64(measured.Microseconds())/1000.0)
+		fmt.Printf("  UNACCOUNTED TIME:       %6.2f ms (!)\n", float64(unaccounted.Microseconds())/1000.0)
+		fmt.Printf("  TOTAL STARTUP TIME:     %6.2f ms\n", float64(startupProfile.Total.Microseconds())/1000.0)
+		fmt.Printf("==================================================\n\n")
 	}
 
 	return game, nil
@@ -332,19 +452,26 @@ func (g *Game) ReturnToTitleScreen() {
 
 // StartGame transitions from title screen to in-game state by spawning ships
 func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
+	totalStart := time.Now()
+
 	// Store fleet config for quick restart
 	g.currentFleetConfig = &fleetConfig
 
 	// Clear entity manager for new game
+	t := time.Now()
 	g.entityManager.Clear()
+	g.newGameProfile.ClearEntities = time.Since(t)
 
 	// Initialize factions and spawn points
+	t = time.Now()
 	g.entityManager.InitializeFactions()
+	g.newGameProfile.InitializeFactions = time.Since(t)
 
 	// Spawn ships according to fleet configuration
 	const spawnRadius = 75.0 // Radius for circular spawn pattern
 	var playerShip entity.Ship
 
+	t = time.Now()
 	for factionID := 0; factionID < fleetConfig.NumFactions; factionID++ {
 		comp := fleetConfig.Compositions[factionID]
 		totalShips := comp.Total()
@@ -408,6 +535,7 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 			}
 		}
 	}
+	g.newGameProfile.SpawnShips = time.Since(t)
 
 	// Ensure we found a player ship
 	if playerShip == nil {
@@ -415,15 +543,34 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 	}
 
 	// Initialize camera to follow player ship
+	t = time.Now()
 	newX, newY := playerShip.GetPosition()
 	g.cameraX = newX - float64(config.ScreenWidth)/2
 	g.cameraY = newY - float64(config.ScreenHeight)/2
+	g.newGameProfile.InitializeCamera = time.Since(t)
 
 	// Play random in-game music
+	t = time.Now()
 	bgmIndex := rand.Intn(5) // We have 5 BGM tracks (bgm0 through bgm4)
 	bgmName := fmt.Sprintf("bgm%d", bgmIndex)
 	if err := g.audioManager.PlayMusic(bgmName); err != nil {
 		log.Printf("Warning: Failed to play BGM: %v", err)
+	}
+	g.newGameProfile.LoadGameMusic = time.Since(t)
+
+	// Calculate total new game time
+	g.newGameProfile.Total = time.Since(totalStart)
+
+	// Print new game profiling data if enabled
+	if *profileNewGame {
+		fmt.Printf("\n=== New Game Profiling (Play Game to game loaded) ===\n")
+		fmt.Printf("  Clear Entities:         %6.2f ms\n", float64(g.newGameProfile.ClearEntities.Microseconds())/1000.0)
+		fmt.Printf("  Initialize Factions:    %6.2f ms\n", float64(g.newGameProfile.InitializeFactions.Microseconds())/1000.0)
+		fmt.Printf("  Spawn Ships:            %6.2f ms\n", float64(g.newGameProfile.SpawnShips.Microseconds())/1000.0)
+		fmt.Printf("  Initialize Camera:      %6.2f ms\n", float64(g.newGameProfile.InitializeCamera.Microseconds())/1000.0)
+		fmt.Printf("  Load Game Music:        %6.2f ms\n", float64(g.newGameProfile.LoadGameMusic.Microseconds())/1000.0)
+		fmt.Printf("  TOTAL NEW GAME TIME:    %6.2f ms\n", float64(g.newGameProfile.Total.Microseconds())/1000.0)
+		fmt.Printf("======================================================\n\n")
 	}
 
 	g.currentState = InGame
@@ -1485,14 +1632,32 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
+	mainStart := time.Now()
 	flag.Parse()
 
+	if *profileStartup {
+		fmt.Printf("\n=== Main() Profiling ===\n")
+		fmt.Printf("  flag.Parse() completed:     %6.2f ms\n", float64(time.Since(mainStart).Microseconds())/1000.0)
+	}
+
+	t := time.Now()
 	ebiten.SetWindowSize(config.ScreenWidth, config.ScreenHeight)
 	ebiten.SetWindowTitle("Verdant Thane")
+	if *profileStartup {
+		fmt.Printf("  Window setup completed:     %6.2f ms (from start: %6.2f ms)\n",
+			float64(time.Since(t).Microseconds())/1000.0,
+			float64(time.Since(mainStart).Microseconds())/1000.0)
+	}
 
+	t = time.Now()
 	game, err := NewGame()
 	if err != nil {
 		log.Fatalf("Failed to create game: %v", err)
+	}
+	if *profileStartup {
+		fmt.Printf("  NewGame() completed:        %6.2f ms (from start: %6.2f ms)\n",
+			float64(time.Since(t).Microseconds())/1000.0,
+			float64(time.Since(mainStart).Microseconds())/1000.0)
 	}
 
 	// If performance testing mode is enabled, skip title screen and spawn large fleet
@@ -1529,6 +1694,13 @@ func main() {
 		log.Printf("Fleet spawned successfully. Compositions: %+v", compositions)
 	}
 
+	if *profileStartup {
+		fmt.Printf("  Starting ebiten.RunGame():  (from start: %6.2f ms)\n",
+			float64(time.Since(mainStart).Microseconds())/1000.0)
+		fmt.Printf("========================\n\n")
+	}
+
+	t = time.Now()
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
