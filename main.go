@@ -593,8 +593,10 @@ func (g *Game) Update() error {
 			buttonIndex := ui.CheckButtonClick(g.titleDialog, mouseX, mouseY)
 
 			if buttonIndex == 0 { // "Play Game" button
-				// Generate random fleet configuration
-				fleetConfig := config.GenerateRandomFleetConfig(rand.Int63())
+				// Start at round 1
+				g.battleNumber = 1
+				// Generate random fleet configuration for round 1
+				fleetConfig := config.GenerateRandomFleetConfig(rand.Int63(), g.battleNumber)
 				if err := g.StartGame(fleetConfig); err != nil {
 					return fmt.Errorf("failed to start game: %w", err)
 				}
@@ -731,7 +733,7 @@ func (g *Game) Update() error {
 		if g.nextFleetConfig == nil {
 			// Increment battle number and generate harder fleet
 			g.battleNumber++
-			nextConfig := config.GenerateRandomFleetConfig(rand.Int63())
+			nextConfig := config.GenerateRandomFleetConfig(rand.Int63(), g.battleNumber)
 			g.nextFleetConfig = &nextConfig
 		}
 

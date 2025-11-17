@@ -32,7 +32,7 @@ func TestGetFleetComposition_BalanceEquivalence(t *testing.T) {
 			compositions := make([]config.FactionComposition, 5)
 
 			for i := range compositions {
-				compositions[i] = config.GetFleetComposition(rng, tt.fighterBudget, tt.maxDestroyers, tt.maxTestudons)
+				compositions[i] = config.GetFleetComposition(rng, tt.fighterBudget, tt.maxDestroyers, tt.maxTestudons, 0.5, 0.33)
 			}
 
 			// Verify each composition's total "cost" equals the budget
@@ -73,7 +73,7 @@ func TestGetFleetComposition_RespectsLimits(t *testing.T) {
 
 			// Test multiple times to ensure limits are always respected
 			for i := 0; i < 10; i++ {
-				comp := config.GetFleetComposition(rng, 32, tt.maxDestroyers, tt.maxTestudons)
+				comp := config.GetFleetComposition(rng, 32, tt.maxDestroyers, tt.maxTestudons, 0.9, 0.9)
 
 				if comp.Destroyers > tt.maxDestroyers {
 					t.Errorf("Destroyers exceed limit: got %d, max %d", comp.Destroyers, tt.maxDestroyers)
@@ -94,7 +94,7 @@ func TestGetFleetComposition_Variety(t *testing.T) {
 	// Generate 10 compositions
 	compositions := make([]config.FactionComposition, 10)
 	for i := range compositions {
-		compositions[i] = config.GetFleetComposition(rng, fighterBudget, 999, 999)
+		compositions[i] = config.GetFleetComposition(rng, fighterBudget, 999, 999, 0.5, 0.33)
 	}
 
 	// Count how many unique compositions we got
@@ -120,19 +120,22 @@ func TestGetFleetComposition_Variety(t *testing.T) {
 // Players cannot control testudons (AI-only), so this test ensures the game doesn't
 // spawn the player into a testudon.
 func TestGenerateRandomFleetConfig_PlayerFactionControllable(t *testing.T) {
-	// Test with many different seeds to catch edge cases
+	// Test with many different seeds and rounds to catch edge cases
 	for seed := int64(0); seed < 1000; seed++ {
-		fleetConfig := config.GenerateRandomFleetConfig(seed)
+		// Test across different rounds (1-5)
+		for round := 1; round <= 5; round++ {
+			fleetConfig := config.GenerateRandomFleetConfig(seed, round)
 
-		// Faction 0 is always the player faction
-		playerComp := fleetConfig.Compositions[0]
+			// Faction 0 is always the player faction
+			playerComp := fleetConfig.Compositions[0]
 
-		// Player faction must have at least one fighter or destroyer
-		hasControllableShip := playerComp.Fighters > 0 || playerComp.Destroyers > 0
+			// Player faction must have at least one fighter or destroyer
+			hasControllableShip := playerComp.Fighters > 0 || playerComp.Destroyers > 0
 
-		if !hasControllableShip {
-			t.Errorf("Seed %d: Player faction has no controllable ships! Composition: %d fighters, %d destroyers, %d testudons",
-				seed, playerComp.Fighters, playerComp.Destroyers, playerComp.Testudons)
+			if !hasControllableShip {
+				t.Errorf("Seed %d, Round %d: Player faction has no controllable ships! Composition: %d fighters, %d destroyers, %d testudons",
+					seed, round, playerComp.Fighters, playerComp.Destroyers, playerComp.Testudons)
+			}
 		}
 	}
 }

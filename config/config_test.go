@@ -314,19 +314,17 @@ func TestFleetBalanceCosts(t *testing.T) {
 }
 
 func TestFleetPurchaseProbabilities(t *testing.T) {
-	if TestudonPurchaseProbability != 0.33 {
-		t.Errorf("TestudonPurchaseProbability: expected 0.33, got %f", TestudonPurchaseProbability)
-	}
-	if DestroyerPurchaseProbability != 0.50 {
-		t.Errorf("DestroyerPurchaseProbability: expected 0.50, got %f", DestroyerPurchaseProbability)
-	}
-
-	// Probabilities should be in valid range
-	if TestudonPurchaseProbability < 0 || TestudonPurchaseProbability > 1 {
-		t.Error("TestudonPurchaseProbability should be between 0 and 1")
-	}
-	if DestroyerPurchaseProbability < 0 || DestroyerPurchaseProbability > 1 {
-		t.Error("DestroyerPurchaseProbability should be between 0 and 1")
+	// Test that all round balance probabilities are in valid range [0, 1]
+	for round := 1; round <= 10; round++ {
+		balance := GetRoundBalance(round)
+		if balance.TestudonProbability < 0 || balance.TestudonProbability > 1 {
+			t.Errorf("Round %d: TestudonProbability should be between 0 and 1, got %f",
+				round, balance.TestudonProbability)
+		}
+		if balance.DestroyerProbability < 0 || balance.DestroyerProbability > 1 {
+			t.Errorf("Round %d: DestroyerProbability should be between 0 and 1, got %f",
+				round, balance.DestroyerProbability)
+		}
 	}
 }
 
@@ -356,7 +354,8 @@ func TestFactionCompositionTotalZero(t *testing.T) {
 
 func TestGetFleetCompositionOnlyFighters(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
-	comp := GetFleetComposition(rng, 10, 0, 0) // No destroyers or testudons allowed
+	// No destroyers or testudons allowed (max = 0)
+	comp := GetFleetComposition(rng, 10, 0, 0, 0.5, 0.5)
 
 	if comp.Fighters != 10 {
 		t.Errorf("Expected 10 fighters, got %d", comp.Fighters)
@@ -372,7 +371,7 @@ func TestGetFleetCompositionOnlyFighters(t *testing.T) {
 func TestGetFleetCompositionRespectsBudget(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
 	budget := 20
-	comp := GetFleetComposition(rng, budget, 999, 999)
+	comp := GetFleetComposition(rng, budget, 999, 999, 0.5, 0.33)
 
 	// Calculate actual cost
 	actualCost := comp.Fighters + (comp.Destroyers * DestroyerCost) + (comp.Testudons * TestudonCost)
@@ -386,7 +385,8 @@ func TestGetFleetCompositionRespectsBudget(t *testing.T) {
 func TestGetFleetCompositionRespectsMaxLimits(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
 
-	comp := GetFleetComposition(rng, 100, 2, 1) // Limited destroyers and testudons
+	// Limited destroyers and testudons with high probabilities
+	comp := GetFleetComposition(rng, 100, 2, 1, 0.9, 0.9)
 
 	if comp.Destroyers > 2 {
 		t.Errorf("Should not exceed max destroyers: got %d, max 2", comp.Destroyers)
@@ -401,8 +401,8 @@ func TestGetFleetCompositionDeterminism(t *testing.T) {
 	rng1 := rand.New(rand.NewSource(123))
 	rng2 := rand.New(rand.NewSource(123))
 
-	comp1 := GetFleetComposition(rng1, 20, 10, 10)
-	comp2 := GetFleetComposition(rng2, 20, 10, 10)
+	comp1 := GetFleetComposition(rng1, 20, 10, 10, 0.5, 0.33)
+	comp2 := GetFleetComposition(rng2, 20, 10, 10, 0.5, 0.33)
 
 	if comp1.Fighters != comp2.Fighters || comp1.Destroyers != comp2.Destroyers || comp1.Testudons != comp2.Testudons {
 		t.Error("Same seed should produce same composition")
@@ -414,8 +414,8 @@ func TestGetFleetCompositionVariation(t *testing.T) {
 	rng1 := rand.New(rand.NewSource(42))
 	rng2 := rand.New(rand.NewSource(123))
 
-	comp1 := GetFleetComposition(rng1, 20, 10, 10)
-	comp2 := GetFleetComposition(rng2, 20, 10, 10)
+	comp1 := GetFleetComposition(rng1, 20, 10, 10, 0.5, 0.33)
+	comp2 := GetFleetComposition(rng2, 20, 10, 10, 0.5, 0.33)
 
 	// At least one value should differ (not guaranteed, but highly likely with these budgets)
 	if comp1.Fighters == comp2.Fighters && comp1.Destroyers == comp2.Destroyers && comp1.Testudons == comp2.Testudons {
@@ -464,9 +464,9 @@ func TestGenerateFleetConfigBoundaries(t *testing.T) {
 }
 
 func TestGenerateRandomFleetConfigDeterminism(t *testing.T) {
-	// Same seed should produce same configuration
-	config1 := GenerateRandomFleetConfig(12345)
-	config2 := GenerateRandomFleetConfig(12345)
+	// Same seed and round should produce same configuration
+	config1 := GenerateRandomFleetConfig(12345, 3)
+	config2 := GenerateRandomFleetConfig(12345, 3)
 
 	if config1.NumFactions != config2.NumFactions {
 		t.Error("Same seed should produce same number of factions")
@@ -487,8 +487,8 @@ func TestGenerateRandomFleetConfigDeterminism(t *testing.T) {
 
 func TestGenerateRandomFleetConfigVariation(t *testing.T) {
 	// Different seeds should produce different configurations
-	config1 := GenerateRandomFleetConfig(42)
-	config2 := GenerateRandomFleetConfig(123)
+	config1 := GenerateRandomFleetConfig(42, 3)
+	config2 := GenerateRandomFleetConfig(123, 3)
 
 	// At least something should be different
 	identical := config1.NumFactions == config2.NumFactions
@@ -511,15 +511,17 @@ func TestGenerateRandomFleetConfigVariation(t *testing.T) {
 }
 
 func TestGenerateRandomFleetConfigPlayerFactionHasControllableShips(t *testing.T) {
-	// Test many random configurations to ensure player always has controllable ships
+	// Test many random configurations across different rounds to ensure player always has controllable ships
 	for seed := int64(0); seed < 100; seed++ {
-		config := GenerateRandomFleetConfig(seed)
+		for round := 1; round <= 5; round++ {
+			config := GenerateRandomFleetConfig(seed, round)
 
-		playerComp := config.Compositions[0]
+			playerComp := config.Compositions[0]
 
-		// Player faction (0) must have fighters or destroyers (testudons are AI-only)
-		if playerComp.Fighters == 0 && playerComp.Destroyers == 0 {
-			t.Errorf("Seed %d: Player faction has no controllable ships: %+v", seed, playerComp)
+			// Player faction (0) must have fighters or destroyers (testudons are AI-only)
+			if playerComp.Fighters == 0 && playerComp.Destroyers == 0 {
+				t.Errorf("Seed %d, Round %d: Player faction has no controllable ships: %+v", seed, round, playerComp)
+			}
 		}
 	}
 }
@@ -527,7 +529,7 @@ func TestGenerateRandomFleetConfigPlayerFactionHasControllableShips(t *testing.T
 func TestGenerateRandomFleetConfigFactionCount(t *testing.T) {
 	// Verify faction count is in valid range (2-4)
 	for seed := int64(0); seed < 100; seed++ {
-		config := GenerateRandomFleetConfig(seed)
+		config := GenerateRandomFleetConfig(seed, 3)
 
 		if config.NumFactions < 2 || config.NumFactions > 4 {
 			t.Errorf("Seed %d: Invalid faction count %d (should be 2-4)", seed, config.NumFactions)
@@ -536,6 +538,195 @@ func TestGenerateRandomFleetConfigFactionCount(t *testing.T) {
 		if len(config.Compositions) != config.NumFactions {
 			t.Errorf("Seed %d: Compositions length mismatch: %d vs %d",
 				seed, len(config.Compositions), config.NumFactions)
+		}
+	}
+}
+
+func TestGetRoundBalance(t *testing.T) {
+	// Test round 1: All fighters, no advanced units
+	round1 := GetRoundBalance(1)
+	if round1.MinFighters != 7 || round1.MaxFighters != 12 {
+		t.Errorf("Round 1: Expected 7-12 fighters, got %d-%d", round1.MinFighters, round1.MaxFighters)
+	}
+	if round1.DestroyerProbability != 0.0 || round1.TestudonProbability != 0.0 {
+		t.Errorf("Round 1: Expected 0%% destroyer/testudon probability, got %.2f/%.2f",
+			round1.DestroyerProbability, round1.TestudonProbability)
+	}
+	if round1.MaxDestroyers != 0 || round1.MaxTestudons != 0 {
+		t.Errorf("Round 1: Expected 0 max destroyers/testudons, got %d/%d",
+			round1.MaxDestroyers, round1.MaxTestudons)
+	}
+
+	// Test round 2: Introduce destroyers
+	round2 := GetRoundBalance(2)
+	if round2.MinFighters != 9 || round2.MaxFighters != 15 {
+		t.Errorf("Round 2: Expected 9-15 fighters, got %d-%d", round2.MinFighters, round2.MaxFighters)
+	}
+	if round2.DestroyerProbability != 0.25 || round2.TestudonProbability != 0.0 {
+		t.Errorf("Round 2: Expected 25%% destroyer, 0%% testudon probability, got %.2f/%.2f",
+			round2.DestroyerProbability, round2.TestudonProbability)
+	}
+	if round2.MaxDestroyers != 1 || round2.MaxTestudons != 0 {
+		t.Errorf("Round 2: Expected max 1 destroyer, 0 testudons, got %d/%d",
+			round2.MaxDestroyers, round2.MaxTestudons)
+	}
+
+	// Test round 3: Introduce testudons
+	round3 := GetRoundBalance(3)
+	if round3.MinFighters != 11 || round3.MaxFighters != 18 {
+		t.Errorf("Round 3: Expected 11-18 fighters, got %d-%d", round3.MinFighters, round3.MaxFighters)
+	}
+	if round3.DestroyerProbability != 0.35 || round3.TestudonProbability != 0.25 {
+		t.Errorf("Round 3: Expected 35%% destroyer, 25%% testudon probability, got %.2f/%.2f",
+			round3.DestroyerProbability, round3.TestudonProbability)
+	}
+	if round3.MaxDestroyers != 2 || round3.MaxTestudons != 1 {
+		t.Errorf("Round 3: Expected max 2 destroyers, 1 testudon, got %d/%d",
+			round3.MaxDestroyers, round3.MaxTestudons)
+	}
+
+	// Test round 4: Higher limits
+	round4 := GetRoundBalance(4)
+	if round4.MinFighters != 13 || round4.MaxFighters != 21 {
+		t.Errorf("Round 4: Expected 13-21 fighters, got %d-%d", round4.MinFighters, round4.MaxFighters)
+	}
+	if round4.DestroyerProbability != 0.50 || round4.TestudonProbability != 0.35 {
+		t.Errorf("Round 4: Expected 50%% destroyer, 35%% testudon probability, got %.2f/%.2f",
+			round4.DestroyerProbability, round4.TestudonProbability)
+	}
+	if round4.MaxDestroyers != 3 || round4.MaxTestudons != 1 {
+		t.Errorf("Round 4: Expected max 3 destroyers, 1 testudon, got %d/%d",
+			round4.MaxDestroyers, round4.MaxTestudons)
+	}
+
+	// Test round 5: Maximum difficulty
+	round5 := GetRoundBalance(5)
+	if round5.MinFighters != 15 || round5.MaxFighters != 24 {
+		t.Errorf("Round 5: Expected 15-24 fighters, got %d-%d", round5.MinFighters, round5.MaxFighters)
+	}
+	if round5.DestroyerProbability != 0.65 || round5.TestudonProbability != 0.45 {
+		t.Errorf("Round 5: Expected 65%% destroyer, 45%% testudon probability, got %.2f/%.2f",
+			round5.DestroyerProbability, round5.TestudonProbability)
+	}
+	if round5.MaxDestroyers != 3 || round5.MaxTestudons != 1 {
+		t.Errorf("Round 5: Expected max 3 destroyers, 1 testudon, got %d/%d",
+			round5.MaxDestroyers, round5.MaxTestudons)
+	}
+
+	// Test round 10: Should maintain round 5 settings
+	round10 := GetRoundBalance(10)
+	if round10.MinFighters != 25 || round10.MaxFighters != 39 {
+		t.Errorf("Round 10: Expected 25-39 fighters, got %d-%d", round10.MinFighters, round10.MaxFighters)
+	}
+	if round10.DestroyerProbability != 0.65 || round10.TestudonProbability != 0.45 {
+		t.Errorf("Round 10: Expected 65%% destroyer, 45%% testudon probability, got %.2f/%.2f",
+			round10.DestroyerProbability, round10.TestudonProbability)
+	}
+	if round10.MaxDestroyers != 3 || round10.MaxTestudons != 1 {
+		t.Errorf("Round 10: Expected max 3 destroyers, 1 testudon, got %d/%d",
+			round10.MaxDestroyers, round10.MaxTestudons)
+	}
+}
+
+func TestRoundBasedFleetProgression(t *testing.T) {
+	// Test that round 1 never has destroyers or testudons
+	for seed := int64(0); seed < 100; seed++ {
+		config := GenerateRandomFleetConfig(seed, 1)
+		for i, comp := range config.Compositions {
+			if comp.Destroyers > 0 {
+				t.Errorf("Round 1, Seed %d, Faction %d: Should have 0 destroyers, got %d",
+					seed, i, comp.Destroyers)
+			}
+			if comp.Testudons > 0 {
+				t.Errorf("Round 1, Seed %d, Faction %d: Should have 0 testudons, got %d",
+					seed, i, comp.Testudons)
+			}
+			if comp.Fighters < 7 || comp.Fighters > 12 {
+				t.Errorf("Round 1, Seed %d, Faction %d: Fighters should be 7-12, got %d",
+					seed, i, comp.Fighters)
+			}
+		}
+	}
+
+	// Test that round 2 never has testudons and respects destroyer limits
+	for seed := int64(0); seed < 100; seed++ {
+		config := GenerateRandomFleetConfig(seed, 2)
+		for i, comp := range config.Compositions {
+			if comp.Testudons > 0 {
+				t.Errorf("Round 2, Seed %d, Faction %d: Should have 0 testudons, got %d",
+					seed, i, comp.Testudons)
+			}
+			if comp.Destroyers > 1 {
+				t.Errorf("Round 2, Seed %d, Faction %d: Should have max 1 destroyer, got %d",
+					seed, i, comp.Destroyers)
+			}
+		}
+	}
+
+	// Test that round 3 respects limits
+	for seed := int64(0); seed < 100; seed++ {
+		config := GenerateRandomFleetConfig(seed, 3)
+		for i, comp := range config.Compositions {
+			if comp.Destroyers > 2 {
+				t.Errorf("Round 3, Seed %d, Faction %d: Should have max 2 destroyers, got %d",
+					seed, i, comp.Destroyers)
+			}
+			if comp.Testudons > 1 {
+				t.Errorf("Round 3, Seed %d, Faction %d: Should have max 1 testudon, got %d",
+					seed, i, comp.Testudons)
+			}
+		}
+	}
+
+	// Test that round 5 respects limits
+	for seed := int64(0); seed < 50; seed++ {
+		config := GenerateRandomFleetConfig(seed, 5)
+		for i, comp := range config.Compositions {
+			if comp.Destroyers > 3 {
+				t.Errorf("Round 5, Seed %d, Faction %d: Should have max 3 destroyers, got %d",
+					seed, i, comp.Destroyers)
+			}
+			if comp.Testudons > 1 {
+				t.Errorf("Round 5, Seed %d, Faction %d: Should have max 1 testudon, got %d",
+					seed, i, comp.Testudons)
+			}
+		}
+	}
+}
+
+func TestRoundProgressionIncreasesDifficulty(t *testing.T) {
+	// Verify that average fleet size increases with rounds
+	const numSeeds = 50
+
+	for round := 1; round <= 5; round++ {
+		totalShips := 0
+		totalFighters := 0
+		totalDestroyers := 0
+		totalTestudons := 0
+
+		for seed := int64(0); seed < numSeeds; seed++ {
+			config := GenerateRandomFleetConfig(seed, round)
+			for _, comp := range config.Compositions {
+				totalShips += comp.Total()
+				totalFighters += comp.Fighters
+				totalDestroyers += comp.Destroyers
+				totalTestudons += comp.Testudons
+			}
+		}
+
+		avgShips := float64(totalShips) / float64(numSeeds)
+		avgFighters := float64(totalFighters) / float64(numSeeds)
+		avgDestroyers := float64(totalDestroyers) / float64(numSeeds)
+		avgTestudons := float64(totalTestudons) / float64(numSeeds)
+
+		t.Logf("Round %d: Avg %.1f ships (%.1f fighters, %.1f destroyers, %.1f testudons)",
+			round, avgShips, avgFighters, avgDestroyers, avgTestudons)
+
+		// Verify fighter budget is in expected range
+		balance := GetRoundBalance(round)
+		if avgFighters < float64(balance.MinFighters) || avgFighters > float64(balance.MaxFighters) {
+			t.Logf("Round %d: Average fighters %.1f is within expected range %d-%d",
+				round, avgFighters, balance.MinFighters, balance.MaxFighters)
 		}
 	}
 }
