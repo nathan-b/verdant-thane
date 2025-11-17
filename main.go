@@ -108,9 +108,7 @@ func (p *ProfileData) Reset() {
 
 // StartupProfileData tracks timing for game startup (main() to title screen)
 type StartupProfileData struct {
-	LoadLaserSprite     time.Duration
-	LoadMissileSprite   time.Duration
-	LoadExplosionSprite time.Duration
+	LoadBaseSprites     time.Duration
 	LoadFactionSprites  time.Duration
 	LoadFont            time.Duration
 	CreateUIDialogs     time.Duration
@@ -201,22 +199,18 @@ func NewGame() (*Game, error) {
 	if err != nil {
 		return nil, err
 	}
-	startupProfile.LoadLaserSprite = time.Since(t)
 
-	t = time.Now()
 	missileSprite, _, err := ebitenutil.NewImageFromFile("assets/missile.png")
 	if err != nil {
 		return nil, err
 	}
-	startupProfile.LoadMissileSprite = time.Since(t)
 
 	// Load explosion sprite sheet (400x70, 4 frames of 100x70 each)
-	t = time.Now()
 	explosionSprite, _, err := ebitenutil.NewImageFromFile("assets/explosion.png")
 	if err != nil {
 		return nil, err
 	}
-	startupProfile.LoadExplosionSprite = time.Since(t)
+	startupProfile.LoadBaseSprites = time.Since(t)
 
 	// Load faction sprites
 	t = time.Now()
@@ -303,7 +297,7 @@ func NewGame() (*Game, error) {
 	}
 	startupProfile.LoadSoundEffects = time.Since(t)
 
-	// Load menu music (needed immediately)
+	// Load menu music
 	t = time.Now()
 	if err := audioManager.LoadMusic("menu", "assets/energy-electrowave.mp3"); err != nil {
 		log.Printf("Warning: Failed to load menu music: %v", err)
@@ -391,29 +385,26 @@ func NewGame() (*Game, error) {
 	// Print startup profiling data if enabled
 	if *profileStartup {
 		// Calculate total measured time
-		measured := startupProfile.LoadLaserSprite +
-			startupProfile.LoadMissileSprite +
-			startupProfile.LoadExplosionSprite +
-			startupProfile.LoadFactionSprites +
-			startupProfile.LoadFont +
-			startupProfile.CreateUIDialogs +
-			startupProfile.LoadPersistence +
-			startupProfile.CreateEntityManager +
-			startupProfile.CreateAudioManager +
-			startupProfile.LoadSoundEffects +
-			startupProfile.LoadMenuMusic +
-			startupProfile.CreateChatWindow +
-			startupProfile.LoadBGMTracks +
-			createGameStruct +
-			wireUpGame +
-			startMenuMusic
+		measured :=
+			startupProfile.LoadBaseSprites +
+				startupProfile.LoadFactionSprites +
+				startupProfile.LoadFont +
+				startupProfile.CreateUIDialogs +
+				startupProfile.LoadPersistence +
+				startupProfile.CreateEntityManager +
+				startupProfile.CreateAudioManager +
+				startupProfile.LoadSoundEffects +
+				startupProfile.LoadMenuMusic +
+				startupProfile.CreateChatWindow +
+				startupProfile.LoadBGMTracks +
+				createGameStruct +
+				wireUpGame +
+				startMenuMusic
 
 		unaccounted := startupProfile.Total - measured
 
 		fmt.Printf("\n=== Startup Profiling (main() to title screen) ===\n")
-		fmt.Printf("  Load Laser Sprite:      %6.2f ms\n", float64(startupProfile.LoadLaserSprite.Microseconds())/1000.0)
-		fmt.Printf("  Load Missile Sprite:    %6.2f ms\n", float64(startupProfile.LoadMissileSprite.Microseconds())/1000.0)
-		fmt.Printf("  Load Explosion Sprite:  %6.2f ms\n", float64(startupProfile.LoadExplosionSprite.Microseconds())/1000.0)
+		fmt.Printf("  Load Base Sprites:      %6.2f ms\n", float64(startupProfile.LoadBaseSprites.Microseconds())/1000.0)
 		fmt.Printf("  Load Faction Sprites:   %6.2f ms\n", float64(startupProfile.LoadFactionSprites.Microseconds())/1000.0)
 		fmt.Printf("  Load Font:              %6.2f ms\n", float64(startupProfile.LoadFont.Microseconds())/1000.0)
 		fmt.Printf("  Create UI Dialogs:      %6.2f ms\n", float64(startupProfile.CreateUIDialogs.Microseconds())/1000.0)
@@ -429,7 +420,9 @@ func NewGame() (*Game, error) {
 		fmt.Printf("  Start Menu Music:       %6.2f ms\n", float64(startMenuMusic.Microseconds())/1000.0)
 		fmt.Printf("  ---\n")
 		fmt.Printf("  Total Measured:         %6.2f ms\n", float64(measured.Microseconds())/1000.0)
-		fmt.Printf("  UNACCOUNTED TIME:       %6.2f ms (!)\n", float64(unaccounted.Microseconds())/1000.0)
+		if unaccounted > 0 {
+			fmt.Printf("  UNACCOUNTED TIME(!):    %6.2f ms\n", float64(unaccounted.Microseconds())/1000.0)
+		}
 		fmt.Printf("  TOTAL STARTUP TIME:     %6.2f ms\n", float64(startupProfile.Total.Microseconds())/1000.0)
 		fmt.Printf("==================================================\n\n")
 	}
@@ -1454,7 +1447,7 @@ func (g *Game) renderMinimap(screen *ebiten.Image) {
 	const minimapY = config.ScreenHeight - minimapSize - minimapMargin
 
 	// Draw minimap background
-	vector.DrawFilledRect(screen, minimapX, minimapY, minimapSize, minimapSize, color.RGBA{20, 20, 20, 200}, false)
+	vector.FillRect(screen, minimapX, minimapY, minimapSize, minimapSize, color.RGBA{20, 20, 20, 200}, false)
 
 	// Calculate scaling factors
 	scaleX := float64(minimapSize) / float64(config.GameWidth)
@@ -1534,7 +1527,7 @@ func (g *Game) renderAfterburnerBar(screen *ebiten.Image) {
 	const barHeight = minimapSize
 
 	// Draw bar background (dark gray)
-	vector.DrawFilledRect(screen, barX, barY, barWidth, barHeight, color.RGBA{40, 40, 40, 200}, false)
+	vector.FillRect(screen, barX, barY, barWidth, barHeight, color.RGBA{40, 40, 40, 200}, false)
 
 	// Calculate fill height based on charge (0-360)
 	charge := playerShip.GetAfterburnerCharge()
@@ -1546,7 +1539,7 @@ func (g *Game) renderAfterburnerBar(screen *ebiten.Image) {
 	if fillHeight > 0 {
 		fillY := barY + barHeight - fillHeight
 		fillColor := color.RGBA{255, 140, 0, 255} // Orange
-		vector.DrawFilledRect(screen, barX, fillY, barWidth, fillHeight, fillColor, false)
+		vector.FillRect(screen, barX, fillY, barWidth, fillHeight, fillColor, false)
 	}
 
 	// Draw border
@@ -1579,7 +1572,7 @@ func (g *Game) renderChatWindow(screen *ebiten.Image) {
 	chatY := float32(minimapY)
 
 	// Draw semi-transparent background
-	vector.DrawFilledRect(screen, chatX, chatY, chatWidth, chatHeight, color.RGBA{20, 20, 20, 180}, false)
+	vector.FillRect(screen, chatX, chatY, chatWidth, chatHeight, color.RGBA{20, 20, 20, 180}, false)
 
 	// Draw border
 	borderColor := color.RGBA{100, 100, 100, 255}
