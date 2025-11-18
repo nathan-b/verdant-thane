@@ -632,19 +632,40 @@ func (f *Fighter) UpdateAI(ctx GameContext) {
 		if f.CanFireWeapon() && len(f.Weapons) > 0 {
 			angleFromForward := math.Abs(NormalizeAngle(angleToTarget - f.Rotation))
 			if angleFromForward <= f.Weapons[0].FiringCone/2 {
-				// Probabilistic firing based on config
-				roll := rand.Float64()
-				if roll < f.AIAccurateShotProbability {
-					// Accurate shot
-					f.FireWeapon(targetX, targetY, ctx)
-				} else if roll < f.AIAccurateShotProbability+f.AIRandomShotProbability {
-					// Random shot within cone
-					randomAngle := f.Rotation + (rand.Float64()-0.5)*f.Weapons[0].FiringCone
-					randomTargetX := f.X + math.Cos(randomAngle)*1000
-					randomTargetY := f.Y + math.Sin(randomAngle)*1000
-					f.FireWeapon(randomTargetX, randomTargetY, ctx)
+				// Calculate distance to target for range-dependent firing
+				distance := math.Sqrt(dx*dx + dy*dy)
+
+				// Calculate firing probability based on range
+				var firingProbability float64
+				if distance <= config.AIPreferredRange {
+					// Close range: max probability
+					firingProbability = config.AIMaxFiringProbability
+				} else if distance >= config.AIMaxRange {
+					// Far range: very low probability (10% of max)
+					firingProbability = config.AIMaxFiringProbability * 0.1
+				} else {
+					// Medium range: linear falloff
+					rangeFactor := (distance - config.AIPreferredRange) / (config.AIMaxRange - config.AIPreferredRange)
+					firingProbability = config.AIMaxFiringProbability * (1.0 - 0.9*rangeFactor)
 				}
-				// Else: don't fire
+
+				// Roll for firing decision
+				if rand.Float64() < firingProbability {
+					// Decide whether to fire accurately or randomly
+					shotTypeRoll := rand.Float64()
+					accurateFraction := f.AIAccurateShotProbability / (f.AIAccurateShotProbability + f.AIRandomShotProbability)
+
+					if shotTypeRoll < accurateFraction {
+						// Accurate shot
+						f.FireWeapon(targetX, targetY, ctx)
+					} else {
+						// Random shot within cone
+						randomAngle := f.Rotation + (rand.Float64()-0.5)*f.Weapons[0].FiringCone
+						randomTargetX := f.X + math.Cos(randomAngle)*1000
+						randomTargetY := f.Y + math.Sin(randomAngle)*1000
+						f.FireWeapon(randomTargetX, randomTargetY, ctx)
+					}
+				}
 			}
 		}
 	} else {

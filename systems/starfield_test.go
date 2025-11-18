@@ -534,11 +534,11 @@ func TestStarfieldBoundaryConditions(t *testing.T) {
 // from camera positions, especially when camera position is negative
 func TestGridCellCalculation(t *testing.T) {
 	testCases := []struct {
-		name          string
-		cameraPos     float64
-		gridSize      int
-		expectedGrid  int
-		description   string
+		name         string
+		cameraPos    float64
+		gridSize     int
+		expectedGrid int
+		description  string
 	}{
 		{
 			name:         "Positive camera in first grid",

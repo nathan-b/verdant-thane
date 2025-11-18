@@ -41,6 +41,11 @@ const (
 	AIPursuitSpeedMin  = 0.80                  // Minimum speed when pursuing (80% of max)
 	AIPursuitSpeedMax  = 1.00                  // Maximum speed when pursuing (100% of max)
 	AIPatrolSpeed      = 0.50                  // Speed when no target (50% of max)
+
+	// AI firing behavior (range-dependent)
+	AIMaxFiringProbability = 1.0 / 15.0 // Max firing probability (1 in 15 frames when weapon charged)
+	AIPreferredRange       = 350.0      // Range where AI fires at max probability (pixels)
+	AIMaxRange             = 1000.0     // Range where AI firing probability drops to near zero (pixels)
 )
 
 // Explosion animation
