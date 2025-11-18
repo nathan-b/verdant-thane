@@ -153,8 +153,8 @@ func TestTestudonKillByPlayerAwardsPoints(t *testing.T) {
 	if ctx.killCount != 1 {
 		t.Errorf("Expected 1 kill, got %d", ctx.killCount)
 	}
-	if ctx.scoreAdded != 50 {
-		t.Errorf("Expected 50 points for testudon kill, got %d", ctx.scoreAdded)
+	if ctx.scoreAdded != 100 {
+		t.Errorf("Expected 100 points for testudon kill, got %d", ctx.scoreAdded)
 	}
 }
 
@@ -948,8 +948,8 @@ func TestTestudonVersusPlayer(t *testing.T) {
 	testudon.TakeDamage(testudon.MaxHealth, 2, ctx)
 
 	// Player should get points
-	if ctx.scoreAdded != 50 {
-		t.Errorf("Expected 50 points for killing testudon, got %d", ctx.scoreAdded)
+	if ctx.scoreAdded != 100 {
+		t.Errorf("Expected 100 points for killing testudon, got %d", ctx.scoreAdded)
 	}
 	if ctx.killCount != 1 {
 		t.Errorf("Expected 1 kill, got %d", ctx.killCount)
