@@ -763,7 +763,7 @@ func (g *Game) Update() error {
 					g.gameOverScreen = nil
 					g.ReturnToTitleScreen()
 				},
-				// Quick restart callback (restarts with same fleet config)
+				// Restart callback (restarts with same fleet config and battle number)
 				func() {
 					if g.currentFleetConfig != nil {
 						// Clear game over screen
@@ -774,6 +774,26 @@ func (g *Game) Update() error {
 							log.Printf("Error restarting game: %v", err)
 							g.ReturnToTitleScreen()
 						}
+					}
+				},
+				// New game callback (starts from battle 1 with reset stats)
+				func() {
+					// Clear game over screen
+					g.gameOverScreen = nil
+
+					// Reset battle number to 1
+					g.battleNumber = 1
+
+					// Reset player stats (score, kills, deaths)
+					g.entityManager.ResetPlayerStats()
+
+					// Generate random fleet configuration for round 1
+					fleetConfig := config.GenerateRandomFleetConfig(rand.Int63(), g.battleNumber)
+
+					// Start new game
+					if err := g.StartGame(fleetConfig); err != nil {
+						log.Printf("Error starting new game: %v", err)
+						g.ReturnToTitleScreen()
 					}
 				},
 			)

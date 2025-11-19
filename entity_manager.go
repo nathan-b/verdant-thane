@@ -728,6 +728,14 @@ func (em *EntityManager) GetPlayerStats() (score, kills, deaths int) {
 	return em.score, em.kills, em.deaths
 }
 
+// ResetPlayerStats resets score, kills, and deaths to zero
+// Used when starting a new game from battle 1
+func (em *EntityManager) ResetPlayerStats() {
+	em.score = 0
+	em.kills = 0
+	em.deaths = 0
+}
+
 // CycleSpectateNext cycles to the next allied ship
 func (em *EntityManager) CycleSpectateNext() {
 	if !em.isSpectating {
