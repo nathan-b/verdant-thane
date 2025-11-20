@@ -821,13 +821,17 @@ func (em *EntityManager) RespawnIntoSpectatedShip() bool {
 		return false
 	}
 
-	// Replenish shields when taking control
-	// We need to access the underlying implementation to restore health
+	// Replenish shields and reset afterburner when taking control
+	// We need to access the underlying implementation to restore health and reset afterburner
 	switch s := ship.(type) {
 	case *entity.Fighter:
 		s.Health = s.MaxHealth
+		// Reset afterburner to prevent accidental activation from held space bar
+		s.AfterburnerCharge = 0
 	case *entity.Destroyer:
 		s.Health = s.MaxHealth
+		// Reset afterburner to prevent accidental activation from held space bar
+		s.AfterburnerCharge = 0
 	}
 
 	// Take control
