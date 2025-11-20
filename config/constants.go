@@ -53,6 +53,11 @@ const (
 	ExplosionFrameCount = 4 // Total number of explosion animation frames
 )
 
+// Audio settings
+const (
+	AudioAudibleRange = 1500.0 // Distance in pixels within which sounds are audible to player
+)
+
 // Starfield rendering
 const (
 	StarDensity  = 0.0003 // stars per pixel

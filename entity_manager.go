@@ -113,8 +113,8 @@ func (em *EntityManager) SpawnProjectile(cfg entity.MainGunConfig) {
 	laser := entity.NewMainGunProjectile(id, cfg)
 	em.projectiles[id] = laser
 
-	// Play laser sound effect
-	if em.audioManager != nil {
+	// Play laser sound effect if within audible range
+	if em.audioManager != nil && em.isAudibleToPlayer(cfg.X, cfg.Y) {
 		em.audioManager.PlaySound("laser")
 	}
 }
@@ -130,8 +130,8 @@ func (em *EntityManager) SpawnMissile(cfg entity.MissileConfig) {
 	missile := entity.NewMissileProjectile(id, cfg)
 	em.projectiles[id] = missile
 
-	// Play laser sound effect (missiles use same sound as main gun for now)
-	if em.audioManager != nil {
+	// Play laser sound effect if within audible range (missiles use same sound as main gun for now)
+	if em.audioManager != nil && em.isAudibleToPlayer(cfg.X, cfg.Y) {
 		em.audioManager.PlaySound("laser")
 	}
 }
@@ -144,8 +144,8 @@ func (em *EntityManager) SpawnExplosion(x, y float64) {
 	explosion := entity.NewExplosion(id, x, y, em.explosionSprite)
 	em.explosions[id] = explosion
 
-	// Play explosion sound effect
-	if em.audioManager != nil {
+	// Play explosion sound effect if within audible range
+	if em.audioManager != nil && em.isAudibleToPlayer(x, y) {
 		em.audioManager.PlaySound("explosion")
 	}
 }
@@ -409,6 +409,27 @@ func (em *EntityManager) PlayImpactSound(targetShip entity.Ship) {
 	if em.audioManager != nil && targetShip.IsPlayerControlled() {
 		em.audioManager.PlaySound("impact")
 	}
+}
+
+// isAudibleToPlayer checks if a sound at the given position should be audible to the player
+// Returns true if the position is within audible range of the player ship
+func (em *EntityManager) isAudibleToPlayer(x, y float64) bool {
+	// If no player ship, don't play sounds
+	if em.playerShipID < 0 {
+		return false
+	}
+
+	playerShip := em.ships[em.playerShipID]
+	if playerShip == nil || !playerShip.IsAlive() {
+		return false
+	}
+
+	// Calculate distance to player
+	playerX, playerY := playerShip.GetPosition()
+	distance := entity.Distance(playerX, playerY, x, y)
+
+	// Check if within audible range (defined in config)
+	return distance < config.AudioAudibleRange
 }
 
 // OnShipDestroyed handles chat events when a ship is destroyed
