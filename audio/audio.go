@@ -29,6 +29,9 @@ type Manager struct {
 	musicVolume float64           // 0.0 to 1.0
 	musicPlayer *audio.Player     // Current music player (only one plays at a time)
 	musicFiles  map[string][]byte // Compressed MP3 data (not decoded)
+
+	// Looping sound effects (e.g., beam weapon)
+	loopingSounds map[int]*audio.Player // ID -> looping player
 }
 
 // NewManager creates a new audio manager
@@ -36,14 +39,15 @@ func NewManager() (*Manager, error) {
 	ctx := audio.NewContext(sampleRate)
 
 	return &Manager{
-		context:     ctx,
-		sounds:      make(map[string]*SoundEffect),
-		soundMuted:  false,
-		soundVolume: 1.0,
-		musicMuted:  false,
-		musicVolume: 1.0,
-		musicPlayer: nil,
-		musicFiles:  make(map[string][]byte),
+		context:       ctx,
+		sounds:        make(map[string]*SoundEffect),
+		soundMuted:    false,
+		soundVolume:   1.0,
+		musicMuted:    false,
+		musicVolume:   1.0,
+		musicPlayer:   nil,
+		musicFiles:    make(map[string][]byte),
+		loopingSounds: make(map[int]*audio.Player),
 	}, nil
 }
 
@@ -247,4 +251,61 @@ func (m *Manager) SetMusicVolume(volume float64) {
 // GetMusicVolume returns the current music volume (0.0 to 1.0)
 func (m *Manager) GetMusicVolume() float64 {
 	return m.musicVolume
+}
+
+// StartLoopingSound starts playing a looping sound effect for a given entity ID
+// If the sound is already playing for this ID, does nothing
+func (m *Manager) StartLoopingSound(id int, name string) error {
+	if m.soundMuted {
+		return nil
+	}
+
+	// Check if already playing for this ID
+	if _, exists := m.loopingSounds[id]; exists {
+		return nil
+	}
+
+	sound, exists := m.sounds[name]
+	if !exists {
+		return fmt.Errorf("sound %s not loaded", name)
+	}
+
+	// Create infinite loop from the sound data
+	infiniteLoop := audio.NewInfiniteLoopWithIntro(bytes.NewReader(sound.data), 0, int64(len(sound.data)))
+
+	// Create player from infinite loop
+	player, err := m.context.NewPlayer(infiniteLoop)
+	if err != nil {
+		return fmt.Errorf("failed to create looping player: %w", err)
+	}
+
+	player.SetVolume(m.soundVolume)
+	player.Play()
+
+	m.loopingSounds[id] = player
+	return nil
+}
+
+// StopLoopingSound stops a looping sound for a given entity ID
+func (m *Manager) StopLoopingSound(id int) {
+	if player, exists := m.loopingSounds[id]; exists {
+		player.Pause()
+		player.Close()
+		delete(m.loopingSounds, id)
+	}
+}
+
+// IsLoopingSoundPlaying returns whether a looping sound is currently playing for an ID
+func (m *Manager) IsLoopingSoundPlaying(id int) bool {
+	_, exists := m.loopingSounds[id]
+	return exists
+}
+
+// StopAllLoopingSounds stops all currently playing looping sounds
+func (m *Manager) StopAllLoopingSounds() {
+	for id, player := range m.loopingSounds {
+		player.Pause()
+		player.Close()
+		delete(m.loopingSounds, id)
+	}
 }

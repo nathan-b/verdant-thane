@@ -432,6 +432,35 @@ func (em *EntityManager) isAudibleToPlayer(x, y float64) bool {
 	return distance < config.AudioAudibleRange
 }
 
+// updateBeamSounds updates the looping beam weapon sounds for all Testudons
+// Starts sound if firing and audible, stops if not firing or out of range
+func (em *EntityManager) updateBeamSounds() {
+	if em.audioManager == nil {
+		return
+	}
+
+	// Track which testudons are currently firing and audible
+	for _, ship := range em.ships {
+		testudon, ok := ship.(*entity.Testudon)
+		if !ok {
+			continue
+		}
+
+		testudonID := testudon.GetID()
+		isFiring := testudon.GetBeamTargetID() >= 0
+		x, y := testudon.GetPosition()
+		isAudible := em.isAudibleToPlayer(x, y)
+
+		if isFiring && isAudible && testudon.IsAlive() {
+			// Start beam sound if not already playing
+			em.audioManager.StartLoopingSound(testudonID, "beam")
+		} else {
+			// Stop beam sound if playing
+			em.audioManager.StopLoopingSound(testudonID)
+		}
+	}
+}
+
 // OnShipDestroyed handles chat events when a ship is destroyed
 func (em *EntityManager) OnShipDestroyed(victimShipID int, killerShipID int) {
 	if em.chatWindow == nil {
@@ -542,6 +571,9 @@ func (em *EntityManager) UpdateAll() {
 	if em.profiler != nil {
 		em.profiler.RecordBeamWeapons(time.Since(beamStart))
 	}
+
+	// Update beam weapon sounds (after beam weapon pass)
+	em.updateBeamSounds()
 
 	// Pass 4: Movement updates for all ships and cleanup of dead ships
 	movementStart := time.Now()

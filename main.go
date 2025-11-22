@@ -295,6 +295,9 @@ func NewGame() (*Game, error) {
 	if err := audioManager.LoadSound("explosion", "assets/explosion.wav"); err != nil {
 		log.Printf("Warning: Failed to load explosion sound: %v", err)
 	}
+	if err := audioManager.LoadSound("beam", "assets/beam.wav"); err != nil {
+		log.Printf("Warning: Failed to load beam sound: %v", err)
+	}
 	startupProfile.LoadSoundEffects = time.Since(t)
 
 	// Load menu music
