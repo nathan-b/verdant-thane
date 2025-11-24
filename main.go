@@ -439,8 +439,10 @@ func NewGame() (*Game, error) {
 // ReturnToTitleScreen transitions to the title screen and resumes menu music
 func (g *Game) ReturnToTitleScreen() {
 	g.currentState = TitleScreen
-	if err := g.audioManager.PlayMusic("menu"); err != nil {
-		log.Printf("Warning: Failed to play menu music: %v", err)
+	if g.audioManager != nil {
+		if err := g.audioManager.PlayMusic("menu"); err != nil {
+			log.Printf("Warning: Failed to play menu music: %v", err)
+		}
 	}
 }
 
@@ -545,10 +547,12 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 
 	// Play random in-game music
 	t = time.Now()
-	bgmIndex := rand.Intn(5) // We have 5 BGM tracks (bgm0 through bgm4)
-	bgmName := fmt.Sprintf("bgm%d", bgmIndex)
-	if err := g.audioManager.PlayMusic(bgmName); err != nil {
-		log.Printf("Warning: Failed to play BGM: %v", err)
+	if g.audioManager != nil {
+		bgmIndex := rand.Intn(5) // We have 5 BGM tracks (bgm0 through bgm4)
+		bgmName := fmt.Sprintf("bgm%d", bgmIndex)
+		if err := g.audioManager.PlayMusic(bgmName); err != nil {
+			log.Printf("Warning: Failed to play BGM: %v", err)
+		}
 	}
 	g.newGameProfile.LoadGameMusic = time.Since(t)
 
@@ -572,7 +576,7 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 	return nil
 }
 
-// Update updates the game logic using ECS systems
+// Update updates the game logic
 // This is called 60 times per second
 func (g *Game) Update() error {
 	// Update performance counters
@@ -619,7 +623,7 @@ func (g *Game) Update() error {
 
 		// Handle sound mute toggle (N key)
 		keyN := ebiten.IsKeyPressed(ebiten.KeyN)
-		if keyN && !g.prevKeyN {
+		if keyN && !g.prevKeyN && g.audioManager != nil {
 			// N key was just pressed - toggle sound mute
 			g.audioManager.ToggleSoundMute()
 
@@ -633,7 +637,7 @@ func (g *Game) Update() error {
 
 		// Handle music mute toggle (M key)
 		keyM := ebiten.IsKeyPressed(ebiten.KeyM)
-		if keyM && !g.prevKeyM {
+		if keyM && !g.prevKeyM && g.audioManager != nil {
 			// M key was just pressed - toggle music mute
 			g.audioManager.ToggleMusicMute()
 
@@ -857,19 +861,37 @@ func (g *Game) Update() error {
 	case Settings:
 		// Create settings screen if not already created
 		if g.settingsScreen == nil {
+			// Get current audio settings (use defaults if audio manager is nil)
+			var soundMuted, musicMuted bool
+			var soundVolume, musicVolume float64
+			if g.audioManager != nil {
+				soundMuted = g.audioManager.IsSoundMuted()
+				soundVolume = g.audioManager.GetSoundVolume()
+				musicMuted = g.audioManager.IsMusicMuted()
+				musicVolume = g.audioManager.GetMusicVolume()
+			} else {
+				// Use saved settings as defaults if no audio manager
+				soundMuted = g.settings.SoundMuted
+				soundVolume = g.settings.SoundVolume
+				musicMuted = g.settings.MusicMuted
+				musicVolume = g.settings.MusicVolume
+			}
+
 			g.settingsScreen = ui.NewSettingsScreen(
-				g.audioManager.IsSoundMuted(),
-				g.audioManager.GetSoundVolume(),
-				g.audioManager.IsMusicMuted(),
-				g.audioManager.GetMusicVolume(),
+				soundMuted,
+				soundVolume,
+				musicMuted,
+				musicVolume,
 				g.settings.ChatEnabled,
 				g.hudFont.Source,
 				func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64, chatEnabled bool) {
-					// Apply settings
-					g.audioManager.SetSoundMuted(soundMuted)
-					g.audioManager.SetSoundVolume(soundVolume)
-					g.audioManager.SetMusicMuted(musicMuted)
-					g.audioManager.SetMusicVolume(musicVolume)
+					// Apply settings to audio manager if available
+					if g.audioManager != nil {
+						g.audioManager.SetSoundMuted(soundMuted)
+						g.audioManager.SetSoundVolume(soundVolume)
+						g.audioManager.SetMusicMuted(musicMuted)
+						g.audioManager.SetMusicVolume(musicVolume)
+					}
 
 					// Update settings struct
 					g.settings.SoundMuted = soundMuted
@@ -879,11 +901,13 @@ func (g *Game) Update() error {
 					g.settings.ChatEnabled = chatEnabled
 				},
 				func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64, chatEnabled bool) {
-					// Save settings callback
-					g.audioManager.SetSoundMuted(soundMuted)
-					g.audioManager.SetSoundVolume(soundVolume)
-					g.audioManager.SetMusicMuted(musicMuted)
-					g.audioManager.SetMusicVolume(musicVolume)
+					// Apply settings to audio manager if available
+					if g.audioManager != nil {
+						g.audioManager.SetSoundMuted(soundMuted)
+						g.audioManager.SetSoundVolume(soundVolume)
+						g.audioManager.SetMusicMuted(musicMuted)
+						g.audioManager.SetMusicVolume(musicVolume)
+					}
 
 					// Update settings struct
 					g.settings.SoundMuted = soundMuted
