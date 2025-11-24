@@ -1,13 +1,22 @@
 package entity
 
 import (
+	"image/color"
 	"math"
 	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 
 	"github.com/nathan/verdant-thane/config"
 )
+
+// emptyImage is a 1x1 white image used for drawing solid color triangles
+var emptyImage = func() *ebiten.Image {
+	img := ebiten.NewImage(1, 1)
+	img.Fill(color.White)
+	return img
+}()
 
 type Weapon struct {
 	WeaponCapacitor  float64 // 0.0 to 1.0
@@ -167,6 +176,11 @@ func (b *BaseShip) Render(screen *ebiten.Image, cameraX, cameraY float64) {
 	// Get wrapped screen position (handles world wrapping)
 	screenX, screenY := GetWrappedScreenPosition(b.X, b.Y, cameraX, cameraY)
 
+	// Draw afterburner flame cone (before ship so it appears behind)
+	if b.AfterburnerActive && b.HasAfterburnerSystem {
+		b.renderAfterburnerFlame(screen, screenX, screenY)
+	}
+
 	opts := &ebiten.DrawImageOptions{}
 
 	// Rotation
@@ -177,6 +191,55 @@ func (b *BaseShip) Render(screen *ebiten.Image, cameraX, cameraY float64) {
 	opts.GeoM.Translate(screenX, screenY)
 
 	screen.DrawImage(b.Sprite, opts)
+}
+
+// renderAfterburnerFlame draws a cone-shaped flame behind the ship
+func (b *BaseShip) renderAfterburnerFlame(screen *ebiten.Image, screenX, screenY float64) {
+	// Flame cone dimensions: half the sprite height in length, spreads to ~1/3 sprite width
+	spriteHeight := float64(b.Sprite.Bounds().Dy())
+	flameLength := spriteHeight * 0.5
+	flameBaseWidth := spriteHeight * 0.3
+
+	// Rear direction is opposite of rotation (rotation + π)
+	// Ships face UP (negative Y), so rear is positive Y in local space
+	rearAngle := b.Rotation + math.Pi
+
+	// Calculate the rear center point (where flame originates, at back of ship)
+	rearOffset := spriteHeight * 0.4 // Slightly inside the back of the ship
+	rearX := screenX + math.Sin(rearAngle)*rearOffset
+	rearY := screenY - math.Cos(rearAngle)*rearOffset
+
+	// Calculate flame tip (extends further back)
+	tipX := screenX + math.Sin(rearAngle)*(rearOffset+flameLength)
+	tipY := screenY - math.Cos(rearAngle)*(rearOffset+flameLength)
+
+	// Calculate the two base corners of the cone (perpendicular to rear direction)
+	perpAngle := rearAngle + math.Pi/2
+	halfWidth := flameBaseWidth / 2
+	baseX1 := rearX + math.Sin(perpAngle)*halfWidth
+	baseY1 := rearY - math.Cos(perpAngle)*halfWidth
+	baseX2 := rearX - math.Sin(perpAngle)*halfWidth
+	baseY2 := rearY + math.Cos(perpAngle)*halfWidth
+
+	// Draw the flame as a filled triangle
+	flameColor := color.RGBA{255, 140, 0, 255} // Orange, fully opaque
+
+	// Draw triangle for flame cone
+	path := vector.Path{}
+	path.MoveTo(float32(baseX1), float32(baseY1))
+	path.LineTo(float32(tipX), float32(tipY))
+	path.LineTo(float32(baseX2), float32(baseY2))
+	path.Close()
+
+	// Fill the triangle
+	vs, is := path.AppendVerticesAndIndicesForFilling(nil, nil)
+	for i := range vs {
+		vs[i].ColorR = float32(flameColor.R) / 255
+		vs[i].ColorG = float32(flameColor.G) / 255
+		vs[i].ColorB = float32(flameColor.B) / 255
+		vs[i].ColorA = float32(flameColor.A) / 255
+	}
+	screen.DrawTriangles(vs, is, emptyImage, &ebiten.DrawTrianglesOptions{})
 }
 
 // GetID returns the entity's unique ID (BaseShip method)
@@ -532,16 +595,7 @@ func (b *BaseShip) UpdatePlayerInput(ctx GameContext) {
 			if b.AfterburnerCharge < 0 {
 				b.AfterburnerCharge = 0
 			}
-
-			// Spawn afterburner particles (orange exhaust from rear of ship)
-			// Rear direction is opposite of rotation (rotation + π)
-			rearAngle := b.Rotation + math.Pi
-			particleOffset := 15.0
-			particleX := b.X + math.Sin(rearAngle)*particleOffset
-			particleY := b.Y + -math.Cos(rearAngle)*particleOffset
-
-			// Spawn 1-2 particles per tick when afterburner is active
-			ctx.SpawnParticle(particleX, particleY, b.VelocityX, b.VelocityY)
+			// Flame cone is now rendered in Render() instead of spawning particles
 		} else {
 			b.AfterburnerActive = false
 		}

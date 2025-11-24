@@ -461,6 +461,26 @@ func (em *EntityManager) updateBeamSounds() {
 	}
 }
 
+// afterburnerSoundID is a special ID used for the player's afterburner looping sound
+const afterburnerSoundID = -1000
+
+// updateAfterburnerSound updates the looping afterburner sound for the player
+func (em *EntityManager) updateAfterburnerSound() {
+	if em.audioManager == nil {
+		return
+	}
+
+	// Check if player ship exists and has active afterburner
+	playerShip := em.GetPlayerShip()
+	if playerShip != nil && playerShip.IsAlive() && playerShip.IsAfterburnerActive() {
+		// Start afterburner sound if not already playing
+		em.audioManager.StartLoopingSound(afterburnerSoundID, "afterburner")
+	} else {
+		// Stop afterburner sound if playing
+		em.audioManager.StopLoopingSound(afterburnerSoundID)
+	}
+}
+
 // OnShipDestroyed handles chat events when a ship is destroyed
 func (em *EntityManager) OnShipDestroyed(victimShipID int, killerShipID int) {
 	if em.chatWindow == nil {
@@ -574,6 +594,9 @@ func (em *EntityManager) UpdateAll() {
 
 	// Update beam weapon sounds (after beam weapon pass)
 	em.updateBeamSounds()
+
+	// Update afterburner sound for player
+	em.updateAfterburnerSound()
 
 	// Pass 4: Movement updates for all ships and cleanup of dead ships
 	movementStart := time.Now()
