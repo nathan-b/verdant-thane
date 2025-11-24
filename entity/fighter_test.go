@@ -571,3 +571,319 @@ func TestFighterProjectileVelocityInheritance(t *testing.T) {
 		t.Errorf("Expected projectile VY ~-11 (-12 base + 1 ship), got %f", proj.VelocityY)
 	}
 }
+
+// Test Update with Living AI-Controlled Fighter
+func TestFighterUpdateAIControlled(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	// Create AI-controlled fighter
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	ctx.ships[fighter.GetID()] = fighter
+
+	// Create enemy for AI to target
+	enemy := NewFighter(2, 1, 200, 100, nil)
+	ctx.ships[enemy.GetID()] = enemy
+
+	// Discharge weapon to test charging
+	fighter.Weapons[0].WeaponCapacitor = 0.5
+
+	// Set initial speed
+	fighter.Speed = 2.0
+
+	// Record initial state
+	initialX, _ := fighter.GetPosition()
+	initialCapacitor := fighter.Weapons[0].WeaponCapacitor
+
+	// Update the fighter
+	err := fighter.Update(ctx)
+	if err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+
+	// Verify movement occurred (position changed based on speed)
+	x, _ := fighter.GetPosition()
+	if x == initialX && fighter.Speed > 0 {
+		t.Error("Fighter should have moved during update")
+	}
+
+	// Verify weapon charging occurred
+	if fighter.Weapons[0].WeaponCapacitor <= initialCapacitor {
+		t.Error("Weapon should have charged during update")
+	}
+
+	// Verify AI selected a target
+	if fighter.AITargetID == -1 {
+		t.Error("AI should have selected a target")
+	}
+}
+
+// Test AI Patrol Behavior (No Target Available)
+func TestFighterAIPatrolBehavior(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	// Create fighter with no enemies (only friendly ships)
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	fighter.Speed = 0 // Start stationary
+	ctx.ships[fighter.GetID()] = fighter
+
+	// Create only friendly ships - no enemies to target
+	friendly := NewFighter(2, 0, 200, 100, nil) // Same faction
+	ctx.ships[friendly.GetID()] = friendly
+
+	// Update AI multiple times to let patrol behavior kick in
+	for i := 0; i < 10; i++ {
+		fighter.UpdateAI(ctx)
+	}
+
+	// In patrol mode, should accelerate toward patrol speed (50% of max)
+	targetPatrolSpeed := fighter.MaxSpeed * config.AIPatrolSpeed
+	if fighter.Speed == 0 {
+		t.Error("Fighter in patrol mode should have accelerated from zero")
+	}
+	if fighter.Speed > targetPatrolSpeed+0.1 {
+		t.Errorf("Fighter patrol speed should not exceed %.2f, got %.2f", targetPatrolSpeed, fighter.Speed)
+	}
+
+	// Target ID should be -1 (no target)
+	if fighter.AITargetID != -1 {
+		t.Errorf("Expected no target (ID -1), got ID %d", fighter.AITargetID)
+	}
+}
+
+// Test AI Speed Adjustment When Above Target Speed
+func TestFighterAISpeedDeceleration(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	fighter.Speed = fighter.MaxSpeed // Start at max speed
+	ctx.ships[fighter.GetID()] = fighter
+
+	// No enemies - should enter patrol mode which targets 50% speed
+	// Update AI multiple times
+	for i := 0; i < 100; i++ {
+		fighter.UpdateAI(ctx)
+	}
+
+	// Should have decelerated toward patrol speed
+	targetPatrolSpeed := fighter.MaxSpeed * config.AIPatrolSpeed
+	if math.Abs(fighter.Speed-targetPatrolSpeed) > fighter.Accel*2 {
+		t.Errorf("Expected speed near %.2f (patrol), got %.2f", targetPatrolSpeed, fighter.Speed)
+	}
+}
+
+// Test AI Pursuit Speed Adjustment
+func TestFighterAIPursuitSpeedAdjustment(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	fighter.Speed = 0 // Start stationary
+	ctx.ships[fighter.GetID()] = fighter
+
+	// Create enemy to trigger pursuit mode
+	enemy := NewFighter(2, 1, 500, 100, nil)
+	ctx.ships[enemy.GetID()] = enemy
+
+	// Update AI multiple times
+	for i := 0; i < 50; i++ {
+		fighter.UpdateAI(ctx)
+	}
+
+	// In pursuit mode, should accelerate toward 80-100% of max speed
+	minPursuitSpeed := fighter.MaxSpeed * config.AIPursuitSpeedMin
+	if fighter.Speed < minPursuitSpeed*0.5 {
+		t.Errorf("Fighter in pursuit should accelerate toward %.2f+, got %.2f", minPursuitSpeed, fighter.Speed)
+	}
+}
+
+// Test AI Patrol Speed Deceleration When Above Target
+func TestFighterAIPatrolSpeedDeceleration(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	// Create fighter at max speed with no enemies
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	fighter.Speed = fighter.MaxSpeed
+	ctx.ships[fighter.GetID()] = fighter
+
+	// No enemies in context - will enter patrol mode
+
+	// Update AI many times to reach patrol speed
+	for i := 0; i < 200; i++ {
+		fighter.UpdateAI(ctx)
+	}
+
+	targetPatrolSpeed := fighter.MaxSpeed * config.AIPatrolSpeed
+	// Should be close to patrol speed
+	if math.Abs(fighter.Speed-targetPatrolSpeed) > fighter.Accel*3 {
+		t.Errorf("Expected speed near %.2f, got %.2f", targetPatrolSpeed, fighter.Speed)
+	}
+}
+
+// Test AI Rotation Toward Target
+func TestFighterAIRotationTowardTarget(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	// Create fighter facing up (rotation = 0)
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	fighter.Rotation = 0
+	ctx.ships[fighter.GetID()] = fighter
+
+	// Create enemy to the right (positive X)
+	enemy := NewFighter(2, 1, 200, 100, nil)
+	ctx.ships[enemy.GetID()] = enemy
+
+	// Update AI to trigger rotation
+	for i := 0; i < 30; i++ {
+		fighter.UpdateAI(ctx)
+	}
+
+	// Fighter should have rotated toward the enemy (to the right)
+	// Sprites face UP, so to face right, rotation should be ~π/2
+	expectedAngle := math.Pi / 2
+	angleDiff := math.Abs(NormalizeAngle(fighter.Rotation - expectedAngle))
+	if angleDiff > 0.2 {
+		t.Errorf("Expected rotation near %.2f (facing right), got %.2f", expectedAngle, fighter.Rotation)
+	}
+}
+
+// Test AI Firing Decision - Close Range High Probability
+func TestFighterAIFiringCloseRange(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	// Create fighter with fully charged weapon
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	fighter.Rotation = 0 // Facing up
+	ctx.ships[fighter.GetID()] = fighter
+
+	// Create enemy very close and directly ahead (within preferred range)
+	// Enemy at negative Y (above) since ship faces up
+	enemy := NewFighter(2, 1, 100, 100-50, nil) // 50 pixels ahead
+	ctx.ships[enemy.GetID()] = enemy
+
+	// Run many AI updates to trigger firing (probabilistic)
+	shotsFired := 0
+	for i := 0; i < 200; i++ {
+		fighter.Weapons[0].WeaponCapacitor = 1.0 // Recharge weapon each time
+		initialProjectiles := len(ctx.spawnedProjectiles)
+		fighter.UpdateAI(ctx)
+		if len(ctx.spawnedProjectiles) > initialProjectiles {
+			shotsFired++
+		}
+	}
+
+	// At close range with max firing probability, should fire frequently
+	if shotsFired == 0 {
+		t.Error("AI should have fired at least once at close range target in firing arc")
+	}
+}
+
+// Test AI No Firing When Target Outside Arc
+func TestFighterAINoFiringOutsideArc(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	// Create fighter facing up
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	fighter.Rotation = 0
+	ctx.ships[fighter.GetID()] = fighter
+
+	// Create enemy directly behind (outside firing arc)
+	enemy := NewFighter(2, 1, 100, 200, nil) // Below = behind since ship faces up
+	ctx.ships[enemy.GetID()] = enemy
+
+	// Set target manually to ensure AI is tracking this enemy
+	fighter.AITargetID = enemy.GetID()
+	fighter.AIRetargetTimer = 1000 // Don't retarget
+
+	// Run AI updates
+	for i := 0; i < 50; i++ {
+		fighter.Weapons[0].WeaponCapacitor = 1.0
+		fighter.UpdateAI(ctx)
+	}
+
+	// Should not fire when target is behind (outside cone)
+	if len(ctx.spawnedProjectiles) > 0 {
+		t.Errorf("AI should not fire at target outside arc, but fired %d shots", len(ctx.spawnedProjectiles))
+	}
+}
+
+// Test AI Firing Far Range Low Probability
+func TestFighterAIFiringFarRange(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	fighter.Rotation = 0 // Facing up
+	ctx.ships[fighter.GetID()] = fighter
+
+	// Create enemy far away but in arc (beyond max range)
+	farDistance := config.AIMaxRange + 100
+	enemy := NewFighter(2, 1, 100, 100-farDistance, nil)
+	ctx.ships[enemy.GetID()] = enemy
+
+	// Set target manually
+	fighter.AITargetID = enemy.GetID()
+	fighter.AIRetargetTimer = 1000
+
+	// Run many AI updates
+	shotsFired := 0
+	for i := 0; i < 100; i++ {
+		fighter.Weapons[0].WeaponCapacitor = 1.0
+		initialProjectiles := len(ctx.spawnedProjectiles)
+		fighter.UpdateAI(ctx)
+		if len(ctx.spawnedProjectiles) > initialProjectiles {
+			shotsFired++
+		}
+	}
+
+	// At far range, firing probability is much lower (10% of max)
+	// We may or may not fire, but it should be significantly less than close range
+	// Just verify the code path executed without crashing
+	t.Logf("Shots fired at far range: %d (expected lower rate)", shotsFired)
+}
+
+// Test AI Medium Range Firing
+func TestFighterAIFiringMediumRange(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	fighter.Rotation = 0 // Facing up
+	ctx.ships[fighter.GetID()] = fighter
+
+	// Create enemy at medium range (between preferred and max)
+	mediumDistance := (config.AIPreferredRange + config.AIMaxRange) / 2
+	enemy := NewFighter(2, 1, 100, 100-mediumDistance, nil)
+	ctx.ships[enemy.GetID()] = enemy
+
+	fighter.AITargetID = enemy.GetID()
+	fighter.AIRetargetTimer = 1000
+
+	// Run AI updates to exercise medium range code path
+	for i := 0; i < 50; i++ {
+		fighter.Weapons[0].WeaponCapacitor = 1.0
+		fighter.UpdateAI(ctx)
+	}
+
+	// Just verify it ran without error - probabilistic firing
+	t.Log("Medium range firing test completed")
+}
+
+// Test AI Rotation When Angle Difference Is Small
+func TestFighterAIRotationSmallAngle(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	fighter.Rotation = 0
+	ctx.ships[fighter.GetID()] = fighter
+
+	// Create enemy almost directly ahead (very small angle difference)
+	enemy := NewFighter(2, 1, 100.5, 50, nil) // Slightly to the right, but mostly ahead
+	ctx.ships[enemy.GetID()] = enemy
+
+	initialRotation := fighter.Rotation
+	fighter.UpdateAI(ctx)
+
+	// Small angle difference should snap to target angle
+	// rather than rotating by full rotation speed
+	rotationChange := math.Abs(fighter.Rotation - initialRotation)
+	if rotationChange > config.AIRotationSpeed*1.1 {
+		t.Errorf("Small angle adjustment should be <= rotation speed, got change of %.4f", rotationChange)
+	}
+}

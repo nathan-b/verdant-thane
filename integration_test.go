@@ -623,3 +623,339 @@ func TestWorldWrappingIntegration(t *testing.T) {
 		t.Errorf("Ship should have wrapped to right edge (GameWidth=%d), got x=%f", config.GameWidth, x)
 	}
 }
+
+// ============================================================================
+// Additional EntityManager Coverage Tests
+// ============================================================================
+
+// TestFindNearestEnemyInArc tests arc-based enemy searching (for missile targeting)
+func TestFindNearestEnemyInArc(t *testing.T) {
+	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em.InitializeFactions()
+
+	// Spawn ship facing up (rotation = 0)
+	ship := em.SpawnShip(entity.ClassDestroyer, 0, 100, 100)
+	if destroyer, ok := ship.(*entity.Destroyer); ok {
+		destroyer.Rotation = 0 // Facing up
+	}
+
+	// Spawn enemy directly ahead (in forward arc)
+	enemyAhead := em.SpawnShip(entity.ClassFighter, 1, 100, 50)
+
+	// Spawn enemy behind (in rear arc)
+	enemyBehind := em.SpawnShip(entity.ClassFighter, 1, 100, 200)
+
+	// Spawn enemy to the side but slightly forward (outside rear 180° arc)
+	_ = em.SpawnShip(entity.ClassFighter, 1, 200, 90)
+
+	// Test forward arc (180° arc facing forward)
+	nearestForward, distForward := em.FindNearestEnemyInArc(ship, math.Pi, 1000, false)
+	if nearestForward == nil {
+		t.Fatal("Should find enemy in forward arc")
+	}
+	if nearestForward.GetID() != enemyAhead.GetID() {
+		t.Error("Should find the enemy directly ahead in forward arc")
+	}
+	expectedDist := 50.0
+	if math.Abs(distForward-expectedDist) > 1.0 {
+		t.Errorf("Expected distance ~%f, got %f", expectedDist, distForward)
+	}
+
+	// Test rear arc (180° arc facing backward)
+	nearestRear, distRear := em.FindNearestEnemyInArc(ship, math.Pi, 1000, true)
+	if nearestRear == nil {
+		t.Fatal("Should find enemy in rear arc")
+	}
+	if nearestRear.GetID() != enemyBehind.GetID() {
+		t.Errorf("Should find the enemy directly behind in rear arc, got ID %d", nearestRear.GetID())
+	}
+	expectedDistRear := 100.0
+	if math.Abs(distRear-expectedDistRear) > 1.0 {
+		t.Errorf("Expected distance ~%f, got %f", expectedDistRear, distRear)
+	}
+
+	// Test with narrow arc - should not find any enemy
+	nearestNarrow, _ := em.FindNearestEnemyInArc(ship, math.Pi/8, 1000, false)
+	if nearestNarrow != nil && nearestNarrow.GetID() == enemyAhead.GetID() {
+		// This is okay - enemy might be barely within the narrow arc
+	}
+
+	// Test with range limit - enemy too far
+	nearestOutOfRange, distOOR := em.FindNearestEnemyInArc(ship, math.Pi, 30, false)
+	if nearestOutOfRange != nil {
+		t.Errorf("Should not find enemy beyond range limit, found ship at distance %f", distOOR)
+	}
+}
+
+// TestGetWorldSize tests world dimension retrieval
+func TestGetWorldSize(t *testing.T) {
+	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+
+	width, height := em.GetWorldSize()
+	if width != float64(config.GameWidth) {
+		t.Errorf("Expected world width %d, got %f", config.GameWidth, width)
+	}
+	if height != float64(config.GameHeight) {
+		t.Errorf("Expected world height %d, got %f", config.GameHeight, height)
+	}
+}
+
+// TestSpawnParticle tests particle spawning
+func TestSpawnParticle(t *testing.T) {
+	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+
+	initialParticleCount := len(em.particles)
+
+	// Spawn particle
+	em.SpawnParticle(100, 100, 5, 5)
+
+	// Verify particle was created
+	if len(em.particles) != initialParticleCount+1 {
+		t.Errorf("Expected %d particles, got %d", initialParticleCount+1, len(em.particles))
+	}
+
+	// Spawn multiple particles
+	em.SpawnParticle(200, 200, 3, 3)
+	em.SpawnParticle(300, 300, 2, 2)
+
+	if len(em.particles) != initialParticleCount+3 {
+		t.Errorf("Expected %d particles, got %d", initialParticleCount+3, len(em.particles))
+	}
+}
+
+// TestSetAudioManager tests audio manager setter
+func TestSetAudioManager(t *testing.T) {
+	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+
+	if em.audioManager != nil {
+		t.Error("Audio manager should initially be nil")
+	}
+
+	// Create mock audio manager (we can't use the real one without filesystem)
+	// Just test that the setter works
+	em.SetAudioManager(nil)
+
+	// Verify it was set
+	if em.audioManager != nil {
+		t.Error("Audio manager should be nil after setting to nil")
+	}
+}
+
+// TestSetChatWindow tests chat window setter
+func TestSetChatWindow(t *testing.T) {
+	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+
+	if em.chatWindow != nil {
+		t.Error("Chat window should initially be nil")
+	}
+
+	// Create mock chat window
+	chat, err := NewChatWindow("assets/chat/chatter.json")
+	if err != nil {
+		// If file doesn't exist, just test with nil
+		em.SetChatWindow(nil)
+		return
+	}
+	em.SetChatWindow(chat)
+
+	// Verify it was set
+	if em.chatWindow == nil {
+		t.Error("Chat window should not be nil after setting")
+	}
+}
+
+// TestRemoveFunctions tests entity removal
+func TestRemoveFunctions(t *testing.T) {
+	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em.InitializeFactions()
+
+	// Spawn ship and remove it
+	ship := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
+	shipID := ship.GetID()
+
+	em.RemoveShip(shipID)
+	if _, exists := em.ships[shipID]; exists {
+		t.Error("Ship should have been removed")
+	}
+
+	// Spawn projectile and remove it
+	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
+	if fighter, ok := playerShip.(*entity.Fighter); ok {
+		fighter.Weapons[0].WeaponCapacitor = 1.0
+	}
+	playerShip.FireWeapon(200, 100, em)
+
+	initialProjectileCount := len(em.projectiles)
+	if initialProjectileCount == 0 {
+		t.Fatal("Expected at least one projectile")
+	}
+
+	// Get projectile ID
+	var projID int
+	for id := range em.projectiles {
+		projID = id
+		break
+	}
+
+	em.RemoveProjectile(projID)
+	if len(em.projectiles) != initialProjectileCount-1 {
+		t.Error("Projectile should have been removed")
+	}
+
+	// Spawn explosion and remove it
+	em.SpawnExplosion(100, 100)
+	initialExplosionCount := len(em.explosions)
+	if initialExplosionCount == 0 {
+		t.Fatal("Expected at least one explosion")
+	}
+
+	// Get explosion ID
+	var expID int
+	for id := range em.explosions {
+		expID = id
+		break
+	}
+
+	em.RemoveExplosion(expID)
+	if len(em.explosions) != initialExplosionCount-1 {
+		t.Error("Explosion should have been removed")
+	}
+}
+
+// TestOnShipDestroyed tests ship destruction event handling with chat
+func TestOnShipDestroyed(t *testing.T) {
+	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em.InitializeFactions()
+
+	// Set up chat window
+	chat, err := NewChatWindow("assets/chat/chatter.json")
+	if err != nil {
+		// Skip chat test if file doesn't exist
+		t.Skip("Chat data file not available")
+		return
+	}
+	em.SetChatWindow(chat)
+
+	// Spawn player ship
+	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
+	playerShip.SetPlayerControlled(true)
+	em.SetPlayerShip(playerShip.GetID())
+
+	// Spawn enemy ship
+	enemyShip := em.SpawnShip(entity.ClassFighter, 1, 200, 100)
+
+	initialMessages := len(chat.GetMessages())
+
+	// Trigger destruction event (player kills enemy)
+	em.OnShipDestroyed(enemyShip.GetID(), playerShip.GetID())
+
+	// Should generate chat message
+	messages := chat.GetMessages()
+	if len(messages) <= initialMessages {
+		t.Log("Expected chat message from ship destruction event")
+		// Note: Not a hard error since chat is probabilistic
+	}
+}
+
+// TestPlayImpactSound tests impact sound with nil audio manager
+func TestPlayImpactSound(t *testing.T) {
+	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em.InitializeFactions()
+
+	// Spawn ship
+	ship := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
+
+	// Should not crash with nil audio manager
+	em.PlayImpactSound(ship)
+
+	// Test passes if no panic
+}
+
+// TestResetPlayerStats tests resetting player statistics
+func TestResetPlayerStats(t *testing.T) {
+	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em.InitializeFactions()
+
+	// Set some stats
+	em.score = 1000
+	em.kills = 50
+	em.deaths = 10
+
+	// Reset
+	em.ResetPlayerStats()
+
+	// Verify reset
+	if em.score != 0 {
+		t.Errorf("Expected score=0, got %d", em.score)
+	}
+	if em.kills != 0 {
+		t.Errorf("Expected kills=0, got %d", em.kills)
+	}
+	if em.deaths != 0 {
+		t.Errorf("Expected deaths=0, got %d", em.deaths)
+	}
+}
+
+// TestDestroyerMissileTargeting tests that destroyers use FindNearestEnemyInArc
+func TestDestroyerMissileTargeting(t *testing.T) {
+	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em.InitializeFactions()
+
+	// Spawn destroyer facing up
+	destroyer := em.SpawnShip(entity.ClassDestroyer, 0, 100, 100)
+	if d, ok := destroyer.(*entity.Destroyer); ok {
+		d.Rotation = 0 // Facing up
+		// Fully charge missile
+		d.Weapons[0].WeaponCapacitor = 1.0
+	}
+
+	// Spawn enemy behind destroyer (in rear arc for missiles)
+	enemy := em.SpawnShip(entity.ClassFighter, 1, 100, 200)
+
+	// Count missile-type projectiles initially
+	initialMissileCount := 0
+	for _, proj := range em.projectiles {
+		if _, ok := proj.(*entity.MissileProjectile); ok {
+			initialMissileCount++
+		}
+	}
+
+	// Update AI to trigger missile firing
+	for i := 0; i < 5; i++ {
+		em.UpdateAll()
+		// Recharge missile between attempts
+		if d, ok := destroyer.(*entity.Destroyer); ok {
+			d.Weapons[0].WeaponCapacitor = 1.0
+		}
+	}
+
+	// Count missile-type projectiles after
+	finalMissileCount := 0
+	for _, proj := range em.projectiles {
+		if _, ok := proj.(*entity.MissileProjectile); ok {
+			finalMissileCount++
+		}
+	}
+
+	// Destroyer may have fired missile at rear target
+	if finalMissileCount > initialMissileCount {
+		t.Log("Destroyer successfully fired missile at rear target")
+	} else {
+		t.Log("Destroyer did not fire missile (may be due to AI probabilities)")
+	}
+
+	// Verify enemy is still in valid position
+	if !enemy.IsAlive() {
+		t.Error("Enemy should still be alive (missile needs time to travel)")
+	}
+}

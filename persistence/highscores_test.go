@@ -529,3 +529,187 @@ func TestConfigConstants(t *testing.T) {
 		t.Errorf("Expected scoresFile='highscores.json', got '%s'", scoresFile)
 	}
 }
+
+// ============================================================================
+// Actual Load/Save Function Tests
+// ============================================================================
+
+func TestGetConfigPath(t *testing.T) {
+	path, err := GetConfigPath()
+	if err != nil {
+		t.Fatalf("GetConfigPath returned error: %v", err)
+	}
+
+	if path == "" {
+		t.Error("GetConfigPath should return a non-empty path")
+	}
+
+	// Should end with the config directory name
+	if !filepath.IsAbs(path) {
+		t.Error("GetConfigPath should return an absolute path")
+	}
+
+	// Should contain the config directory
+	if filepath.Base(path) != "verdant" {
+		t.Errorf("Expected path to end with 'verdant', got '%s'", filepath.Base(path))
+	}
+}
+
+func TestGetScoresPath(t *testing.T) {
+	path, err := GetScoresPath()
+	if err != nil {
+		t.Fatalf("GetScoresPath returned error: %v", err)
+	}
+
+	if path == "" {
+		t.Error("GetScoresPath should return a non-empty path")
+	}
+
+	// Should end with the scores file name
+	if filepath.Base(path) != scoresFile {
+		t.Errorf("Expected path to end with '%s', got '%s'", scoresFile, filepath.Base(path))
+	}
+}
+
+func TestLoadHighScoresNonExistent(t *testing.T) {
+	// Backup existing file if present
+	scoresPath, err := GetScoresPath()
+	if err != nil {
+		t.Fatalf("GetScoresPath returned error: %v", err)
+	}
+
+	var backupData []byte
+	var hadBackup bool
+	if data, err := os.ReadFile(scoresPath); err == nil {
+		backupData = data
+		hadBackup = true
+		os.Remove(scoresPath)
+	}
+
+	// Restore backup after test
+	defer func() {
+		if hadBackup {
+			configPath, _ := GetConfigPath()
+			os.MkdirAll(configPath, 0755)
+			os.WriteFile(scoresPath, backupData, 0644)
+		}
+	}()
+
+	// Load from non-existent file should return empty list
+	scores, err := LoadHighScores()
+	if err != nil {
+		t.Fatalf("LoadHighScores returned error for non-existent file: %v", err)
+	}
+
+	if scores == nil {
+		t.Fatal("LoadHighScores should not return nil")
+	}
+
+	if len(scores.Entries) != 0 {
+		t.Errorf("Expected empty entries, got %d", len(scores.Entries))
+	}
+}
+
+func TestSaveAndLoadHighScoresIntegration(t *testing.T) {
+	// Backup existing file if present
+	scoresPath, err := GetScoresPath()
+	if err != nil {
+		t.Fatalf("GetScoresPath returned error: %v", err)
+	}
+
+	var backupData []byte
+	var hadBackup bool
+	if data, err := os.ReadFile(scoresPath); err == nil {
+		backupData = data
+		hadBackup = true
+	}
+
+	// Restore backup after test
+	defer func() {
+		if hadBackup {
+			os.WriteFile(scoresPath, backupData, 0644)
+		} else {
+			os.Remove(scoresPath)
+		}
+	}()
+
+	// Create test data
+	testScores := &HighScores{Entries: []HighScore{
+		{Name: "TestPlayer1", Score: 5000, Kills: 50, Deaths: 5, Date: time.Now()},
+		{Name: "TestPlayer2", Score: 3000, Kills: 30, Deaths: 3, Date: time.Now()},
+	}}
+
+	// Save using actual function
+	if err := SaveHighScores(testScores); err != nil {
+		t.Fatalf("SaveHighScores returned error: %v", err)
+	}
+
+	// Verify file was created
+	if _, err := os.Stat(scoresPath); os.IsNotExist(err) {
+		t.Error("SaveHighScores should create the scores file")
+	}
+
+	// Load using actual function
+	loadedScores, err := LoadHighScores()
+	if err != nil {
+		t.Fatalf("LoadHighScores returned error: %v", err)
+	}
+
+	// Verify loaded data matches saved data
+	if len(loadedScores.Entries) != 2 {
+		t.Fatalf("Expected 2 entries, got %d", len(loadedScores.Entries))
+	}
+
+	if loadedScores.Entries[0].Name != "TestPlayer1" {
+		t.Errorf("Expected first entry name='TestPlayer1', got '%s'", loadedScores.Entries[0].Name)
+	}
+	if loadedScores.Entries[0].Score != 5000 {
+		t.Errorf("Expected first entry score=5000, got %d", loadedScores.Entries[0].Score)
+	}
+	if loadedScores.Entries[1].Name != "TestPlayer2" {
+		t.Errorf("Expected second entry name='TestPlayer2', got '%s'", loadedScores.Entries[1].Name)
+	}
+}
+
+func TestLoadHighScoresInvalidJSON(t *testing.T) {
+	// Backup existing file if present
+	scoresPath, err := GetScoresPath()
+	if err != nil {
+		t.Fatalf("GetScoresPath returned error: %v", err)
+	}
+
+	var backupData []byte
+	var hadBackup bool
+	if data, err := os.ReadFile(scoresPath); err == nil {
+		backupData = data
+		hadBackup = true
+	}
+
+	// Restore backup after test
+	defer func() {
+		if hadBackup {
+			os.WriteFile(scoresPath, backupData, 0644)
+		} else {
+			os.Remove(scoresPath)
+		}
+	}()
+
+	// Create config directory and write invalid JSON
+	configPath, _ := GetConfigPath()
+	os.MkdirAll(configPath, 0755)
+	os.WriteFile(scoresPath, []byte("this is not valid json{{{"), 0644)
+
+	// Load should return empty list with error
+	scores, err := LoadHighScores()
+	if err == nil {
+		t.Error("LoadHighScores should return error for invalid JSON")
+	}
+
+	// Should still return valid empty struct
+	if scores == nil {
+		t.Fatal("LoadHighScores should not return nil even on error")
+	}
+	if len(scores.Entries) != 0 {
+		t.Error("LoadHighScores should return empty entries on error")
+	}
+}

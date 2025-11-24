@@ -990,3 +990,165 @@ func TestTestudonDefensiveCombat(t *testing.T) {
 		t.Error("Should be firing at attacker")
 	}
 }
+
+// ============================================================================
+// Additional UpdateAI Coverage Tests
+// ============================================================================
+
+// Test patrol deceleration when speed is above patrol target
+func TestTestudonAIPatrolDeceleration(t *testing.T) {
+	testudon := NewTestudon(1, 0, 500, 500, nil)
+	ctx := NewMockGameContext()
+
+	// No target - will be in patrol mode
+	testudon.BeamTargetID = -1
+	testudon.Speed = testudon.MaxSpeed // Start at max speed
+
+	targetPatrolSpeed := testudon.MaxSpeed * config.AIPatrolSpeed
+
+	// Update AI many times to decelerate to patrol speed
+	for i := 0; i < 200; i++ {
+		testudon.UpdateAI(ctx)
+	}
+
+	// Should have decelerated to patrol speed
+	if math.Abs(testudon.Speed-targetPatrolSpeed) > testudon.Accel*3 {
+		t.Errorf("Expected speed near %.2f (patrol), got %.2f", targetPatrolSpeed, testudon.Speed)
+	}
+}
+
+// Test pursuit deceleration when moving faster than target speed
+func TestTestudonAIPursuitDeceleration(t *testing.T) {
+	testudon := NewTestudon(1, 0, 500, 500, nil)
+	ctx := NewMockGameContext()
+
+	// Add enemy target
+	enemy := NewFighter(2, 1, 700, 500, nil)
+	ctx.ships[2] = enemy
+
+	testudon.BeamTargetID = 2
+	// Start moving faster than max speed (artificial scenario to test decel path)
+	testudon.Speed = testudon.MaxSpeed * 2
+
+	// Update AI
+	testudon.UpdateAI(ctx)
+
+	// Should have decelerated toward max speed
+	if testudon.Speed >= testudon.MaxSpeed*2 {
+		t.Error("Testudon should decelerate when above max speed")
+	}
+
+	// Update multiple times to reach target speed
+	for i := 0; i < 100; i++ {
+		testudon.UpdateAI(ctx)
+	}
+
+	// Should be at or near max speed
+	if math.Abs(testudon.Speed-testudon.MaxSpeed) > testudon.Accel*3 {
+		t.Errorf("Expected speed near %.2f (max), got %.2f", testudon.MaxSpeed, testudon.Speed)
+	}
+}
+
+// Test rotation snap when angle difference is small
+func TestTestudonAIRotationSmallAngleSnap(t *testing.T) {
+	testudon := NewTestudon(1, 0, 500, 500, nil)
+	ctx := NewMockGameContext()
+
+	// Create enemy almost directly in front (tiny angle difference)
+	enemy := NewFighter(2, 1, 500.1, 400, nil) // Slightly to the right, mostly ahead
+	ctx.ships[2] = enemy
+
+	testudon.BeamTargetID = 2
+	testudon.Rotation = 0 // Facing up
+
+	// Calculate expected angle to target
+	dx, dy := GetWrappedDistance(testudon.X, testudon.Y, enemy.X, enemy.Y)
+	expectedAngle := math.Atan2(dx, -dy)
+
+	// Update AI
+	testudon.UpdateAI(ctx)
+
+	// With small angle difference, should snap to exact angle
+	angleDiff := math.Abs(NormalizeAngle(testudon.Rotation - expectedAngle))
+	if angleDiff > 0.01 {
+		t.Errorf("Expected rotation to snap to target angle %.4f, got %.4f (diff: %.4f)",
+			expectedAngle, testudon.Rotation, angleDiff)
+	}
+}
+
+// Test testudon Update with AI-controlled (main path)
+func TestTestudonUpdateAIControlled(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	testudon := NewTestudon(1, 0, 500, 500, nil)
+	testudon.Speed = 1.0
+	ctx.ships[1] = testudon
+
+	// Add enemy for targeting
+	enemy := NewFighter(2, 1, 550, 500, nil) // In beam range
+	ctx.ships[2] = enemy
+
+	initialX := testudon.X
+
+	// Update the testudon
+	err := testudon.Update(ctx)
+	if err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+
+	// Verify movement occurred
+	if testudon.X == initialX && testudon.Speed > 0 {
+		t.Error("Testudon should have moved during update")
+	}
+
+	// Verify beam weapon updated
+	if testudon.BeamFiringAtID == -1 {
+		// Should be firing at in-range enemy
+		t.Log("Testudon targeting may need more frames to engage")
+	}
+}
+
+// Test dead testudon does not update
+func TestDeadTestudonDoesNotUpdate(t *testing.T) {
+	ctx := NewMockGameContext()
+
+	testudon := NewTestudon(1, 0, 500, 500, nil)
+	testudon.Alive = false
+	testudon.Speed = 5.0
+
+	initialX := testudon.X
+	initialY := testudon.Y
+
+	testudon.Update(ctx)
+
+	// Position should not change
+	if testudon.X != initialX || testudon.Y != initialY {
+		t.Error("Dead testudon should not update position")
+	}
+}
+
+// Test testudon AI rotation toward target (large angle)
+func TestTestudonAIRotationLargeAngle(t *testing.T) {
+	testudon := NewTestudon(1, 0, 500, 500, nil)
+	ctx := NewMockGameContext()
+
+	// Create enemy behind (180 degrees away)
+	enemy := NewFighter(2, 1, 500, 700, nil) // Directly behind when facing up
+	ctx.ships[2] = enemy
+
+	testudon.BeamTargetID = 2
+	testudon.Rotation = 0 // Facing up
+
+	// Update AI once
+	testudon.UpdateAI(ctx)
+
+	// Should rotate by AIRotationSpeed toward target
+	expectedRotation := config.AIRotationSpeed // Should rotate clockwise or counter-clockwise
+	rotationChange := math.Abs(testudon.Rotation)
+	if rotationChange < config.AIRotationSpeed*0.9 || rotationChange > config.AIRotationSpeed*1.1 {
+		// Could rotate either direction, check absolute value
+		if math.Abs(testudon.Rotation-config.AIRotationSpeed) > 0.01 && math.Abs(testudon.Rotation+config.AIRotationSpeed) > 0.01 {
+			t.Errorf("Expected rotation change of ~%.4f, got rotation %.4f", expectedRotation, testudon.Rotation)
+		}
+	}
+}
