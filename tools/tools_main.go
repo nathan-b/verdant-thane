@@ -21,7 +21,7 @@ func main() {
 	switch subcommand {
 	case "build-sounds":
 		fs = flag.NewFlagSet("build-sounds", flag.ExitOnError)
-		soundType := fs.String("type", "laser", "Type of sound to generate (laser, impact, explosion)")
+		soundType := fs.String("type", "laser", "Type of sound to generate (laser, impact, explosion, afterburner)")
 		outputFile := fs.String("output", "out.wav", "Output WAV file path")
 		duration := fs.Float64("duration", 0.2, "Sound duration in seconds")
 
@@ -40,6 +40,11 @@ func main() {
 			}
 		case "explosion":
 			if err := makeExplosionSound(*outputFile, *duration); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+		case "afterburner":
+			if err := makeAfterburnerSound(*outputFile, *duration); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}

@@ -138,7 +138,67 @@ func makeExplosionSound(outputPath string, duration float64) error {
 		binary.Write(f, binary.LittleEndian, value)
 		binary.Write(f, binary.LittleEndian, value)
 	}
-	fmt.Println("Generated explosion sound: explosion.wav")
+	fmt.Printf("Generated explosion sound: %s", outputPath)
+	return nil
+}
+
+func makeAfterburnerSound(outputPath string, duration float64) error {
+	const sampleRate = 44100
+    numSamples := int(sampleRate * duration)
+
+	// Create output file
+    f, err := os.Create(outputPath)
+    if err != nil {
+        return fmt.Errorf("failed to create output file: %w", err)
+    }
+    defer f.Close()
+
+    writeWavHeader(f, numSamples, sampleRate)
+
+    lfoFreq := 1.2 // Hz
+	lfoPhase := 0.0
+
+	// Low-pass filter for white noise
+	lastWhite := 0.0
+	var brown float64 = 0.0
+	lpAlpha := 0.10 // lower = deeper
+
+	for i := 0; i < numSamples; i++ {
+		// --- Brown Noise (deep rumble) ---
+		brown += (rand.Float64()*2 - 1) * 0.02
+		if brown > 1 {
+			brown = 1
+		}
+		if brown < -1 {
+			brown = -1
+		}
+
+		// --- Low-passed White Noise (wind/ion hiss) ---
+		whiteRaw := rand.Float64()*2 - 1
+		lastWhite = lastWhite + lpAlpha*(whiteRaw-lastWhite)
+		white := lastWhite * 0.4
+
+		// --- LFO modulation ---
+		lfoPhase += 2 * math.Pi * lfoFreq / sampleRate
+		mod := (math.Sin(lfoPhase) + 1) / 2 // 0..1
+		mod = 0.5 + 0.5*mod                 // keep minimum volume
+
+		// --- Mix ---
+		sample := (brown*0.9 + white*0.2) * mod
+
+		// Clip
+		if sample > 1 {
+			sample = 1
+		}
+		if sample < -1 {
+			sample = -1
+		}
+
+		// Convert to int16
+		val := int16(sample * 32767)
+		binary.Write(f, binary.LittleEndian, val)
+	}
+	fmt.Printf("Generated afterburner sound: %s\n", outputPath)
 	return nil
 }
 
