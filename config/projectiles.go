@@ -28,7 +28,7 @@ var ProjectileDatabase = map[ProjectileType]ProjectileCharacteristics{
 		Speed:           12.0, // 2x max fighter speed
 		Acceleration:    0.0,  // No acceleration (constant velocity)
 		TurnRate:        0.0,  // No turning (straight line)
-		Lifetime:        180,  // 3 seconds at 60 TPS
+		Lifetime:        120,  // 2 seconds at 60 TPS
 		ChargeTime:      0.6,  // 600ms charge time
 		Damage:          1,    // 1 HP damage per hit
 		CollisionRadius: 2.0,  // 2 pixel collision radius

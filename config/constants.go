@@ -30,7 +30,7 @@ const (
 
 // Player input
 var (
-	RotationSpeed = 3.0 * math.Pi / 180.0 // 3 degrees per tick
+	RotationSpeed = 3.2 * math.Pi / 180.0 // 3.2 degrees per tick
 )
 
 // AI behavior parameters

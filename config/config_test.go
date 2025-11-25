@@ -13,8 +13,8 @@ import (
 func TestGetShipCharacteristicsFighter(t *testing.T) {
 	chars := GetShipCharacteristics(ClassFighter)
 
-	if chars.MaxSpeed != 6.0 {
-		t.Errorf("Fighter MaxSpeed: expected 6.0, got %f", chars.MaxSpeed)
+	if chars.MaxSpeed != 5.0 {
+		t.Errorf("Fighter MaxSpeed: expected 5.0, got %f", chars.MaxSpeed)
 	}
 	if chars.MaxShield != 8 {
 		t.Errorf("Fighter MaxShield: expected 8, got %d", chars.MaxShield)
@@ -69,9 +69,9 @@ func TestShipBalancing(t *testing.T) {
 	destroyer := GetShipCharacteristics(ClassDestroyer)
 	testudon := GetShipCharacteristics(ClassTestudon)
 
-	// Speed progression: Fighter > Destroyer > Testudon
-	if !(fighter.MaxSpeed > destroyer.MaxSpeed && destroyer.MaxSpeed > testudon.MaxSpeed) {
-		t.Error("Ship speed should decrease: Fighter > Destroyer > Testudon")
+	// Speed progression: Fighter >= Destroyer > Testudon
+	if !(fighter.MaxSpeed >= destroyer.MaxSpeed && destroyer.MaxSpeed > testudon.MaxSpeed) {
+		t.Error("Ship speed should decrease: Fighter >= Destroyer > Testudon")
 	}
 
 	// Armor progression: Testudon > Destroyer > Fighter
@@ -113,8 +113,8 @@ func TestGetProjectileCharacteristicsLaser(t *testing.T) {
 	if chars.TurnRate != 0.0 {
 		t.Error("Laser should have no turn rate")
 	}
-	if chars.Lifetime != 180 {
-		t.Errorf("Laser Lifetime: expected 180, got %d", chars.Lifetime)
+	if chars.Lifetime != 120 {
+		t.Errorf("Laser Lifetime: expected 120, got %d", chars.Lifetime)
 	}
 	if chars.ChargeTime != 0.6 {
 		t.Errorf("Laser ChargeTime: expected 0.6, got %f", chars.ChargeTime)
@@ -306,7 +306,7 @@ func TestCollisionConfiguration(t *testing.T) {
 }
 
 func TestRotationSpeed(t *testing.T) {
-	expectedRadians := 3.0 * math.Pi / 180.0
+	expectedRadians := 3.2 * math.Pi / 180.0
 
 	if math.Abs(RotationSpeed-expectedRadians) > 0.0001 {
 		t.Errorf("RotationSpeed: expected %f radians, got %f", expectedRadians, RotationSpeed)

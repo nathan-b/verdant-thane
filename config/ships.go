@@ -20,11 +20,11 @@ type WeaponCharacteristics struct {
 // WeaponDatabase holds named weapon configurations that can be referenced by ships
 var WeaponDatabase = map[string]WeaponCharacteristics{
 	"main_gun": {
-		CapacitorChargeRate: 1.0 / ((600.0 / 1000.0) * 60.0), // 600ms charge time
-		FiringCone:          30.0 * 0.017453292519943295,     // 30 degrees in radians
-		MaxRange:            0.0,                             // Unlimited range
-		SpawnOffset:         20.0,                            // Forward spawn position
-		DamagePerTick:       0.0,                             // Projectile weapon, not beam
+		CapacitorChargeRate: 6.0 / 60.0,                  // 6 shots per second
+		FiringCone:          90.0 * 0.017453292519943295, // 90 degrees in radians
+		MaxRange:            0.0,                         // Unlimited range
+		SpawnOffset:         20.0,                        // Forward spawn position
+		DamagePerTick:       0.0,                         // Projectile weapon, not beam
 	},
 	"missile": {
 		CapacitorChargeRate: 1.0 / ((2000.0 / 1000.0) * 60.0), // 2000ms charge time
@@ -61,7 +61,7 @@ type ShipCharacteristics struct {
 // ShipDatabase holds characteristics for all ship classes
 var ShipDatabase = map[ShipClass]ShipCharacteristics{
 	ClassFighter: {
-		MaxSpeed:     6.0,        // Standard speed
+		MaxSpeed:     5.0,        // Standard speed
 		Acceleration: 4.0 / 60.0, // Pixels per second per tick
 		MaxShield:    8,          // Light armor
 		Weapons: []WeaponCharacteristics{
@@ -73,8 +73,8 @@ var ShipDatabase = map[ShipClass]ShipCharacteristics{
 		AfterburnerDrain:           3.0,  // Fuel consumed per tick when active
 		AfterburnerRecharge:        1.0,  // Recharge rate per tick when inactive
 		AfterburnerAccelMultiplier: 2.0,  // 2x acceleration when active
-		AIAccurateShotProbability:  0.50, // 50% chance of accurate shot
-		AIRandomShotProbability:    0.25, // 25% chance of random shot (0.50-0.75 range)
+		AIAccurateShotProbability:  0.40, // 40% chance of accurate shot
+		AIRandomShotProbability:    0.20, // 20% chance of random shot (0.40-0.60 range)
 	},
 	ClassDestroyer: {
 		MaxSpeed:     5.0,        // Slower than fighter
@@ -90,8 +90,8 @@ var ShipDatabase = map[ShipClass]ShipCharacteristics{
 		AfterburnerDrain:           3.0,  // Fuel consumed per tick when active
 		AfterburnerRecharge:        1.0,  // Recharge rate per tick when inactive
 		AfterburnerAccelMultiplier: 2.0,  // 2x acceleration when active
-		AIAccurateShotProbability:  0.50, // 50% chance of accurate shot
-		AIRandomShotProbability:    0.25, // 25% chance of random shot (0.50-0.75 range)
+		AIAccurateShotProbability:  0.40, // 40% chance of accurate shot
+		AIRandomShotProbability:    0.20, // 20% chance of random shot (0.40-0.60 range)
 	},
 	ClassTestudon: {
 		MaxSpeed:                   3.0,                       // Very slow battleship
@@ -104,8 +104,8 @@ var ShipDatabase = map[ShipClass]ShipCharacteristics{
 		AfterburnerDrain:           0.0,
 		AfterburnerRecharge:        0.0,
 		AfterburnerAccelMultiplier: 1.0,  // Testudon has no afterburner
-		AIAccurateShotProbability:  0.50, // 50% chance of accurate shot
-		AIRandomShotProbability:    0.25, // 25% chance of random shot (0.50-0.75 range)
+		AIAccurateShotProbability:  0.40, // 40% chance of accurate shot
+		AIRandomShotProbability:    0.20, // 20% chance of random shot (0.40-0.60 range)
 	},
 }
 

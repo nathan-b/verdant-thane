@@ -234,16 +234,17 @@ func TestWeaponCharging(t *testing.T) {
 	chars := config.GetShipCharacteristics(ClassFighter)
 	ticksToCharge := int(1.0 / chars.Weapons[0].CapacitorChargeRate)
 
-	for i := 0; i < ticksToCharge; i++ {
+	// Charge for enough ticks to guarantee full charge (add 1 to handle floating point precision)
+	for i := 0; i <= ticksToCharge; i++ {
 		fighter.UpdateWeapons()
 	}
 
 	// Should be fully charged now
 	if !fighter.CanFireWeapon() {
-		t.Error("Weapon should be fireable after charging")
+		t.Errorf("Weapon should be fireable after charging (capacitor: %f)", fighter.Weapons[0].WeaponCapacitor)
 	}
 	if fighter.Weapons[0].WeaponCapacitor < 1.0 {
-		t.Errorf("Expected capacitor to be 1.0, got %f", fighter.Weapons[0].WeaponCapacitor)
+		t.Errorf("Expected capacitor to be >= 1.0, got %.10f", fighter.Weapons[0].WeaponCapacitor)
 	}
 }
 
