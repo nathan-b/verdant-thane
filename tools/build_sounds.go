@@ -144,18 +144,18 @@ func makeExplosionSound(outputPath string, duration float64) error {
 
 func makeAfterburnerSound(outputPath string, duration float64) error {
 	const sampleRate = 44100
-    numSamples := int(sampleRate * duration)
+	numSamples := int(sampleRate * duration)
 
 	// Create output file
-    f, err := os.Create(outputPath)
-    if err != nil {
-        return fmt.Errorf("failed to create output file: %w", err)
-    }
-    defer f.Close()
+	f, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer f.Close()
 
-    writeWavHeader(f, numSamples, sampleRate)
+	writeWavHeader(f, numSamples, sampleRate)
 
-    lfoFreq := 1.2 // Hz
+	lfoFreq := 1.2 // Hz
 	lfoPhase := 0.0
 
 	// Low-pass filter for white noise

@@ -184,6 +184,63 @@ func TestGetProjectileCharacteristicsInvalidType(t *testing.T) {
 	}
 }
 
+func TestOverrideMainGunProjectileSpeed(t *testing.T) {
+	// Save original speed
+	original := GetProjectileCharacteristics(LaserProjectile).Speed
+
+	// Override speed
+	newSpeed := 10.0
+	OverrideMainGunProjectileSpeed(newSpeed)
+
+	// Verify override
+	chars := GetProjectileCharacteristics(LaserProjectile)
+	if chars.Speed != newSpeed {
+		t.Errorf("Expected speed %.2f, got %.2f", newSpeed, chars.Speed)
+	}
+
+	// Restore original speed
+	OverrideMainGunProjectileSpeed(original)
+}
+
+func TestOverrideAIFireProbability(t *testing.T) {
+	// Save original probabilities from fighter (all ships have same values)
+	originalFighter := GetShipCharacteristics(ClassFighter)
+
+	// Override to 0.6 fire probability
+	// Should be split: 0.4 accurate (2/3), 0.2 random (1/3)
+	OverrideAIFireProbability(0.6)
+
+	// Verify fighter
+	fighter := GetShipCharacteristics(ClassFighter)
+	if math.Abs(fighter.AIAccurateShotProbability-0.4) > 0.001 {
+		t.Errorf("Fighter accurate: expected 0.4, got %.4f", fighter.AIAccurateShotProbability)
+	}
+	if math.Abs(fighter.AIRandomShotProbability-0.2) > 0.001 {
+		t.Errorf("Fighter random: expected 0.2, got %.4f", fighter.AIRandomShotProbability)
+	}
+
+	// Verify destroyer
+	destroyer := GetShipCharacteristics(ClassDestroyer)
+	if math.Abs(destroyer.AIAccurateShotProbability-0.4) > 0.001 {
+		t.Errorf("Destroyer accurate: expected 0.4, got %.4f", destroyer.AIAccurateShotProbability)
+	}
+	if math.Abs(destroyer.AIRandomShotProbability-0.2) > 0.001 {
+		t.Errorf("Destroyer random: expected 0.2, got %.4f", destroyer.AIRandomShotProbability)
+	}
+
+	// Verify testudon
+	testudon := GetShipCharacteristics(ClassTestudon)
+	if math.Abs(testudon.AIAccurateShotProbability-0.4) > 0.001 {
+		t.Errorf("Testudon accurate: expected 0.4, got %.4f", testudon.AIAccurateShotProbability)
+	}
+	if math.Abs(testudon.AIRandomShotProbability-0.2) > 0.001 {
+		t.Errorf("Testudon random: expected 0.2, got %.4f", testudon.AIRandomShotProbability)
+	}
+
+	// Restore original probabilities
+	OverrideAIFireProbability(originalFighter.AIAccurateShotProbability + originalFighter.AIRandomShotProbability)
+}
+
 // ============================================================================
 // Constants Tests
 // ============================================================================

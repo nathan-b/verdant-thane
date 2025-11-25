@@ -20,7 +20,11 @@ type SoundEffect struct {
 }
 
 // Manager handles all audio playback for the game
+// This is a value type that can never be nil. If audio initialization fails,
+// all methods become no-ops, allowing graceful degradation.
 type Manager struct {
+	initialized bool // false by default (zero value) = safe uninitialized state
+
 	context     *audio.Context
 	sounds      map[string]*SoundEffect
 	soundMuted  bool
@@ -35,24 +39,38 @@ type Manager struct {
 }
 
 // NewManager creates a new audio manager
-func NewManager() (*Manager, error) {
-	ctx := audio.NewContext(sampleRate)
+// Returns a value type that is always valid. If audio context creation fails,
+// the manager operates in "null object" mode where all operations are no-ops.
+func NewManager() Manager {
+	// Start with valid null state (zero value safe)
+	m := Manager{
+		soundVolume: 1.0,
+		musicVolume: 1.0,
+	}
 
-	return &Manager{
-		context:       ctx,
-		sounds:        make(map[string]*SoundEffect),
-		soundMuted:    false,
-		soundVolume:   1.0,
-		musicMuted:    false,
-		musicVolume:   1.0,
-		musicPlayer:   nil,
-		musicFiles:    make(map[string][]byte),
-		loopingSounds: make(map[int]*audio.Player),
-	}, nil
+	// Attempt to create audio context
+	ctx := audio.NewContext(sampleRate)
+	if ctx == nil {
+		// Failed to initialize - remain in uninitialized state
+		return m
+	}
+
+	// Successfully initialized - set up real audio manager
+	m.initialized = true
+	m.context = ctx
+	m.sounds = make(map[string]*SoundEffect)
+	m.musicFiles = make(map[string][]byte)
+	m.loopingSounds = make(map[int]*audio.Player)
+
+	return m
 }
 
 // LoadSound loads a WAV file into memory
 func (m *Manager) LoadSound(name string, filepath string) error {
+	if !m.initialized {
+		return nil // No-op if uninitialized
+	}
+
 	// Read the WAV file
 	fileData, err := os.ReadFile(filepath)
 	if err != nil {
@@ -82,6 +100,10 @@ func (m *Manager) LoadSound(name string, filepath string) error {
 // PlaySound plays a sound effect by name
 // Creates a new player each time to allow overlapping sounds
 func (m *Manager) PlaySound(name string) error {
+	if !m.initialized {
+		return nil // No-op if uninitialized
+	}
+
 	if m.soundMuted {
 		return nil
 	}
@@ -106,6 +128,10 @@ func (m *Manager) PlaySound(name string) error {
 
 // LoadMusic loads an MP3 file into memory (keeps it compressed)
 func (m *Manager) LoadMusic(name string, filepath string) error {
+	if !m.initialized {
+		return nil // No-op if uninitialized
+	}
+
 	// Read the compressed MP3 file
 	fileData, err := os.ReadFile(filepath)
 	if err != nil {
@@ -121,6 +147,10 @@ func (m *Manager) LoadMusic(name string, filepath string) error {
 // PlayMusic plays a music track by name (loops infinitely)
 // Stops any currently playing music
 func (m *Manager) PlayMusic(name string) error {
+	if !m.initialized {
+		return nil // No-op if uninitialized
+	}
+
 	// Stop current music if playing
 	m.StopMusic()
 
@@ -160,6 +190,10 @@ func (m *Manager) PlayMusic(name string) error {
 
 // StopMusic stops the currently playing music
 func (m *Manager) StopMusic() {
+	if !m.initialized {
+		return // No-op if uninitialized
+	}
+
 	if m.musicPlayer != nil {
 		m.musicPlayer.Pause()
 		m.musicPlayer.Close()
@@ -185,6 +219,9 @@ func (m *Manager) ToggleSoundMute() {
 // SetMusicMuted sets whether music is muted
 func (m *Manager) SetMusicMuted(muted bool) {
 	m.musicMuted = muted
+	if !m.initialized {
+		return // No-op if uninitialized
+	}
 	if muted && m.musicPlayer != nil {
 		m.musicPlayer.Pause()
 	} else if !muted && m.musicPlayer != nil {
@@ -243,7 +280,7 @@ func (m *Manager) SetMusicVolume(volume float64) {
 	}
 	m.musicVolume = volume
 	// Apply volume to currently playing music
-	if m.musicPlayer != nil {
+	if m.initialized && m.musicPlayer != nil {
 		m.musicPlayer.SetVolume(volume)
 	}
 }
@@ -256,6 +293,10 @@ func (m *Manager) GetMusicVolume() float64 {
 // StartLoopingSound starts playing a looping sound effect for a given entity ID
 // If the sound is already playing for this ID, does nothing
 func (m *Manager) StartLoopingSound(id int, name string) error {
+	if !m.initialized {
+		return nil // No-op if uninitialized
+	}
+
 	if m.soundMuted {
 		return nil
 	}
@@ -288,6 +329,10 @@ func (m *Manager) StartLoopingSound(id int, name string) error {
 
 // StopLoopingSound stops a looping sound for a given entity ID
 func (m *Manager) StopLoopingSound(id int) {
+	if !m.initialized {
+		return // No-op if uninitialized
+	}
+
 	if player, exists := m.loopingSounds[id]; exists {
 		player.Pause()
 		player.Close()
@@ -297,12 +342,20 @@ func (m *Manager) StopLoopingSound(id int) {
 
 // IsLoopingSoundPlaying returns whether a looping sound is currently playing for an ID
 func (m *Manager) IsLoopingSoundPlaying(id int) bool {
+	if !m.initialized {
+		return false // No-op if uninitialized
+	}
+
 	_, exists := m.loopingSounds[id]
 	return exists
 }
 
 // StopAllLoopingSounds stops all currently playing looping sounds
 func (m *Manager) StopAllLoopingSounds() {
+	if !m.initialized {
+		return // No-op if uninitialized
+	}
+
 	for id, player := range m.loopingSounds {
 		player.Pause()
 		player.Close()

@@ -7,7 +7,6 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
-	"github.com/nathan/verdant-thane/audio"
 	"github.com/nathan/verdant-thane/config"
 	"github.com/nathan/verdant-thane/entity"
 	"github.com/nathan/verdant-thane/systems"
@@ -48,8 +47,8 @@ type EntityManager struct {
 	kills           int
 	deaths          int
 
-	// Sprites (shared resources)
-	laserSprite     *ebiten.Image
+	// Sprites (shared across entities)
+	mainGunSprite   *ebiten.Image
 	missileSprite   *ebiten.Image
 	explosionSprite *ebiten.Image
 	factionSprites  *systems.FactionSprites // Ship sprites for all classes and factions
@@ -57,8 +56,8 @@ type EntityManager struct {
 	// Performance profiling (optional)
 	profiler Profiler
 
-	// Audio manager (optional)
-	audioManager *audio.Manager
+	// Reference to game for accessing audio manager and other game state
+	game *Game
 
 	// Chat window (optional)
 	chatWindow ChatWindowInterface
@@ -77,7 +76,7 @@ type ChatWindowInterface interface {
 }
 
 // NewEntityManager creates a new entity manager
-func NewEntityManager(laserSprite, missileSprite, explosionSprite *ebiten.Image, factionSprites *systems.FactionSprites) *EntityManager {
+func NewEntityManager(mainGunSprite, missileSprite, explosionSprite *ebiten.Image, factionSprites *systems.FactionSprites) *EntityManager {
 	return &EntityManager{
 		nextID:             1,
 		ships:              make(map[int]entity.Ship),
@@ -91,7 +90,7 @@ func NewEntityManager(laserSprite, missileSprite, explosionSprite *ebiten.Image,
 		score:              0,
 		kills:              0,
 		deaths:             0,
-		laserSprite:        laserSprite,
+		mainGunSprite:      mainGunSprite,
 		missileSprite:      missileSprite,
 		explosionSprite:    explosionSprite,
 		factionSprites:     factionSprites,
@@ -102,20 +101,20 @@ func NewEntityManager(laserSprite, missileSprite, explosionSprite *ebiten.Image,
 // GameContext Interface Implementation
 // ============================================================================
 
-// SpawnProjectile creates a new laser projectile
+// SpawnProjectile creates a new main gun projectile
 func (em *EntityManager) SpawnProjectile(cfg entity.MainGunConfig) {
 	id := em.nextID
 	em.nextID++
 
 	// Set sprite from manager
-	cfg.Sprite = em.laserSprite
+	cfg.Sprite = em.mainGunSprite
 
 	laser := entity.NewMainGunProjectile(id, cfg)
 	em.projectiles[id] = laser
 
 	// Play laser sound effect if within audible range
-	if em.audioManager != nil && em.isAudibleToPlayer(cfg.X, cfg.Y) {
-		em.audioManager.PlaySound("laser")
+	if em.game != nil && em.isAudibleToPlayer(cfg.X, cfg.Y) {
+		em.game.audioManager.PlaySound("laser")
 	}
 }
 
@@ -131,8 +130,8 @@ func (em *EntityManager) SpawnMissile(cfg entity.MissileConfig) {
 	em.projectiles[id] = missile
 
 	// Play laser sound effect if within audible range (missiles use same sound as main gun for now)
-	if em.audioManager != nil && em.isAudibleToPlayer(cfg.X, cfg.Y) {
-		em.audioManager.PlaySound("laser")
+	if em.game != nil && em.isAudibleToPlayer(cfg.X, cfg.Y) {
+		em.game.audioManager.PlaySound("laser")
 	}
 }
 
@@ -145,8 +144,8 @@ func (em *EntityManager) SpawnExplosion(x, y float64) {
 	em.explosions[id] = explosion
 
 	// Play explosion sound effect if within audible range
-	if em.audioManager != nil && em.isAudibleToPlayer(x, y) {
-		em.audioManager.PlaySound("explosion")
+	if em.game != nil && em.isAudibleToPlayer(x, y) {
+		em.game.audioManager.PlaySound("explosion")
 	}
 }
 
@@ -394,9 +393,9 @@ func (em *EntityManager) SetProfiler(p Profiler) {
 	em.profiler = p
 }
 
-// SetAudioManager sets the audio manager for sound effects
-func (em *EntityManager) SetAudioManager(am *audio.Manager) {
-	em.audioManager = am
+// SetGame sets the game reference for accessing audio manager and other game state
+func (em *EntityManager) SetGame(g *Game) {
+	em.game = g
 }
 
 // SetChatWindow sets the chat window for event notifications
@@ -406,8 +405,8 @@ func (em *EntityManager) SetChatWindow(cw ChatWindowInterface) {
 
 // PlayImpactSound plays impact sound only if the target ship is player-controlled
 func (em *EntityManager) PlayImpactSound(targetShip entity.Ship) {
-	if em.audioManager != nil && targetShip.IsPlayerControlled() {
-		em.audioManager.PlaySound("impact")
+	if em.game != nil && targetShip.IsPlayerControlled() {
+		em.game.audioManager.PlaySound("impact")
 	}
 }
 
@@ -435,7 +434,7 @@ func (em *EntityManager) isAudibleToPlayer(x, y float64) bool {
 // updateBeamSounds updates the looping beam weapon sounds for all Testudons
 // Starts sound if firing and audible, stops if not firing or out of range
 func (em *EntityManager) updateBeamSounds() {
-	if em.audioManager == nil {
+	if em.game == nil {
 		return
 	}
 
@@ -453,10 +452,10 @@ func (em *EntityManager) updateBeamSounds() {
 
 		if isFiring && isAudible && testudon.IsAlive() {
 			// Start beam sound if not already playing
-			em.audioManager.StartLoopingSound(testudonID, "beam")
+			em.game.audioManager.StartLoopingSound(testudonID, "beam")
 		} else {
 			// Stop beam sound if playing
-			em.audioManager.StopLoopingSound(testudonID)
+			em.game.audioManager.StopLoopingSound(testudonID)
 		}
 	}
 }
@@ -466,7 +465,7 @@ const afterburnerSoundID = -1000
 
 // updateAfterburnerSound updates the looping afterburner sound for the player
 func (em *EntityManager) updateAfterburnerSound() {
-	if em.audioManager == nil {
+	if em.game == nil {
 		return
 	}
 
@@ -474,10 +473,10 @@ func (em *EntityManager) updateAfterburnerSound() {
 	playerShip := em.GetPlayerShip()
 	if playerShip != nil && playerShip.IsAlive() && playerShip.IsAfterburnerActive() {
 		// Start afterburner sound if not already playing
-		em.audioManager.StartLoopingSound(afterburnerSoundID, "afterburner")
+		em.game.audioManager.StartLoopingSound(afterburnerSoundID, "afterburner")
 	} else {
 		// Stop afterburner sound if playing
-		em.audioManager.StopLoopingSound(afterburnerSoundID)
+		em.game.audioManager.StopLoopingSound(afterburnerSoundID)
 	}
 }
 
@@ -1016,7 +1015,6 @@ func (em *EntityManager) InitializeFactions() {
 	}
 
 	// Shuffle spawn points to randomly assign them to factions
-	// Note: Using math/rand which should be seeded by the game
 	for i := len(spawnPoints) - 1; i > 0; i-- {
 		j := rand.Intn(i + 1)
 		spawnPoints[i], spawnPoints[j] = spawnPoints[j], spawnPoints[i]

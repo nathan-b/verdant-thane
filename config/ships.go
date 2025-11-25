@@ -119,3 +119,88 @@ func GetShipCharacteristics(class ShipClass) ShipCharacteristics {
 	}
 	return chars
 }
+
+// OverrideFighterFiringCone overrides the fighter's main gun firing cone
+// degreesValue should be between 1 and 180
+func OverrideFighterFiringCone(degreesValue int) {
+	// Convert degrees to radians
+	radians := float64(degreesValue) * 0.017453292519943295
+
+	// Update the weapon database
+	mainGun := WeaponDatabase["main_gun"]
+	mainGun.FiringCone = radians
+	WeaponDatabase["main_gun"] = mainGun
+
+	// Update the fighter ship database (which references the weapon database)
+	fighter := ShipDatabase[ClassFighter]
+	fighter.Weapons[0].FiringCone = radians
+	ShipDatabase[ClassFighter] = fighter
+}
+
+// OverrideFighterFiringRate overrides the fighter's main gun firing rate
+// shotsPerSecond should be between 1 and 10
+// This calculates the capacitor charge rate needed to achieve the desired shots per second
+func OverrideFighterFiringRate(shotsPerSecond float64) {
+	// At 60 ticks per second:
+	// - N shots per second means 1/N seconds per shot
+	// - That's (1/N) * 60 ticks per shot
+	// - Capacitor charge rate = 1.0 / ((1/N) * 60) = N / 60
+	chargeRate := shotsPerSecond / 60.0
+
+	// Update the weapon database
+	mainGun := WeaponDatabase["main_gun"]
+	mainGun.CapacitorChargeRate = chargeRate
+	WeaponDatabase["main_gun"] = mainGun
+
+	// Update the fighter ship database (which references the weapon database)
+	fighter := ShipDatabase[ClassFighter]
+	fighter.Weapons[0].CapacitorChargeRate = chargeRate
+	ShipDatabase[ClassFighter] = fighter
+}
+
+// OverrideFighterTurnRate overrides the fighter's turn rate
+// degreesPerTick should be between 1 and 10
+// This converts degrees to radians and updates the RotationSpeed constant
+func OverrideFighterTurnRate(degreesPerTick float64) {
+	// Convert degrees to radians
+	radians := degreesPerTick * 0.017453292519943295
+	RotationSpeed = radians
+}
+
+// OverrideFighterMaxSpeed overrides the fighter's maximum speed
+// pixelsPerTick should be between 4 and 10
+func OverrideFighterMaxSpeed(pixelsPerTick float64) {
+	// Update the fighter ship database
+	fighter := ShipDatabase[ClassFighter]
+	fighter.MaxSpeed = pixelsPerTick
+	ShipDatabase[ClassFighter] = fighter
+}
+
+// OverrideFighterAcceleration overrides the fighter's acceleration
+// pixelsPerSecond should be between 2 and 10
+// This converts pixels per second to pixels per tick (at 60 TPS)
+func OverrideFighterAcceleration(pixelsPerSecond float64) {
+	// Convert pixels per second to pixels per tick (60 TPS)
+	pixelsPerTick := pixelsPerSecond / 60.0
+
+	// Update the fighter ship database
+	fighter := ShipDatabase[ClassFighter]
+	fighter.Acceleration = pixelsPerTick
+	ShipDatabase[ClassFighter] = fighter
+}
+
+// OverrideAIFireProbability overrides the AI firing probability for all ship classes
+// fireProbability should be between 0.1 and 1.0
+// This maintains the 2:1 ratio between accurate shots and random shots
+func OverrideAIFireProbability(fireProbability float64) {
+	// Split fire probability: 2/3 accurate, 1/3 random (maintains 2:1 ratio)
+	accurateProb := fireProbability * (2.0 / 3.0)
+	randomProb := fireProbability * (1.0 / 3.0)
+
+	// Update all ship classes
+	for class, chars := range ShipDatabase {
+		chars.AIAccurateShotProbability = accurateProb
+		chars.AIRandomShotProbability = randomProb
+		ShipDatabase[class] = chars
+	}
+}

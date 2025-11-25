@@ -56,3 +56,24 @@ func GetProjectileCharacteristics(projType ProjectileType) ProjectileCharacteris
 	}
 	return chars
 }
+
+// OverrideMainGunProjectileLifetime overrides the main gun (laser) projectile lifetime
+// seconds should be between 0.5 and 10
+// This converts seconds to ticks (at 60 TPS) and updates the lifetime
+func OverrideMainGunProjectileLifetime(seconds float64) {
+	// Convert seconds to ticks (60 TPS)
+	ticks := int(seconds * 60.0)
+
+	// Update the projectile database
+	laser := ProjectileDatabase[LaserProjectile]
+	laser.Lifetime = ticks
+	ProjectileDatabase[LaserProjectile] = laser
+}
+
+// OverrideMainGunProjectileSpeed overrides the main gun (laser) projectile speed
+// speed should be between 8 and 16 pixels per tick
+func OverrideMainGunProjectileSpeed(speed float64) {
+	laser := ProjectileDatabase[LaserProjectile]
+	laser.Speed = speed
+	ProjectileDatabase[LaserProjectile] = laser
+}

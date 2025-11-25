@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/nathan/verdant-thane/audio"
 	"github.com/nathan/verdant-thane/config"
 	"github.com/nathan/verdant-thane/entity"
 	"github.com/nathan/verdant-thane/systems"
@@ -726,23 +727,20 @@ func TestSpawnParticle(t *testing.T) {
 	}
 }
 
-// TestSetAudioManager tests audio manager setter
-func TestSetAudioManager(t *testing.T) {
+// TestSetGame tests game reference setter
+func TestSetGame(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
 
-	if em.audioManager != nil {
-		t.Error("Audio manager should initially be nil")
+	// Create a minimal game struct with audio manager
+	game := Game{
+		audioManager: audio.NewManager(),
 	}
 
-	// Create mock audio manager (we can't use the real one without filesystem)
-	// Just test that the setter works
-	em.SetAudioManager(nil)
+	// Set the game reference
+	em.SetGame(&game)
 
-	// Verify it was set
-	if em.audioManager != nil {
-		t.Error("Audio manager should be nil after setting to nil")
-	}
+	// Test passes if no panics occurred - entity manager can now access game.audioManager
 }
 
 // TestSetChatWindow tests chat window setter

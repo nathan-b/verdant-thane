@@ -29,7 +29,7 @@ const (
 )
 
 // Player input
-const (
+var (
 	RotationSpeed = 3.0 * math.Pi / 180.0 // 3 degrees per tick
 )
 
