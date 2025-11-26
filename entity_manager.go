@@ -740,13 +740,18 @@ func (em *EntityManager) updateCollisions() {
 	}
 }
 
-// handlePlayerDeath transitions player to spectate mode
+// handlePlayerDeath transitions player to spectate mode and increments death counter
 func (em *EntityManager) handlePlayerDeath() {
 	em.playerShipID = -1
 	em.isSpectating = true
 	em.deaths++
 
 	// Find a friendly ship to spectate
+	em.findSpectateTarget()
+}
+
+// findSpectateTarget finds a friendly ship to spectate (without incrementing deaths)
+func (em *EntityManager) findSpectateTarget() {
 	playerFaction := 0 // Player is always faction 0
 	for _, ship := range em.ships {
 		if ship.GetFaction() == playerFaction && ship.IsAlive() {
@@ -809,6 +814,14 @@ func (em *EntityManager) ResetPlayerStats() {
 	em.score = 0
 	em.kills = 0
 	em.deaths = 0
+}
+
+// SetPlayerStats sets the player's score, kills, and deaths
+// Used when restarting a battle to restore stats to battle start values
+func (em *EntityManager) SetPlayerStats(score, kills, deaths int) {
+	em.score = score
+	em.kills = kills
+	em.deaths = deaths
 }
 
 // CycleSpectateNext cycles to the next allied ship
@@ -926,8 +939,8 @@ func (em *EntityManager) UpdateSpectateMode() {
 	// Check if spectated ship is still valid
 	spectatedShip := em.ships[em.spectatedShipID]
 	if spectatedShip == nil || !spectatedShip.IsAlive() {
-		// Find another ship to spectate
-		em.handlePlayerDeath() // Reuses logic to find new spectate target
+		// Find another ship to spectate (don't increment deaths - player already died)
+		em.findSpectateTarget()
 	}
 }
 
