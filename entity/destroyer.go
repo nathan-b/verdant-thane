@@ -62,14 +62,15 @@ func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *De
 				ProjectileType:   config.LaserProjectile,
 			},
 		},
-		AfterburnerCharge:          360.0, // Start fully charged
-		AfterburnerActive:          false,
-		AfterburnerMaxCharge:       360.0,
-		HasAfterburnerSystem:       true, // Destroyers have afterburner
-		AfterburnerDrain:           chars.AfterburnerDrain,
-		AfterburnerRecharge:        chars.AfterburnerRecharge,
-		AfterburnerAccelMultiplier: chars.AfterburnerAccelMultiplier,
-		AITargetID:                 -1,
+		AfterburnerCharge:             360.0, // Start fully charged
+		AfterburnerActive:             false,
+		AfterburnerMaxCharge:          360.0,
+		HasAfterburnerSystem:          true, // Destroyers have afterburner
+		AfterburnerDrain:              chars.AfterburnerDrain,
+		AfterburnerRecharge:           chars.AfterburnerRecharge,
+		AfterburnerAccelMultiplier:    chars.AfterburnerAccelMultiplier,
+		AfterburnerMaxSpeedMultiplier: chars.AfterburnerMaxSpeedMultiplier,
+		AITargetID:                    -1,
 		AIRetargetTimer:            config.AIRetargetInterval,
 		AIAccurateShotProbability:  chars.AIAccurateShotProbability,
 		AIRandomShotProbability:    chars.AIRandomShotProbability,

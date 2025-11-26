@@ -59,13 +59,14 @@ type BaseShip struct {
 	Weapons []Weapon
 
 	// Afterburner (fighters and destroyers only, not testudons)
-	AfterburnerCharge          float64 // 0.0 to 360.0
-	AfterburnerActive          bool
-	AfterburnerMaxCharge       float64
-	HasAfterburnerSystem       bool
-	AfterburnerDrain           float64 // Fuel consumed per tick when active
-	AfterburnerRecharge        float64 // Recharge rate per tick when inactive
-	AfterburnerAccelMultiplier float64 // Acceleration multiplier when active
+	AfterburnerCharge             float64 // 0.0 to 360.0
+	AfterburnerActive             bool
+	AfterburnerMaxCharge          float64
+	HasAfterburnerSystem          bool
+	AfterburnerDrain              float64 // Fuel consumed per tick when active
+	AfterburnerRecharge           float64 // Recharge rate per tick when inactive
+	AfterburnerAccelMultiplier    float64 // Acceleration multiplier when active
+	AfterburnerMaxSpeedMultiplier float64 // Max speed multiplier when active
 
 	// AI State
 	AITargetID                int     // Entity ID of current AI target
@@ -122,14 +123,15 @@ func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Figh
 				ProjectileType:   config.LaserProjectile,
 			},
 		},
-		AfterburnerCharge:          360.0, // Start fully charged
-		AfterburnerActive:          false,
-		AfterburnerMaxCharge:       360.0,
-		HasAfterburnerSystem:       true, // Fighters have afterburner
-		AfterburnerDrain:           chars.AfterburnerDrain,
-		AfterburnerRecharge:        chars.AfterburnerRecharge,
-		AfterburnerAccelMultiplier: chars.AfterburnerAccelMultiplier,
-		AITargetID:                 -1, // No target initially
+		AfterburnerCharge:             360.0, // Start fully charged
+		AfterburnerActive:             false,
+		AfterburnerMaxCharge:          360.0,
+		HasAfterburnerSystem:          true, // Fighters have afterburner
+		AfterburnerDrain:              chars.AfterburnerDrain,
+		AfterburnerRecharge:           chars.AfterburnerRecharge,
+		AfterburnerAccelMultiplier:    chars.AfterburnerAccelMultiplier,
+		AfterburnerMaxSpeedMultiplier: chars.AfterburnerMaxSpeedMultiplier,
+		AITargetID:                    -1, // No target initially
 		AIRetargetTimer:            config.AIRetargetInterval,
 		AIAccurateShotProbability:  chars.AIAccurateShotProbability,
 		AIRandomShotProbability:    chars.AIRandomShotProbability,
@@ -611,8 +613,13 @@ func (b *BaseShip) UpdatePlayerInput(ctx GameContext) {
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		// Accelerate
 		b.Speed += effectiveAccel
-		if b.Speed > b.MaxSpeed {
-			b.Speed = b.MaxSpeed
+		// Apply afterburner max speed boost if active
+		effectiveMaxSpeed := b.MaxSpeed
+		if b.AfterburnerActive {
+			effectiveMaxSpeed *= b.AfterburnerMaxSpeedMultiplier
+		}
+		if b.Speed > effectiveMaxSpeed {
+			b.Speed = effectiveMaxSpeed
 		}
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyS) {

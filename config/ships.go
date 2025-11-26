@@ -52,10 +52,11 @@ type ShipCharacteristics struct {
 	BaseSpritePath             string                  // Path to grayscale base sprite
 	KillScore                  int                     // Points awarded for destroying this ship
 	AfterburnerDrain           float64                 // Afterburner fuel consumed per tick
-	AfterburnerRecharge        float64                 // Afterburner recharge rate per tick
-	AfterburnerAccelMultiplier float64                 // Acceleration multiplier when afterburner active
-	AIAccurateShotProbability  float64                 // Probability AI fires accurate shot (0.0-1.0)
-	AIRandomShotProbability    float64                 // Probability AI fires random shot within cone (0.0-1.0)
+	AfterburnerRecharge          float64                 // Afterburner recharge rate per tick
+	AfterburnerAccelMultiplier   float64                 // Acceleration multiplier when afterburner active
+	AfterburnerMaxSpeedMultiplier float64                 // Max speed multiplier when afterburner active
+	AIAccurateShotProbability    float64                 // Probability AI fires accurate shot (0.0-1.0)
+	AIRandomShotProbability      float64                 // Probability AI fires random shot within cone (0.0-1.0)
 }
 
 // ShipDatabase holds characteristics for all ship classes
@@ -67,14 +68,15 @@ var ShipDatabase = map[ShipClass]ShipCharacteristics{
 		Weapons: []WeaponCharacteristics{
 			WeaponDatabase["main_gun"],
 		},
-		CollisionRadius:            14.0, // 24x24 sprite, slightly larger than half-width for better gameplay
-		BaseSpritePath:             "assets/fighter.png",
-		KillScore:                  10,   // Points awarded for kill
-		AfterburnerDrain:           3.0,  // Fuel consumed per tick when active
-		AfterburnerRecharge:        1.0,  // Recharge rate per tick when inactive
-		AfterburnerAccelMultiplier: 2.0,  // 2x acceleration when active
-		AIAccurateShotProbability:  0.40, // 40% chance of accurate shot
-		AIRandomShotProbability:    0.20, // 20% chance of random shot (0.40-0.60 range)
+		CollisionRadius:               14.0, // 24x24 sprite, slightly larger than half-width for better gameplay
+		BaseSpritePath:                "assets/fighter.png",
+		KillScore:                     10,   // Points awarded for kill
+		AfterburnerDrain:              3.0,  // Fuel consumed per tick when active
+		AfterburnerRecharge:           1.0,  // Recharge rate per tick when inactive
+		AfterburnerAccelMultiplier:    2.0,  // 2x acceleration when active
+		AfterburnerMaxSpeedMultiplier: 1.5,  // 1.5x max speed when active
+		AIAccurateShotProbability:     0.40, // 40% chance of accurate shot
+		AIRandomShotProbability:       0.20, // 20% chance of random shot (0.40-0.60 range)
 	},
 	ClassDestroyer: {
 		MaxSpeed:     5.0,        // Slower than fighter
@@ -84,28 +86,30 @@ var ShipDatabase = map[ShipClass]ShipCharacteristics{
 			WeaponDatabase["main_gun"],
 			WeaponDatabase["missile"],
 		},
-		CollisionRadius:            30.0, // 40x60 sprite, approximate average radius
-		BaseSpritePath:             "assets/destroyer.png",
-		KillScore:                  50,
-		AfterburnerDrain:           3.0,  // Fuel consumed per tick when active
-		AfterburnerRecharge:        1.0,  // Recharge rate per tick when inactive
-		AfterburnerAccelMultiplier: 2.0,  // 2x acceleration when active
-		AIAccurateShotProbability:  0.40, // 40% chance of accurate shot
-		AIRandomShotProbability:    0.20, // 20% chance of random shot (0.40-0.60 range)
+		CollisionRadius:               30.0, // 40x60 sprite, approximate average radius
+		BaseSpritePath:                "assets/destroyer.png",
+		KillScore:                     50,
+		AfterburnerDrain:              3.0,  // Fuel consumed per tick when active
+		AfterburnerRecharge:           1.0,  // Recharge rate per tick when inactive
+		AfterburnerAccelMultiplier:    2.0,  // 2x acceleration when active
+		AfterburnerMaxSpeedMultiplier: 1.5,  // 1.5x max speed when active
+		AIAccurateShotProbability:     0.40, // 40% chance of accurate shot
+		AIRandomShotProbability:       0.20, // 20% chance of random shot (0.40-0.60 range)
 	},
 	ClassTestudon: {
 		MaxSpeed:                   3.0,                       // Very slow battleship
 		Acceleration:               2.0 / 60.0,                // Slow acceleration
 		MaxShield:                  100,                       // Heavy armor (12.5x fighter)
 		Weapons:                    []WeaponCharacteristics{}, // No weapons (beam weapon handled separately for now)
-		CollisionRadius:            50.0,                      // 100x100 sprite, half-width for circular hitbox
-		BaseSpritePath:             "assets/testudon.png",
-		KillScore:                  100,
-		AfterburnerDrain:           0.0,
-		AfterburnerRecharge:        0.0,
-		AfterburnerAccelMultiplier: 1.0,  // Testudon has no afterburner
-		AIAccurateShotProbability:  0.40, // 40% chance of accurate shot
-		AIRandomShotProbability:    0.20, // 20% chance of random shot (0.40-0.60 range)
+		CollisionRadius:               50.0,                      // 100x100 sprite, half-width for circular hitbox
+		BaseSpritePath:                "assets/testudon.png",
+		KillScore:                     100,
+		AfterburnerDrain:              0.0,
+		AfterburnerRecharge:           0.0,
+		AfterburnerAccelMultiplier:    1.0,  // Testudon has no afterburner
+		AfterburnerMaxSpeedMultiplier: 1.0,  // Testudon has no afterburner
+		AIAccurateShotProbability:     0.40, // 40% chance of accurate shot
+		AIRandomShotProbability:       0.20, // 20% chance of random shot (0.40-0.60 range)
 	},
 }
 

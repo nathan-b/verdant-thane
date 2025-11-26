@@ -42,14 +42,15 @@ func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *Tes
 		CollisionRadius:            chars.CollisionRadius,
 		PlayerControlled:           false,
 		Weapons:                    []Weapon{}, // Testudons don't use projectile weapons (beam weapon only)
-		AfterburnerCharge:          0.0,
-		AfterburnerActive:          false,
-		AfterburnerMaxCharge:       0.0,
-		HasAfterburnerSystem:       false, // Testudons do NOT have afterburner
-		AfterburnerDrain:           chars.AfterburnerDrain,
-		AfterburnerRecharge:        chars.AfterburnerRecharge,
-		AfterburnerAccelMultiplier: chars.AfterburnerAccelMultiplier,
-		AITargetID:                 -1,
+		AfterburnerCharge:             0.0,
+		AfterburnerActive:             false,
+		AfterburnerMaxCharge:          0.0,
+		HasAfterburnerSystem:          false, // Testudons do NOT have afterburner
+		AfterburnerDrain:              chars.AfterburnerDrain,
+		AfterburnerRecharge:           chars.AfterburnerRecharge,
+		AfterburnerAccelMultiplier:    chars.AfterburnerAccelMultiplier,
+		AfterburnerMaxSpeedMultiplier: chars.AfterburnerMaxSpeedMultiplier,
+		AITargetID:                    -1,
 		AIRetargetTimer:            config.AIRetargetInterval,
 		AIAccurateShotProbability:  chars.AIAccurateShotProbability,
 		AIRandomShotProbability:    chars.AIRandomShotProbability,
