@@ -169,6 +169,7 @@ type Game struct {
 	laserSprite     *ebiten.Image           // Shared sprite for all laser projectiles
 	missileSprite   *ebiten.Image           // Shared sprite for all missile projectiles
 	explosionSprite *ebiten.Image           // Sprite sheet for explosion animation
+	impactSprite    *ebiten.Image           // Sprite sheet for impact animation
 	factionSprites  *systems.FactionSprites // Ship sprites for all factions
 	hudFont         *text.GoTextFace        // Font for HUD rendering
 	factionColors   []color.RGBA            // Faction colors for rendering (beams, minimap, etc.)
@@ -220,6 +221,12 @@ func NewGame() (*Game, error) {
 
 	// Load explosion sprite sheet (400x70, 4 frames of 100x70 each)
 	explosionSprite, _, err := ebitenutil.NewImageFromFile("assets/explosion.png")
+	if err != nil {
+		return nil, err
+	}
+
+	// Load impact sprite sheet (2000x400, 5 frames of 400x400 each)
+	impactSprite, _, err := ebitenutil.NewImageFromFile("assets/impact.png")
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +282,7 @@ func NewGame() (*Game, error) {
 
 	// Create entity manager
 	t = time.Now()
-	entityManager := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	entityManager := NewEntityManager(laserSprite, missileSprite, explosionSprite, impactSprite, factionSprites)
 	startupProfile.CreateEntityManager = time.Since(t)
 
 	// Create audio manager and load sound effects
@@ -296,6 +303,9 @@ func NewGame() (*Game, error) {
 	}
 	if err := audioManager.LoadSound("impact", "assets/impact2.wav"); err != nil {
 		log.Printf("Warning: Failed to load impact sound: %v", err)
+	}
+	if err := audioManager.LoadSound("enemy_impact", "assets/impact3.wav"); err != nil {
+		log.Printf("Warning: Failed to load enemy impact sound: %v", err)
 	}
 	if err := audioManager.LoadSound("explosion", "assets/explosion.wav"); err != nil {
 		log.Printf("Warning: Failed to load explosion sound: %v", err)
@@ -340,6 +350,7 @@ func NewGame() (*Game, error) {
 		laserSprite:        laserSprite,
 		missileSprite:      missileSprite,
 		explosionSprite:    explosionSprite,
+		impactSprite:       impactSprite,
 		factionSprites:     factionSprites,
 		hudFont:            hudFont,
 		factionColors: []color.RGBA{
@@ -1060,6 +1071,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			explosion.Render(screen, g.cameraX, g.cameraY)
 		}
 		g.profileData.RenderExplosions += time.Since(t)
+
+		// Draw impacts
+		for _, impact := range g.entityManager.impacts {
+			impact.Render(screen, g.cameraX, g.cameraY)
+		}
 
 		// Draw particles (afterburner exhaust, etc.)
 		for _, particle := range g.entityManager.particles {

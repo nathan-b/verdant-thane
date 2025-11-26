@@ -51,7 +51,7 @@ func createTestSprites() (*ebiten.Image, *ebiten.Image, *ebiten.Image, *systems.
 func TestFullGameFlowWithCombat(t *testing.T) {
 	// Create entity manager
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn two ships from different factions positioned for combat
@@ -115,7 +115,7 @@ func TestFullGameFlowWithCombat(t *testing.T) {
 // Adapted from old donburi-based test
 func TestMultiFactionBattle(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn 3 ships from different factions
@@ -169,7 +169,7 @@ func TestMultiFactionBattle(t *testing.T) {
 // Adapted from old donburi-based test
 func TestAICombatBehavior(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn AI ship with enemy ship in front
@@ -220,7 +220,7 @@ func TestAICombatBehavior(t *testing.T) {
 // Adapted from old donburi-based test
 func TestFleetSpawningIntegration(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Create a fleet configuration
@@ -286,7 +286,7 @@ func TestFleetSpawningIntegration(t *testing.T) {
 // Adapted from old donburi-based test
 func TestProjectileLifecycleIntegration(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn ship and fire multiple projectiles
@@ -325,7 +325,7 @@ func TestProjectileLifecycleIntegration(t *testing.T) {
 // Adapted from old donburi-based test
 func TestExplosionLifecycleIntegration(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn ships for combat
@@ -393,7 +393,7 @@ func TestExplosionLifecycleIntegration(t *testing.T) {
 // TestEntityManagerInitialization tests basic EntityManager setup
 func TestEntityManagerInitialization(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 
 	if em.nextID != 1 {
 		t.Errorf("Expected initial nextID=1, got %d", em.nextID)
@@ -419,7 +419,7 @@ func TestEntityManagerInitialization(t *testing.T) {
 // TestBattleEndDetection tests victory/defeat/ongoing detection
 func TestBattleEndDetection(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Initial state - no ships means player faction has no ships = defeat
@@ -458,7 +458,7 @@ func TestBattleEndDetection(t *testing.T) {
 // TestShipRespawning tests player respawn mechanics
 func TestShipRespawning(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn player ship
@@ -519,7 +519,7 @@ func TestShipRespawning(t *testing.T) {
 // TestMixedFleetComposition tests spawning different ship classes
 func TestMixedFleetComposition(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn mixed fleet
@@ -573,7 +573,7 @@ func TestMixedFleetComposition(t *testing.T) {
 // TestSpatialGridIntegration tests spatial grid for collision detection
 func TestSpatialGridIntegration(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn ships in different locations
@@ -601,7 +601,7 @@ func TestSpatialGridIntegration(t *testing.T) {
 // TestWorldWrappingIntegration tests world wrapping across boundaries
 func TestWorldWrappingIntegration(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn ship near left edge
@@ -632,7 +632,7 @@ func TestWorldWrappingIntegration(t *testing.T) {
 // TestFindNearestEnemyInArc tests arc-based enemy searching (for missile targeting)
 func TestFindNearestEnemyInArc(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn ship facing up (rotation = 0)
@@ -692,7 +692,7 @@ func TestFindNearestEnemyInArc(t *testing.T) {
 // TestGetWorldSize tests world dimension retrieval
 func TestGetWorldSize(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 
 	width, height := em.GetWorldSize()
 	if width != float64(config.GameWidth) {
@@ -706,7 +706,7 @@ func TestGetWorldSize(t *testing.T) {
 // TestSpawnParticle tests particle spawning
 func TestSpawnParticle(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 
 	initialParticleCount := len(em.particles)
 
@@ -730,7 +730,7 @@ func TestSpawnParticle(t *testing.T) {
 // TestSetGame tests game reference setter
 func TestSetGame(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 
 	// Create a minimal game struct with audio manager
 	game := Game{
@@ -746,7 +746,7 @@ func TestSetGame(t *testing.T) {
 // TestSetChatWindow tests chat window setter
 func TestSetChatWindow(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 
 	if em.chatWindow != nil {
 		t.Error("Chat window should initially be nil")
@@ -770,7 +770,7 @@ func TestSetChatWindow(t *testing.T) {
 // TestRemoveFunctions tests entity removal
 func TestRemoveFunctions(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn ship and remove it
@@ -829,7 +829,7 @@ func TestRemoveFunctions(t *testing.T) {
 // TestOnShipDestroyed tests ship destruction event handling with chat
 func TestOnShipDestroyed(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Set up chat window
@@ -865,7 +865,7 @@ func TestOnShipDestroyed(t *testing.T) {
 // TestPlayImpactSound tests impact sound with nil audio manager
 func TestPlayImpactSound(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn ship
@@ -880,7 +880,7 @@ func TestPlayImpactSound(t *testing.T) {
 // TestResetPlayerStats tests resetting player statistics
 func TestResetPlayerStats(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Set some stats
@@ -906,7 +906,7 @@ func TestResetPlayerStats(t *testing.T) {
 // TestDestroyerMissileTargeting tests that destroyers use FindNearestEnemyInArc
 func TestDestroyerMissileTargeting(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn destroyer facing up

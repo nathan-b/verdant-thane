@@ -51,6 +51,7 @@ const (
 // Explosion animation
 const (
 	ExplosionFrameCount = 4 // Total number of explosion animation frames
+	ImpactFrameCount    = 5 // Total number of impact animation frames
 )
 
 // Audio settings

@@ -8,7 +8,7 @@ import (
 
 // Test EntityManager Creation
 func TestNewEntityManager(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	if em == nil {
 		t.Fatal("NewEntityManager returned nil")
@@ -34,7 +34,7 @@ func TestNewEntityManager(t *testing.T) {
 
 // Test Ship Spawning
 func TestEntityManagerSpawnShip(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Spawn a fighter
 	ship := em.SpawnShip(entity.ClassFighter, 0, 100, 200)
@@ -75,7 +75,7 @@ func TestEntityManagerSpawnShip(t *testing.T) {
 
 // Test Multiple Ship Spawning
 func TestEntityManagerSpawnMultipleShips(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	ship1 := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
 	ship2 := em.SpawnShip(entity.ClassDestroyer, 1, 200, 200)
@@ -108,7 +108,7 @@ func TestEntityManagerSpawnMultipleShips(t *testing.T) {
 
 // Test Projectile Spawning
 func TestEntityManagerSpawnProjectile(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	cfg := entity.MainGunConfig{
 		X:         100,
@@ -143,7 +143,7 @@ func TestEntityManagerSpawnProjectile(t *testing.T) {
 
 // Test Missile Spawning
 func TestEntityManagerSpawnMissile(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	cfg := entity.MissileConfig{
 		X:         100,
@@ -171,7 +171,7 @@ func TestEntityManagerSpawnMissile(t *testing.T) {
 
 // Test Explosion Spawning
 func TestEntityManagerSpawnExplosion(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	em.SpawnExplosion(100, 200)
 
@@ -192,7 +192,7 @@ func TestEntityManagerSpawnExplosion(t *testing.T) {
 
 // Test Player Ship Assignment
 func TestEntityManagerPlayerShip(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	ship := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
 	shipID := ship.GetID()
@@ -218,7 +218,7 @@ func TestEntityManagerPlayerShip(t *testing.T) {
 
 // Test Player Stats Tracking
 func TestEntityManagerPlayerStats(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Add some kills and score
 	em.AddKill()
@@ -239,7 +239,7 @@ func TestEntityManagerPlayerStats(t *testing.T) {
 
 // Test GetAllShips
 func TestEntityManagerGetAllShips(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	em.SpawnShip(entity.ClassFighter, 0, 100, 100)
 	em.SpawnShip(entity.ClassFighter, 1, 200, 200)
@@ -253,7 +253,7 @@ func TestEntityManagerGetAllShips(t *testing.T) {
 
 // Test GetShipsByFaction
 func TestEntityManagerGetShipsByFaction(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	em.SpawnShip(entity.ClassFighter, 0, 100, 100)
 	em.SpawnShip(entity.ClassFighter, 0, 150, 150)
@@ -287,7 +287,7 @@ func TestEntityManagerGetShipsByFaction(t *testing.T) {
 
 // Test FindNearestEnemy
 func TestEntityManagerFindNearestEnemy(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Spawn test ships
 	ship1 := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -319,7 +319,7 @@ func TestEntityManagerFindNearestEnemy(t *testing.T) {
 
 // Test Clear Preserves Player Stats
 func TestEntityManagerClearPreservesStats(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Set up some state
 	em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -361,7 +361,7 @@ func TestEntityManagerClearPreservesStats(t *testing.T) {
 
 // Test Battle End Detection - Player Victory
 func TestEntityManagerBattleEndPlayerVictory(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Player faction (0) has ships, no other factions do
 	em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -375,7 +375,7 @@ func TestEntityManagerBattleEndPlayerVictory(t *testing.T) {
 
 // Test Battle End Detection - Player Defeat
 func TestEntityManagerBattleEndPlayerDefeat(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Enemy faction has ships, player faction (0) does not
 	em.SpawnShip(entity.ClassFighter, 1, 100, 100)
@@ -389,7 +389,7 @@ func TestEntityManagerBattleEndPlayerDefeat(t *testing.T) {
 
 // Test Battle End Detection - Ongoing
 func TestEntityManagerBattleEndOngoing(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Multiple factions with ships
 	em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -403,7 +403,7 @@ func TestEntityManagerBattleEndOngoing(t *testing.T) {
 
 // Test UpdateAll Removes Dead Entities
 func TestEntityManagerUpdateRemovesDeadEntities(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Spawn entities
 	ship := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -440,7 +440,7 @@ func TestEntityManagerUpdateRemovesDeadEntities(t *testing.T) {
 
 // Test ID Generation Doesn't Reuse IDs
 func TestEntityManagerIDGeneration(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	ids := make(map[int]bool)
 
@@ -466,7 +466,7 @@ func TestEntityManagerIDGeneration(t *testing.T) {
 
 // Test GetSpectatedShip returns spectated ship health
 func TestSpectatedShipHealthDisplay(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Spawn player ship and friendly ship
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -514,7 +514,7 @@ func TestSpectatedShipHealthDisplay(t *testing.T) {
 
 // Test RespawnIntoSpectatedShip replenishes shields
 func TestRespawnIntoSpectatedShipReplenishesShields(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Spawn player ship and friendly ship
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -567,7 +567,7 @@ func TestRespawnIntoSpectatedShipReplenishesShields(t *testing.T) {
 
 // Test CycleSpectateNext and CycleSpectatePrevious work correctly
 func TestSpectateModeCycling(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Spawn player and three friendly ships
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -622,7 +622,7 @@ func TestSpectateModeCycling(t *testing.T) {
 
 // Test Cannot Respawn Into Testudon
 func TestCannotRespawnIntoTestudon(t *testing.T) {
-	em := NewEntityManager(nil, nil, nil, nil)
+	em := NewEntityManager(nil, nil, nil, nil, nil)
 
 	// Spawn player and testudon
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)

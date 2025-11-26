@@ -11,7 +11,7 @@ import (
 // Test Camera Initialization on Game Start
 func TestCameraInitialization(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn player ship at a known position
@@ -89,7 +89,7 @@ func TestCameraCentersOnPlayer(t *testing.T) {
 // Test Camera Updates to Follow Player Movement
 func TestCameraFollowsPlayerMovement(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn player ship
@@ -139,7 +139,7 @@ func TestCameraFollowsPlayerMovement(t *testing.T) {
 // Test Camera with Player at World Edge (World Wrapping)
 func TestCameraAtWorldEdge(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn player near world edge
@@ -170,7 +170,7 @@ func TestCameraAtWorldEdge(t *testing.T) {
 // Test Camera Stays Centered During Combat
 func TestCameraStaysCenteredDuringCombat(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn player and enemy
@@ -224,7 +224,7 @@ func TestCameraStaysCenteredDuringCombat(t *testing.T) {
 // Test Camera Behavior When Player Dies (Spectate Mode)
 func TestCameraInSpectateMode(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
-	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 	em.InitializeFactions()
 
 	// Spawn player and friendly ship

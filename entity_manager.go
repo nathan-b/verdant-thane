@@ -34,6 +34,7 @@ type EntityManager struct {
 	ships       map[int]entity.Ship
 	projectiles map[int]entity.Projectile
 	explosions  map[int]*entity.Explosion
+	impacts     map[int]*entity.Impact
 	particles   map[int]*entity.Particle
 
 	// Faction spawn points
@@ -51,6 +52,7 @@ type EntityManager struct {
 	mainGunSprite   *ebiten.Image
 	missileSprite   *ebiten.Image
 	explosionSprite *ebiten.Image
+	impactSprite    *ebiten.Image
 	factionSprites  *systems.FactionSprites // Ship sprites for all classes and factions
 
 	// Performance profiling (optional)
@@ -76,12 +78,13 @@ type ChatWindowInterface interface {
 }
 
 // NewEntityManager creates a new entity manager
-func NewEntityManager(mainGunSprite, missileSprite, explosionSprite *ebiten.Image, factionSprites *systems.FactionSprites) *EntityManager {
+func NewEntityManager(mainGunSprite, missileSprite, explosionSprite, impactSprite *ebiten.Image, factionSprites *systems.FactionSprites) *EntityManager {
 	return &EntityManager{
 		nextID:             1,
 		ships:              make(map[int]entity.Ship),
 		projectiles:        make(map[int]entity.Projectile),
 		explosions:         make(map[int]*entity.Explosion),
+		impacts:            make(map[int]*entity.Impact),
 		particles:          make(map[int]*entity.Particle),
 		factionSpawnPoints: make(map[int]struct{ x, y float64 }),
 		playerShipID:       -1,
@@ -93,6 +96,7 @@ func NewEntityManager(mainGunSprite, missileSprite, explosionSprite *ebiten.Imag
 		mainGunSprite:      mainGunSprite,
 		missileSprite:      missileSprite,
 		explosionSprite:    explosionSprite,
+		impactSprite:       impactSprite,
 		factionSprites:     factionSprites,
 	}
 }
@@ -146,6 +150,20 @@ func (em *EntityManager) SpawnExplosion(x, y float64) {
 	// Play explosion sound effect if within audible range
 	if em.game != nil && em.isAudibleToPlayer(x, y) {
 		em.game.audioManager.PlaySound("explosion")
+	}
+}
+
+// SpawnImpact creates a new impact animation
+// Only plays sound if the projectile was fired by the player
+func (em *EntityManager) SpawnImpact(x, y float64, projectileOwnerID int) {
+	id := em.nextID
+	em.nextID++
+
+	impact := entity.NewImpact(id, x, y, em.impactSprite)
+	em.impacts[id] = impact
+
+	if em.game != nil && projectileOwnerID == em.playerShipID && em.isAudibleToPlayer(x, y) {
+		em.game.audioManager.PlaySound("enemy_impact")
 	}
 }
 
@@ -674,6 +692,14 @@ func (em *EntityManager) UpdateAll() {
 		em.profiler.RecordExplosions(time.Since(explosionStart))
 	}
 
+	// Update impacts
+	for id, impact := range em.impacts {
+		impact.Update(em)
+		if !impact.IsAlive() {
+			delete(em.impacts, id)
+		}
+	}
+
 	// Update particles (afterburner exhaust, etc.)
 	for id, particle := range em.particles {
 		particle.Update(em)
@@ -721,6 +747,12 @@ func (em *EntityManager) updateCollisions() {
 
 			// Check collision
 			if proj.CheckCollision(ship) {
+				// Get ship position for impact effect
+				shipX, shipY := ship.GetPosition()
+
+				// Spawn impact animation at ship position (sound only plays for player hits)
+				em.SpawnImpact(shipX, shipY, proj.GetOwnerID())
+
 				// Apply damage
 				ship.TakeDamage(proj.GetDamage(), proj.GetOwnerID(), em)
 
@@ -1007,6 +1039,7 @@ func (em *EntityManager) Clear() {
 	em.ships = make(map[int]entity.Ship)
 	em.projectiles = make(map[int]entity.Projectile)
 	em.explosions = make(map[int]*entity.Explosion)
+	em.impacts = make(map[int]*entity.Impact)
 	em.factionSpawnPoints = make(map[int]struct{ x, y float64 })
 	em.playerShipID = -1
 	em.isSpectating = false

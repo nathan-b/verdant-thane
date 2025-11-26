@@ -14,7 +14,7 @@ func createMinimalTestGame(t *testing.T) *Game {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 
 	// Create entity manager
-	entityManager := NewEntityManager(laserSprite, missileSprite, explosionSprite, factionSprites)
+	entityManager := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
 
 	// Create minimal game instance
 	game := &Game{
