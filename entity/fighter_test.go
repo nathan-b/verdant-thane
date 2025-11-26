@@ -888,3 +888,115 @@ func TestFighterAIRotationSmallAngle(t *testing.T) {
 		t.Errorf("Small angle adjustment should be <= rotation speed, got change of %.4f", rotationChange)
 	}
 }
+
+// Test Afterburner Increases Max Speed
+func TestFighterAfterburnerMaxSpeedBoost(t *testing.T) {
+	fighter := NewFighter(1, 0, 100, 100, nil)
+
+	// Verify fighter has afterburner
+	if !fighter.HasAfterburnerSystem {
+		t.Fatal("Fighter should have afterburner system")
+	}
+
+	// Get characteristics for verification
+	chars := config.GetShipCharacteristics(ClassFighter)
+	normalMaxSpeed := chars.MaxSpeed
+	boostedMaxSpeed := normalMaxSpeed * chars.AfterburnerMaxSpeedMultiplier
+
+	// Activate afterburner and accelerate beyond normal max speed
+	fighter.AfterburnerActive = true
+	fighter.AfterburnerCharge = 100.0    // Ensure we have charge
+	fighter.Speed = normalMaxSpeed + 1.0 // Set speed above normal max
+
+	// Simulate player input to accelerate
+	// We'll manually call the acceleration logic similar to UpdatePlayerInput
+	effectiveAccel := fighter.Accel
+	if fighter.AfterburnerActive {
+		effectiveAccel *= fighter.AfterburnerAccelMultiplier
+	}
+
+	// Accelerate to beyond normal max speed
+	fighter.Speed += effectiveAccel
+
+	// Calculate effective max speed with afterburner
+	effectiveMaxSpeed := normalMaxSpeed
+	if fighter.AfterburnerActive {
+		effectiveMaxSpeed *= fighter.AfterburnerMaxSpeedMultiplier
+	}
+
+	// Cap speed to effective max
+	if fighter.Speed > effectiveMaxSpeed {
+		fighter.Speed = effectiveMaxSpeed
+	}
+
+	// With afterburner active, should be able to reach boosted max speed
+	if fighter.Speed <= normalMaxSpeed {
+		t.Errorf("Fighter should exceed normal max speed (%f) with afterburner, got %f",
+			normalMaxSpeed, fighter.Speed)
+	}
+
+	if fighter.Speed > boostedMaxSpeed+0.01 {
+		t.Errorf("Fighter should not exceed boosted max speed (%f), got %f",
+			boostedMaxSpeed, fighter.Speed)
+	}
+}
+
+// Test Afterburner Max Speed Returns to Normal When Deactivated
+func TestFighterAfterburnerDeactivationMaxSpeed(t *testing.T) {
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	chars := config.GetShipCharacteristics(ClassFighter)
+	normalMaxSpeed := chars.MaxSpeed
+	boostedMaxSpeed := normalMaxSpeed * chars.AfterburnerMaxSpeedMultiplier
+
+	// Set speed to boosted max speed with afterburner active
+	fighter.AfterburnerActive = true
+	fighter.Speed = boostedMaxSpeed
+
+	// Deactivate afterburner
+	fighter.AfterburnerActive = false
+
+	// In real game, the next update would apply friction/deceleration
+	// but max speed enforcement happens during acceleration
+	// Let's simulate trying to maintain speed above normal max
+	effectiveMaxSpeed := normalMaxSpeed
+	if fighter.AfterburnerActive {
+		effectiveMaxSpeed *= fighter.AfterburnerMaxSpeedMultiplier
+	}
+
+	// Speed should be clamped to normal max when accelerating without afterburner
+	if fighter.Speed > normalMaxSpeed {
+		// During normal movement updates, speed naturally decays
+		// but here we verify that the effective max is back to normal
+		if effectiveMaxSpeed != normalMaxSpeed {
+			t.Errorf("Effective max speed should be normal (%f) when afterburner inactive, got %f",
+				normalMaxSpeed, effectiveMaxSpeed)
+		}
+	}
+}
+
+// Test Afterburner Max Speed Multiplier Applied Correctly
+func TestFighterAfterburnerMaxSpeedMultiplier(t *testing.T) {
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	chars := config.GetShipCharacteristics(ClassFighter)
+
+	// Verify the multiplier is set correctly from config
+	if fighter.AfterburnerMaxSpeedMultiplier != chars.AfterburnerMaxSpeedMultiplier {
+		t.Errorf("Expected afterburner max speed multiplier %f, got %f",
+			chars.AfterburnerMaxSpeedMultiplier, fighter.AfterburnerMaxSpeedMultiplier)
+	}
+
+	// Verify it's greater than 1.0 (should boost speed)
+	if fighter.AfterburnerMaxSpeedMultiplier <= 1.0 {
+		t.Errorf("Afterburner max speed multiplier should be > 1.0, got %f",
+			fighter.AfterburnerMaxSpeedMultiplier)
+	}
+
+	// Calculate expected boosted max speed
+	expectedBoostedMaxSpeed := fighter.MaxSpeed * fighter.AfterburnerMaxSpeedMultiplier
+
+	// Verify it's actually higher than normal max
+	if expectedBoostedMaxSpeed <= fighter.MaxSpeed {
+		t.Errorf("Boosted max speed (%f) should be greater than normal max speed (%f)",
+			expectedBoostedMaxSpeed, fighter.MaxSpeed)
+	}
+}

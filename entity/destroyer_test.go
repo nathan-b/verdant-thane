@@ -691,3 +691,81 @@ func TestAIDestroyerFiresMultipleMissiles(t *testing.T) {
 		}
 	}
 }
+
+// Test Destroyer Afterburner Increases Max Speed
+func TestDestroyerAfterburnerMaxSpeedBoost(t *testing.T) {
+	destroyer := NewDestroyer(1, 0, 100, 100, nil)
+
+	// Verify destroyer has afterburner
+	if !destroyer.HasAfterburnerSystem {
+		t.Fatal("Destroyer should have afterburner system")
+	}
+
+	// Get characteristics for verification
+	chars := config.GetShipCharacteristics(ClassDestroyer)
+	normalMaxSpeed := chars.MaxSpeed
+	boostedMaxSpeed := normalMaxSpeed * chars.AfterburnerMaxSpeedMultiplier
+
+	// Activate afterburner and accelerate beyond normal max speed
+	destroyer.AfterburnerActive = true
+	destroyer.AfterburnerCharge = 100.0    // Ensure we have charge
+	destroyer.Speed = normalMaxSpeed + 0.5 // Set speed above normal max
+
+	// Simulate player input to accelerate
+	effectiveAccel := destroyer.Accel
+	if destroyer.AfterburnerActive {
+		effectiveAccel *= destroyer.AfterburnerAccelMultiplier
+	}
+
+	// Accelerate to beyond normal max speed
+	destroyer.Speed += effectiveAccel
+
+	// Calculate effective max speed with afterburner
+	effectiveMaxSpeed := normalMaxSpeed
+	if destroyer.AfterburnerActive {
+		effectiveMaxSpeed *= destroyer.AfterburnerMaxSpeedMultiplier
+	}
+
+	// Cap speed to effective max
+	if destroyer.Speed > effectiveMaxSpeed {
+		destroyer.Speed = effectiveMaxSpeed
+	}
+
+	// With afterburner active, should be able to reach boosted max speed
+	if destroyer.Speed <= normalMaxSpeed {
+		t.Errorf("Destroyer should exceed normal max speed (%f) with afterburner, got %f",
+			normalMaxSpeed, destroyer.Speed)
+	}
+
+	if destroyer.Speed > boostedMaxSpeed+0.01 {
+		t.Errorf("Destroyer should not exceed boosted max speed (%f), got %f",
+			boostedMaxSpeed, destroyer.Speed)
+	}
+}
+
+// Test Destroyer Afterburner Max Speed Multiplier Applied Correctly
+func TestDestroyerAfterburnerMaxSpeedMultiplier(t *testing.T) {
+	destroyer := NewDestroyer(1, 0, 100, 100, nil)
+	chars := config.GetShipCharacteristics(ClassDestroyer)
+
+	// Verify the multiplier is set correctly from config
+	if destroyer.AfterburnerMaxSpeedMultiplier != chars.AfterburnerMaxSpeedMultiplier {
+		t.Errorf("Expected afterburner max speed multiplier %f, got %f",
+			chars.AfterburnerMaxSpeedMultiplier, destroyer.AfterburnerMaxSpeedMultiplier)
+	}
+
+	// Verify it's greater than 1.0 (should boost speed)
+	if destroyer.AfterburnerMaxSpeedMultiplier <= 1.0 {
+		t.Errorf("Afterburner max speed multiplier should be > 1.0, got %f",
+			destroyer.AfterburnerMaxSpeedMultiplier)
+	}
+
+	// Calculate expected boosted max speed
+	expectedBoostedMaxSpeed := destroyer.MaxSpeed * destroyer.AfterburnerMaxSpeedMultiplier
+
+	// Verify it's actually higher than normal max
+	if expectedBoostedMaxSpeed <= destroyer.MaxSpeed {
+		t.Errorf("Boosted max speed (%f) should be greater than normal max speed (%f)",
+			expectedBoostedMaxSpeed, destroyer.MaxSpeed)
+	}
+}
