@@ -181,7 +181,7 @@ func TestMainGunProjectileCollisionDetection(t *testing.T) {
 		name            string
 		projX, projY    float64
 		projFaction     int
-		target          Ship
+		target          *Ship
 		expectedCollide bool
 		reason          string
 	}{

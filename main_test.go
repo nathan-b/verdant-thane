@@ -427,10 +427,8 @@ func TestCameraFollowsPlayer(t *testing.T) {
 	}
 
 	// Move player ship directly (bypass normal physics for testing)
-	if fighter, ok := playerShip.(*entity.Fighter); ok {
-		fighter.X = 1000.0
-		fighter.Y = 2000.0
-	}
+	playerShip.X = 1000.0
+	playerShip.Y = 2000.0
 
 	// Run update to update camera
 	game.Update()
@@ -467,7 +465,7 @@ func TestCameraFollowsSpectatedShip(t *testing.T) {
 	}
 
 	playerShip := game.entityManager.GetPlayerShip()
-	var otherFriendlyShip entity.Ship
+	var otherFriendlyShip *entity.Ship
 	for _, ship := range friendlyShips {
 		if ship.GetID() != playerShip.GetID() {
 			otherFriendlyShip = ship
@@ -491,10 +489,8 @@ func TestCameraFollowsSpectatedShip(t *testing.T) {
 	}
 
 	// Move spectated ship to known position
-	if fighter, ok := otherFriendlyShip.(*entity.Fighter); ok {
-		fighter.X = 3000.0
-		fighter.Y = 4000.0
-	}
+	otherFriendlyShip.X = 3000.0
+	otherFriendlyShip.Y = 4000.0
 
 	// Run update to update camera
 	game.Update()

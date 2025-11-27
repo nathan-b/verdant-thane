@@ -30,7 +30,7 @@ type Projectile interface {
 	Entity
 	GetOwnerID() int
 	GetDamage() int
-	CheckCollision(ship *BaseShip) bool
+	CheckCollision(ship *Ship) bool
 	GetFaction() int // Inherited from owner
 }
 
@@ -45,11 +45,11 @@ type GameContext interface {
 	SpawnParticle(x, y, vx, vy float64)
 
 	// Entity queries
-	GetShip(id int) *BaseShip
-	GetAllShips() []*BaseShip
-	GetShipsByFaction(factionID int) []*BaseShip
-	FindNearestEnemy(ship *BaseShip) (nearestShip *BaseShip, distance float64)
-	FindNearestEnemyInArc(ship *BaseShip, arc, maxRange float64, rearFacing bool) (nearestShip *BaseShip, distance float64)
+	GetShip(id int) *Ship
+	GetAllShips() []*Ship
+	GetShipsByFaction(factionID int) []*Ship
+	FindNearestEnemy(ship *Ship) (nearestShip *Ship, distance float64)
+	FindNearestEnemyInArc(ship *Ship, arc, maxRange float64, rearFacing bool) (nearestShip *Ship, distance float64)
 
 	// World info
 	GetWorldSize() (width, height float64)
@@ -59,7 +59,7 @@ type GameContext interface {
 	AddScore(points int)
 
 	// Audio
-	PlayImpactSound(targetShip *BaseShip)
+	PlayImpactSound(targetShip *Ship)
 
 	// Chat events
 	OnShipDestroyed(victimShipID int, killerShipID int)

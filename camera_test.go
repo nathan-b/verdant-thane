@@ -103,10 +103,8 @@ func TestCameraFollowsPlayerMovement(t *testing.T) {
 	cameraY := y1 - float64(config.ScreenHeight)/2
 
 	// Move player ship by setting velocity directly
-	if fighter, ok := playerShip.(*entity.Fighter); ok {
-		fighter.Rotation = 0 // Facing up
-		fighter.Speed = 5.0
-	}
+	playerShip.Rotation = 0 // Facing up
+	playerShip.Speed = 5.0
 
 	// Update ship position
 	em.UpdateAll()
@@ -186,10 +184,8 @@ func TestCameraStaysCenteredDuringCombat(t *testing.T) {
 	cameraY := y1 - float64(config.ScreenHeight)/2
 
 	// Player fires at enemy
-	if fighter, ok := playerShip.(*entity.Fighter); ok {
-		fighter.Rotation = math.Pi / 2 // Face right toward enemy
-		fighter.Weapons[0].WeaponCapacitor = 1.0
-	}
+	playerShip.Rotation = math.Pi / 2 // Face right toward enemy
+	playerShip.Weapons[0].WeaponCapacitor = 1.0
 
 	enemyX, enemyY := enemyShip.GetPosition()
 	playerShip.FireWeapon(enemyX, enemyY, em)

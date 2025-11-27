@@ -11,7 +11,7 @@ type spatialGrid struct {
 	cellSize   int                        // Size of each grid cell in pixels (typically 128)
 	gridWidth  int                        // Number of cells horizontally
 	gridHeight int                        // Number of cells vertically
-	cells      map[int][]*entity.BaseShip // Cell index → ships in that cell
+	cells      map[int][]*entity.Ship // Cell index → ships in that cell
 }
 
 // newSpatialGrid creates a new spatial grid for the game world
@@ -24,7 +24,7 @@ func newSpatialGrid() *spatialGrid {
 		cellSize:   cellSize,
 		gridWidth:  gridWidth,
 		gridHeight: gridHeight,
-		cells:      make(map[int][]*entity.BaseShip, gridWidth*gridHeight),
+		cells:      make(map[int][]*entity.Ship, gridWidth*gridHeight),
 	}
 }
 
@@ -58,7 +58,7 @@ func (g *spatialGrid) getCellIndex(x, y float64) int {
 }
 
 // insert adds a ship to the appropriate grid cell
-func (g *spatialGrid) insert(ship *entity.BaseShip) {
+func (g *spatialGrid) insert(ship *entity.Ship) {
 	x, y := ship.GetPosition()
 	cellIndex := g.getCellIndex(x, y)
 
@@ -69,12 +69,12 @@ func (g *spatialGrid) insert(ship *entity.BaseShip) {
 // findNearestEnemy searches outward from a position to find the nearest enemy ship
 // Uses expanding ring search for O(k) performance instead of O(n)
 // Returns nil if no enemy found
-func (g *spatialGrid) findNearestEnemy(ship *entity.BaseShip) (*entity.BaseShip, float64) {
+func (g *spatialGrid) findNearestEnemy(ship *entity.Ship) (*entity.Ship, float64) {
 	shipX, shipY := ship.GetPosition()
 	shipFaction := ship.GetFaction()
 	shipID := ship.GetID()
 
-	var nearestShip *entity.BaseShip
+	var nearestShip *entity.Ship
 	minDistance := 999999.0
 
 	// Get starting cell coordinates
@@ -164,7 +164,7 @@ func max(a, b int) int {
 
 // getNearbyShips returns all ships in the 3×3 cell neighborhood around a position
 // This includes the cell at (x,y) plus all 8 adjacent cells
-func (g *spatialGrid) getNearbyShips(x, y float64) []*entity.BaseShip {
+func (g *spatialGrid) getNearbyShips(x, y float64) []*entity.Ship {
 	// Get the center cell
 	wx := int(x) % config.GameWidth
 	wy := int(y) % config.GameHeight
@@ -188,7 +188,7 @@ func (g *spatialGrid) getNearbyShips(x, y float64) []*entity.BaseShip {
 	}
 
 	// Collect ships from 3×3 neighborhood
-	nearby := make([]*entity.BaseShip, 0, 20) // Pre-allocate for typical case
+	nearby := make([]*entity.Ship, 0, 20) // Pre-allocate for typical case
 
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {

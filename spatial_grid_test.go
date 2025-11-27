@@ -358,7 +358,7 @@ func BenchmarkSpatialGridGetNearby(b *testing.B) {
 }
 
 func BenchmarkSpatialGridFullRebuild(b *testing.B) {
-	ships := make([]entity.Ship, 800)
+	ships := make([]*entity.Ship, 800)
 	for i := 0; i < 800; i++ {
 		x := float64((i * 123) % config.GameWidth)
 		y := float64((i * 456) % config.GameHeight)

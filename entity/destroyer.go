@@ -7,10 +7,10 @@ import (
 )
 
 // NewDestroyer creates a new destroyer ship
-func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *BaseShip {
+func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *Ship {
 	chars := config.GetShipCharacteristics(ClassDestroyer)
 
-	base := &BaseShip{
+	base := &Ship{
 		ID:               id,
 		FactionID:        factionID,
 		Class:            ClassDestroyer,

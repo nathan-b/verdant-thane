@@ -12,7 +12,7 @@ type MockGameContext struct {
 	spawnedProjectiles []MainGunConfig
 	spawnedMissiles    []MissileConfig
 	spawnedExplosions  []struct{ x, y float64 }
-	ships              map[int]Ship
+	ships              map[int]*Ship
 	killCount          int
 	scoreAdded         int
 }
@@ -22,7 +22,7 @@ func NewMockGameContext() *MockGameContext {
 		spawnedProjectiles: make([]MainGunConfig, 0),
 		spawnedMissiles:    make([]MissileConfig, 0),
 		spawnedExplosions:  make([]struct{ x, y float64 }, 0),
-		ships:              make(map[int]Ship),
+		ships:              make(map[int]*Ship),
 		killCount:          0,
 		scoreAdded:         0,
 	}
@@ -40,20 +40,20 @@ func (m *MockGameContext) SpawnExplosion(x, y float64) {
 	m.spawnedExplosions = append(m.spawnedExplosions, struct{ x, y float64 }{x, y})
 }
 
-func (m *MockGameContext) GetShip(id int) Ship {
+func (m *MockGameContext) GetShip(id int) *Ship {
 	return m.ships[id]
 }
 
-func (m *MockGameContext) GetAllShips() []Ship {
-	ships := make([]Ship, 0, len(m.ships))
+func (m *MockGameContext) GetAllShips() []*Ship {
+	ships := make([]*Ship, 0, len(m.ships))
 	for _, ship := range m.ships {
 		ships = append(ships, ship)
 	}
 	return ships
 }
 
-func (m *MockGameContext) GetShipsByFaction(factionID int) []Ship {
-	ships := make([]Ship, 0)
+func (m *MockGameContext) GetShipsByFaction(factionID int) []*Ship {
+	ships := make([]*Ship, 0)
 	for _, ship := range m.ships {
 		if ship.GetFaction() == factionID {
 			ships = append(ships, ship)
@@ -62,8 +62,8 @@ func (m *MockGameContext) GetShipsByFaction(factionID int) []Ship {
 	return ships
 }
 
-func (m *MockGameContext) FindNearestEnemy(ship Ship) (Ship, float64) {
-	var nearest Ship
+func (m *MockGameContext) FindNearestEnemy(ship *Ship) (*Ship, float64) {
+	var nearest *Ship
 	var minDist float64 = math.MaxFloat64
 
 	shipX, shipY := ship.GetPosition()
@@ -83,7 +83,7 @@ func (m *MockGameContext) FindNearestEnemy(ship Ship) (Ship, float64) {
 	return nearest, minDist
 }
 
-func (m *MockGameContext) FindNearestEnemyInArc(ship Ship, arc, maxRange float64, rearFacing bool) (Ship, float64) {
+func (m *MockGameContext) FindNearestEnemyInArc(ship *Ship, arc, maxRange float64, rearFacing bool) (*Ship, float64) {
 	// Simplified implementation for testing
 	return m.FindNearestEnemy(ship)
 }
@@ -100,7 +100,7 @@ func (m *MockGameContext) AddScore(points int) {
 	m.scoreAdded += points
 }
 
-func (m *MockGameContext) PlayImpactSound(targetShip Ship) {
+func (m *MockGameContext) PlayImpactSound(targetShip *Ship) {
 	// No-op for tests
 }
 
@@ -147,8 +147,8 @@ func TestNewFighter(t *testing.T) {
 	if health != chars.MaxShield || maxHealth != chars.MaxShield {
 		t.Errorf("Expected health %d/%d, got %d/%d", chars.MaxShield, chars.MaxShield, health, maxHealth)
 	}
-	if fighter.BaseShip.MaxSpeed != chars.MaxSpeed {
-		t.Errorf("Expected max speed %f, got %f", chars.MaxSpeed, fighter.BaseShip.MaxSpeed)
+	if fighter.MaxSpeed != chars.MaxSpeed {
+		t.Errorf("Expected max speed %f, got %f", chars.MaxSpeed, fighter.MaxSpeed)
 	}
 
 	// Verify weapon starts charged
@@ -181,8 +181,8 @@ func TestFighterMovement(t *testing.T) {
 
 	// Verify speed is maintained correctly
 	expectedSpeed := math.Sqrt(5.0*5.0 + 3.0*3.0)
-	if math.Abs(fighter.BaseShip.Speed-expectedSpeed) > 1e-9 {
-		t.Errorf("Expected speed %f, got %f", expectedSpeed, fighter.BaseShip.Speed)
+	if math.Abs(fighter.Speed-expectedSpeed) > 1e-9 {
+		t.Errorf("Expected speed %f, got %f", expectedSpeed, fighter.Speed)
 	}
 }
 

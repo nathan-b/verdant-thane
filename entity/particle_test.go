@@ -320,13 +320,13 @@ func TestParticleMultipleUpdates(t *testing.T) {
 
 type mockGameContext struct{}
 
-func (m *mockGameContext) FindNearestEnemy(ship Ship) (Ship, float64) { return nil, 0 }
-func (m *mockGameContext) FindNearestEnemyInArc(ship Ship, arc, maxRange float64, rearFacing bool) (Ship, float64) {
+func (m *mockGameContext) FindNearestEnemy(ship *Ship) (*Ship, float64) { return nil, 0 }
+func (m *mockGameContext) FindNearestEnemyInArc(ship *Ship, arc, maxRange float64, rearFacing bool) (*Ship, float64) {
 	return nil, 0
 }
-func (m *mockGameContext) GetShip(id int) Ship                                { return nil }
-func (m *mockGameContext) GetAllShips() []Ship                                { return nil }
-func (m *mockGameContext) GetShipsByFaction(factionID int) []Ship             { return nil }
+func (m *mockGameContext) GetShip(id int) *Ship                                { return nil }
+func (m *mockGameContext) GetAllShips() []*Ship                                { return nil }
+func (m *mockGameContext) GetShipsByFaction(factionID int) []*Ship             { return nil }
 func (m *mockGameContext) GetWorldSize() (width, height float64)              { return 0, 0 }
 func (m *mockGameContext) SpawnProjectile(config MainGunConfig)               {}
 func (m *mockGameContext) SpawnMissile(config MissileConfig)                  {}
@@ -334,5 +334,5 @@ func (m *mockGameContext) SpawnExplosion(x, y float64)                        {}
 func (m *mockGameContext) SpawnParticle(x, y, vx, vy float64)                 {}
 func (m *mockGameContext) AddKill()                                           {}
 func (m *mockGameContext) AddScore(points int)                                {}
-func (m *mockGameContext) PlayImpactSound(targetShip Ship)                    {}
+func (m *mockGameContext) PlayImpactSound(targetShip *Ship)                    {}
 func (m *mockGameContext) OnShipDestroyed(victimShipID int, killerShipID int) {}

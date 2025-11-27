@@ -484,7 +484,7 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 
 	// Spawn ships according to fleet configuration
 	const spawnRadius = 75.0 // Radius for circular spawn pattern
-	var playerShip *entity.BaseShip
+	var playerShip *entity.Ship
 
 	t = time.Now()
 	for factionID := 0; factionID < fleetConfig.NumFactions; factionID++ {
@@ -732,7 +732,7 @@ func (g *Game) Update() error {
 		}
 
 		// Update camera to follow player or spectated ship
-		var shipToFollow *entity.BaseShip
+		var shipToFollow *entity.Ship
 		if g.entityManager.IsSpectating() {
 			shipToFollow = g.entityManager.GetSpectatedShip()
 		} else {

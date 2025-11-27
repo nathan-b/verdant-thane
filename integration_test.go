@@ -67,11 +67,8 @@ func TestFullGameFlowWithCombat(t *testing.T) {
 	enemyShip.TakeDamage(7, playerShip.GetID(), em) // Reduce to 1 HP (fighter has 8 HP)
 
 	// Point player toward enemy (90 degrees = facing right)
-	// Access underlying implementation to set rotation
-	if fighter, ok := playerShip.(*entity.Fighter); ok {
-		fighter.Rotation = math.Pi / 2
-		fighter.Weapons[0].WeaponCapacitor = 1.0 // Fully charge
-	}
+	playerShip.Rotation = math.Pi / 2
+	playerShip.Weapons[0].WeaponCapacitor = 1.0 // Fully charge
 
 	// Fire weapon
 	playerShip.FireWeapon(enemyX, enemyY, em)
@@ -178,10 +175,8 @@ func TestAICombatBehavior(t *testing.T) {
 
 	// Point AI ship toward enemy (0 radians = facing up)
 	// Enemy is to the right, so rotate 90 degrees (π/2)
-	if fighter, ok := aiShip.(*entity.Fighter); ok {
-		fighter.Rotation = math.Pi / 2
-		fighter.Weapons[0].WeaponCapacitor = 1.0 // Fully charge
-	}
+	aiShip.Rotation = math.Pi / 2
+	aiShip.Weapons[0].WeaponCapacitor = 1.0 // Fully charge
 
 	// Get initial projectile count
 	initialProjectileCount := len(em.projectiles)
@@ -296,9 +291,7 @@ func TestProjectileLifecycleIntegration(t *testing.T) {
 	// Fire 3 projectiles
 	for i := 0; i < 3; i++ {
 		// Charge weapon directly on underlying implementation
-		if fighter, ok := ship.(*entity.Fighter); ok {
-			fighter.Weapons[0].WeaponCapacitor = 1.0
-		}
+		ship.Weapons[0].WeaponCapacitor = 1.0
 		ship.FireWeapon(200, 100, em)
 	}
 
@@ -339,10 +332,8 @@ func TestExplosionLifecycleIntegration(t *testing.T) {
 	enemyShip.TakeDamage(7, playerShip.GetID(), em)
 
 	// Point player toward enemy (90 degrees = facing right)
-	if fighter, ok := playerShip.(*entity.Fighter); ok {
-		fighter.Rotation = math.Pi / 2
-		fighter.Weapons[0].WeaponCapacitor = 1.0 // Fully charge
-	}
+	playerShip.Rotation = math.Pi / 2
+	playerShip.Weapons[0].WeaponCapacitor = 1.0 // Fully charge
 
 	// Fire and hit enemy
 	enemyX, enemyY := enemyShip.GetPosition()
@@ -608,10 +599,8 @@ func TestWorldWrappingIntegration(t *testing.T) {
 	ship := em.SpawnShip(entity.ClassFighter, 0, 10, 100)
 
 	// Set rotation and speed directly
-	if fighter, ok := ship.(*entity.Fighter); ok {
-		fighter.Rotation = -math.Pi / 2 // Facing left (west)
-		fighter.Speed = 10.0            // Moving fast
-	}
+	ship.Rotation = -math.Pi / 2 // Facing left (west)
+	ship.Speed = 10.0            // Moving fast
 
 	// Update to move ship off left edge (multiple updates to cross boundary)
 	for i := 0; i < 3; i++ {
@@ -637,9 +626,7 @@ func TestFindNearestEnemyInArc(t *testing.T) {
 
 	// Spawn ship facing up (rotation = 0)
 	ship := em.SpawnShip(entity.ClassDestroyer, 0, 100, 100)
-	if destroyer, ok := ship.(*entity.Destroyer); ok {
-		destroyer.Rotation = 0 // Facing up
-	}
+	ship.Rotation = 0 // Facing up
 
 	// Spawn enemy directly ahead (in forward arc)
 	enemyAhead := em.SpawnShip(entity.ClassFighter, 1, 100, 50)
@@ -784,9 +771,7 @@ func TestRemoveFunctions(t *testing.T) {
 
 	// Spawn projectile and remove it
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
-	if fighter, ok := playerShip.(*entity.Fighter); ok {
-		fighter.Weapons[0].WeaponCapacitor = 1.0
-	}
+	ship.Weapons[0].WeaponCapacitor = 1.0
 	playerShip.FireWeapon(200, 100, em)
 
 	initialProjectileCount := len(em.projectiles)
@@ -911,11 +896,9 @@ func TestDestroyerMissileTargeting(t *testing.T) {
 
 	// Spawn destroyer facing up
 	destroyer := em.SpawnShip(entity.ClassDestroyer, 0, 100, 100)
-	if d, ok := destroyer.(*entity.Destroyer); ok {
-		d.Rotation = 0 // Facing up
-		// Fully charge missile
-		d.Weapons[0].WeaponCapacitor = 1.0
-	}
+	destroyer.Rotation = 0 // Facing up
+	// Fully charge missile
+	destroyer.Weapons[0].WeaponCapacitor = 1.0
 
 	// Spawn enemy behind destroyer (in rear arc for missiles)
 	enemy := em.SpawnShip(entity.ClassFighter, 1, 100, 200)
@@ -932,9 +915,7 @@ func TestDestroyerMissileTargeting(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		em.UpdateAll()
 		// Recharge missile between attempts
-		if d, ok := destroyer.(*entity.Destroyer); ok {
-			d.Weapons[0].WeaponCapacitor = 1.0
-		}
+		destroyer.Weapons[0].WeaponCapacitor = 1.0
 	}
 
 	// Count missile-type projectiles after

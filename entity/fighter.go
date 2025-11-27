@@ -3,6 +3,7 @@ package entity
 import (
 	"image/color"
 	"math"
+	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -30,8 +31,8 @@ type Weapon struct {
 	ProjectileType   config.ProjectileType // Type of projectile (laser or missile)
 }
 
-// BaseShip contains common data for all ship types
-type BaseShip struct {
+// Ship contains common data for all ship types
+type Ship struct {
 	// Identity
 	ID        int
 	FactionID int
@@ -92,10 +93,10 @@ type BaseShip struct {
 }
 
 // NewFighter creates a new fighter ship
-func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *BaseShip {
+func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Ship {
 	chars := config.GetShipCharacteristics(ClassFighter)
 
-	base := &BaseShip{
+	base := &Ship{
 		ID:               id,
 		FactionID:        factionID,
 		Class:            ClassFighter,
@@ -156,7 +157,7 @@ func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Base
 // ============================================================================
 
 // Render draws the ship to the screen (BaseShip method)
-func (b *BaseShip) Render(screen *ebiten.Image, cameraX, cameraY float64) {
+func (b *Ship) Render(screen *ebiten.Image, cameraX, cameraY float64) {
 	if !b.Alive || b.Sprite == nil {
 		return
 	}
@@ -182,7 +183,7 @@ func (b *BaseShip) Render(screen *ebiten.Image, cameraX, cameraY float64) {
 }
 
 // renderAfterburnerFlame draws a cone-shaped flame behind the ship
-func (b *BaseShip) renderAfterburnerFlame(screen *ebiten.Image, screenX, screenY float64) {
+func (b *Ship) renderAfterburnerFlame(screen *ebiten.Image, screenX, screenY float64) {
 	// Flame cone dimensions: half the sprite height in length, spreads to ~1/3 sprite width
 	spriteHeight := float64(b.Sprite.Bounds().Dy())
 	flameLength := spriteHeight * 0.5
@@ -231,17 +232,17 @@ func (b *BaseShip) renderAfterburnerFlame(screen *ebiten.Image, screenX, screenY
 }
 
 // GetID returns the entity's unique ID (BaseShip method)
-func (b *BaseShip) GetID() int {
+func (b *Ship) GetID() int {
 	return b.ID
 }
 
 // GetPosition returns the ship's position (BaseShip method)
-func (b *BaseShip) GetPosition() (float64, float64) {
+func (b *Ship) GetPosition() (float64, float64) {
 	return b.X, b.Y
 }
 
 // IsAlive returns whether the ship is still alive (BaseShip method)
-func (b *BaseShip) IsAlive() bool {
+func (b *Ship) IsAlive() bool {
 	return b.Alive
 }
 
@@ -250,7 +251,7 @@ func (b *BaseShip) IsAlive() bool {
 // ============================================================================
 
 // TakeDamage reduces the ship's health (BaseShip method, can be overridden)
-func (b *BaseShip) TakeDamage(amount int, attackerID int, ctx GameContext) {
+func (b *Ship) TakeDamage(amount int, attackerID int, ctx GameContext) {
 	if !b.Alive {
 		return
 	}
@@ -281,47 +282,47 @@ func (b *BaseShip) TakeDamage(amount int, attackerID int, ctx GameContext) {
 }
 
 // GetHealth returns current and max health (BaseShip method)
-func (b *BaseShip) GetHealth() (int, int) {
+func (b *Ship) GetHealth() (int, int) {
 	return b.Health, b.MaxHealth
 }
 
 // GetCollisionRadius returns the collision radius (BaseShip method)
-func (b *BaseShip) GetCollisionRadius() float64 {
+func (b *Ship) GetCollisionRadius() float64 {
 	return b.CollisionRadius
 }
 
 // GetFaction returns the faction ID (BaseShip method)
-func (b *BaseShip) GetFaction() int {
+func (b *Ship) GetFaction() int {
 	return b.FactionID
 }
 
 // GetClass returns the ship class (BaseShip method)
-func (b *BaseShip) GetClass() ShipClass {
+func (b *Ship) GetClass() ShipClass {
 	return b.Class
 }
 
 // GetVelocity returns the velocity components (BaseShip method)
-func (b *BaseShip) GetVelocity() (float64, float64) {
+func (b *Ship) GetVelocity() (float64, float64) {
 	return b.VelocityX, b.VelocityY
 }
 
 // GetRotation returns the rotation in radians (BaseShip method)
-func (b *BaseShip) GetRotation() float64 {
+func (b *Ship) GetRotation() float64 {
 	return b.Rotation
 }
 
 // SetPlayerControlled sets whether this ship is player-controlled (BaseShip method)
-func (b *BaseShip) SetPlayerControlled(controlled bool) {
+func (b *Ship) SetPlayerControlled(controlled bool) {
 	b.PlayerControlled = controlled
 }
 
 // IsPlayerControlled returns whether this ship is player-controlled (BaseShip method)
-func (b *BaseShip) IsPlayerControlled() bool {
+func (b *Ship) IsPlayerControlled() bool {
 	return b.PlayerControlled
 }
 
 // FireWeapon fires the main weapon at a target position (BaseShip method, can be overridden)
-func (b *BaseShip) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
+func (b *Ship) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
 	if !b.CanFireWeapon() {
 		return
 	}
@@ -358,12 +359,52 @@ func (b *BaseShip) FireWeapon(mouseX, mouseY float64, ctx GameContext) {
 }
 
 // FireMissile is not available on base ships (BaseShip method, overridden by Destroyer)
-func (b *BaseShip) FireMissile(targetID int, ctx GameContext) {
-	// Base ships don't have missiles
+func (b *Ship) FireMissile(targetID int, ctx GameContext) {
+	if !b.CanFireMissile() {
+		return
+	}
+
+	// Check if target exists
+	target := ctx.GetShip(targetID)
+	if target == nil || !target.IsAlive() {
+		return
+	}
+
+	// Consume capacitor (missile launcher is at index 0)
+	b.Weapons[0].WeaponCapacitor = 0.0
+
+	// Get missile characteristics
+	missileChars := config.GetProjectileCharacteristics(config.MissileProjectile)
+
+	// Launch from rear of ship
+	// Sprites face UP (Y-axis), so rotation + π points to rear
+	launchAngle := NormalizeAngle(b.Rotation + math.Pi)
+	spawnOffset := 25.0
+	// Use sin/cos adjusted for sprite orientation
+	spawnX := b.X + math.Sin(launchAngle)*spawnOffset
+	spawnY := b.Y + -math.Cos(launchAngle)*spawnOffset
+
+	// Initial velocity (launches from rear)
+	// Use sin/cos adjusted for sprite orientation
+	missileVX := math.Sin(launchAngle) * missileChars.Speed
+	missileVY := -math.Cos(launchAngle) * missileChars.Speed
+
+	// Spawn missile via context
+	ctx.SpawnMissile(MissileConfig{
+		X:         spawnX,
+		Y:         spawnY,
+		VelocityX: missileVX,
+		VelocityY: missileVY,
+		Rotation:  launchAngle,
+		OwnerID:   b.ID,
+		FactionID: b.FactionID,
+		TargetID:  targetID,
+		Sprite:    nil, // Will be set by spawner
+	})
 }
 
 // CanFireWeapon returns whether at least one weapon can be fired
-func (b *BaseShip) CanFireWeapon() bool {
+func (b *Ship) CanFireWeapon() bool {
 	if !b.Alive {
 		return false
 	}
@@ -376,27 +417,32 @@ func (b *BaseShip) CanFireWeapon() bool {
 }
 
 // CanFireMissile returns whether missiles can be fired (BaseShip method, overridden by Destroyer)
-func (b *BaseShip) CanFireMissile() bool {
-	return false // Base ships (fighters, testudons) don't have missiles
+func (b *Ship) CanFireMissile() bool {
+	// Only destroyers have missiles
+	if b.Class != ClassDestroyer {
+		return false
+	}
+	// Missile launcher is at index 0 (highest priority)
+	return b.Alive && len(b.Weapons) > 0 && b.Weapons[0].WeaponCapacitor >= 1.0
 }
 
 // GetAfterburnerCharge returns current afterburner charge (BaseShip method)
-func (b *BaseShip) GetAfterburnerCharge() float64 {
+func (b *Ship) GetAfterburnerCharge() float64 {
 	return b.AfterburnerCharge
 }
 
 // IsAfterburnerActive returns whether afterburner is currently active (BaseShip method)
-func (b *BaseShip) IsAfterburnerActive() bool {
+func (b *Ship) IsAfterburnerActive() bool {
 	return b.AfterburnerActive
 }
 
 // HasAfterburner returns whether this ship has an afterburner system (BaseShip method)
-func (b *BaseShip) HasAfterburner() bool {
+func (b *Ship) HasAfterburner() bool {
 	return b.HasAfterburnerSystem
 }
 
 // canFireWeapon checks if a specific weapon can be fired given current state
-func (b *BaseShip) canFireWeapon(weapon *Weapon, fired bool) bool {
+func (b *Ship) canFireWeapon(weapon *Weapon, fired bool) bool {
 	if weapon.WeaponCapacitor < 1.0 {
 		return false
 	}
@@ -406,7 +452,7 @@ func (b *BaseShip) canFireWeapon(weapon *Weapon, fired bool) bool {
 	return true
 }
 
-func (b *BaseShip) fireWeapon(weapon *Weapon, targetX, targetY float64, ctx GameContext) {
+func (b *Ship) fireWeapon(weapon *Weapon, targetX, targetY float64, ctx GameContext) {
 	// Calculate direction to target
 	dx := targetX - b.X
 	dy := targetY - b.Y
@@ -526,7 +572,7 @@ func (b *BaseShip) fireWeapon(weapon *Weapon, targetX, targetY float64, ctx Game
 // ============================================================================
 
 // UpdateWeapons charges the weapon capacitor and afterburner (BaseShip method)
-func (b *BaseShip) UpdateWeapons() {
+func (b *Ship) UpdateWeapons() {
 	// Charge all weapon capacitors
 	allWeaponsCharged := true
 	for i := range b.Weapons {
@@ -552,7 +598,7 @@ func (b *BaseShip) UpdateWeapons() {
 }
 
 // UpdateMovement applies velocity and handles world wrapping (BaseShip method)
-func (b *BaseShip) UpdateMovement() {
+func (b *Ship) UpdateMovement() {
 	// Calculate velocity from Speed and Rotation
 	// Sprites face UP (along Y-axis), so rotation 0 = facing up
 	// Use sin for X and -cos for Y to account for sprite orientation
@@ -568,7 +614,7 @@ func (b *BaseShip) UpdateMovement() {
 }
 
 // UpdatePlayerInput handles WASD controls for player-controlled ships (BaseShip method)
-func (b *BaseShip) UpdatePlayerInput(ctx GameContext) {
+func (b *Ship) UpdatePlayerInput(ctx GameContext) {
 	// Rotation
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
 		b.Rotation -= config.RotationSpeed
@@ -631,7 +677,7 @@ func (b *BaseShip) UpdatePlayerInput(ctx GameContext) {
 // ============================================================================
 
 // Update handles all per-frame logic (unified for all ship types)
-func (b *BaseShip) Update(ctx GameContext) error {
+func (b *Ship) Update(ctx GameContext) error {
 	if !b.Alive {
 		return nil
 	}
@@ -657,7 +703,7 @@ func (b *BaseShip) Update(ctx GameContext) error {
 }
 
 // UpdateAI handles AI decision-making (delegates to class-specific implementations)
-func (b *BaseShip) UpdateAI(ctx GameContext) {
+func (b *Ship) UpdateAI(ctx GameContext) {
 	switch b.Class {
 	case ClassTestudon:
 		b.updateAITestudon(ctx)
@@ -672,27 +718,208 @@ func (b *BaseShip) UpdateAI(ctx GameContext) {
 // Class-Specific AI Helpers (Private)
 // ============================================================================
 
-// updateAIFighter handles Fighter AI (will be moved from Fighter.UpdateAI)
-func (b *BaseShip) updateAIFighter(ctx GameContext) {
-	// This is a placeholder - the actual implementation will be copied from Fighter.UpdateAI
-	// For now, call the Fighter method to maintain backward compatibility
+// updateAIFighter handles Fighter AI
+func (b *Ship) updateAIFighter(ctx GameContext) {
+	// Retarget timer
+	b.AIRetargetTimer--
+	if b.AIRetargetTimer <= 0 || b.AITargetID < 0 {
+		b.selectTargetFighter(ctx)
+		b.AIRetargetTimer = config.AIRetargetInterval
+	}
+
+	// Validate current target
+	target := ctx.GetShip(b.AITargetID)
+	if target == nil || !target.IsAlive() {
+		b.selectTargetFighter(ctx)
+		b.AIRetargetTimer = config.AIRetargetInterval
+		target = ctx.GetShip(b.AITargetID)
+	}
+
+	// AI behavior
+	if target != nil {
+		// Pursuit: Rotate toward target and fly at 80-100% speed
+		targetX, targetY := target.GetPosition()
+		dx, dy := GetWrappedDistance(b.X, b.Y, targetX, targetY)
+		// Sprites face UP (Y-axis), so use atan2(dx, -dy)
+		angleToTarget := math.Atan2(dx, -dy)
+
+		// Rotate toward target
+		angleDiff := NormalizeAngle(angleToTarget - b.Rotation)
+		if math.Abs(angleDiff) > config.AIRotationSpeed {
+			if angleDiff > 0 {
+				b.Rotation += config.AIRotationSpeed
+			} else {
+				b.Rotation -= config.AIRotationSpeed
+			}
+			b.Rotation = NormalizeAngle(b.Rotation)
+		} else {
+			b.Rotation = angleToTarget
+		}
+
+		// Accelerate toward target at random speed (80-100%)
+		targetSpeed := b.MaxSpeed * (config.AIPursuitSpeedMin + rand.Float64()*(config.AIPursuitSpeedMax-config.AIPursuitSpeedMin))
+
+		// Adjust speed toward target speed
+		if b.Speed < targetSpeed {
+			b.Speed += b.Accel
+			if b.Speed > targetSpeed {
+				b.Speed = targetSpeed
+			}
+		} else if b.Speed > targetSpeed {
+			b.Speed -= b.Accel
+			if b.Speed < targetSpeed {
+				b.Speed = targetSpeed
+			}
+		}
+
+		// Fire weapon if target in arc (check first weapon's firing cone)
+		if b.CanFireWeapon() && len(b.Weapons) > 0 {
+			angleFromForward := math.Abs(NormalizeAngle(angleToTarget - b.Rotation))
+			if angleFromForward <= b.Weapons[0].FiringCone/2 {
+				// Calculate distance to target for range-dependent firing
+				distance := math.Sqrt(dx*dx + dy*dy)
+
+				// Calculate firing probability based on range
+				var firingProbability float64
+				if distance <= config.AIPreferredRange {
+					// Close range: max probability
+					firingProbability = config.AIMaxFiringProbability
+				} else if distance >= config.AIMaxRange {
+					// Far range: very low probability (10% of max)
+					firingProbability = config.AIMaxFiringProbability * 0.1
+				} else {
+					// Medium range: linear falloff
+					rangeFactor := (distance - config.AIPreferredRange) / (config.AIMaxRange - config.AIPreferredRange)
+					firingProbability = config.AIMaxFiringProbability * (1.0 - 0.9*rangeFactor)
+				}
+
+				// Roll for firing decision
+				if rand.Float64() < firingProbability {
+					// Decide whether to fire accurately or randomly
+					shotTypeRoll := rand.Float64()
+					accurateFraction := b.AIAccurateShotProbability / (b.AIAccurateShotProbability + b.AIRandomShotProbability)
+
+					if shotTypeRoll < accurateFraction {
+						// Accurate shot
+						b.FireWeapon(targetX, targetY, ctx)
+					} else {
+						// Random shot within cone
+						randomAngle := b.Rotation + (rand.Float64()-0.5)*b.Weapons[0].FiringCone
+						randomTargetX := b.X + math.Cos(randomAngle)*1000
+						randomTargetY := b.Y + math.Sin(randomAngle)*1000
+						b.FireWeapon(randomTargetX, randomTargetY, ctx)
+					}
+				}
+			}
+		}
+	} else {
+		// Patrol: Maintain heading at 50% speed
+		targetSpeed := b.MaxSpeed * config.AIPatrolSpeed
+
+		// Adjust speed toward target speed
+		if b.Speed < targetSpeed {
+			b.Speed += b.Accel
+			if b.Speed > targetSpeed {
+				b.Speed = targetSpeed
+			}
+		} else if b.Speed > targetSpeed {
+			b.Speed -= b.Accel
+			if b.Speed < targetSpeed {
+				b.Speed = targetSpeed
+			}
+		}
+	}
 }
 
-// updateAIDestroyer handles Destroyer AI (will be moved from Destroyer.UpdateAI)
-func (b *BaseShip) updateAIDestroyer(ctx GameContext) {
-	// This is a placeholder - the actual implementation will be copied from Destroyer.UpdateAI
-	// For now, this is empty and will be implemented
+// updateAIDestroyer handles Destroyer AI
+func (b *Ship) updateAIDestroyer(ctx GameContext) {
+	// Use fighter AI for movement and main gun
+	b.updateAIFighter(ctx)
+
+	// Additional destroyer behavior: Fire missiles at rear targets
+	if b.CanFireMissile() && len(b.Weapons) > 0 {
+		// Missile launcher is now at index 0 (highest priority)
+		rearTarget, _ := ctx.FindNearestEnemyInArc(b, b.Weapons[0].FiringCone, b.Weapons[0].MaxRange, true)
+		if rearTarget != nil {
+			b.FireMissile(rearTarget.GetID(), ctx)
+		}
+	}
 }
 
-// updateAITestudon handles Testudon AI (will be moved from Testudon.UpdateAI)
-func (b *BaseShip) updateAITestudon(ctx GameContext) {
-	// This is a placeholder - the actual implementation will be copied from Testudon.UpdateAI
-	// For now, this is empty and will be implemented
+// updateAITestudon handles Testudon AI
+func (b *Ship) updateAITestudon(ctx GameContext) {
+	// Retarget timer
+	b.AIRetargetTimer--
+	if b.AIRetargetTimer <= 0 || b.BeamTargetID < 0 {
+		b.selectTargetTestudon(ctx)
+		b.AIRetargetTimer = config.AIRetargetInterval
+	}
+
+	// Validate current target
+	target := ctx.GetShip(b.BeamTargetID)
+	if target == nil || !target.IsAlive() {
+		b.selectTargetTestudon(ctx)
+		b.AIRetargetTimer = config.AIRetargetInterval
+		target = ctx.GetShip(b.BeamTargetID)
+	}
+
+	// Movement AI (move toward target)
+	if target != nil {
+		targetX, targetY := target.GetPosition()
+		dx, dy := GetWrappedDistance(b.X, b.Y, targetX, targetY)
+		// Sprites face UP (Y-axis), so use atan2(dx, -dy)
+		angleToTarget := math.Atan2(dx, -dy)
+
+		// Rotate toward target
+		angleDiff := NormalizeAngle(angleToTarget - b.Rotation)
+		if math.Abs(angleDiff) > config.AIRotationSpeed {
+			if angleDiff > 0 {
+				b.Rotation += config.AIRotationSpeed
+			} else {
+				b.Rotation -= config.AIRotationSpeed
+			}
+			b.Rotation = NormalizeAngle(b.Rotation)
+		} else {
+			b.Rotation = angleToTarget
+		}
+
+		// Move toward target at max speed
+		targetSpeed := b.MaxSpeed
+
+		// Adjust speed toward target speed
+		if b.Speed < targetSpeed {
+			b.Speed += b.Accel
+			if b.Speed > targetSpeed {
+				b.Speed = targetSpeed
+			}
+		} else if b.Speed > targetSpeed {
+			b.Speed -= b.Accel
+			if b.Speed < targetSpeed {
+				b.Speed = targetSpeed
+			}
+		}
+	} else {
+		// Patrol behavior
+		targetSpeed := b.MaxSpeed * config.AIPatrolSpeed
+
+		// Adjust speed toward target speed
+		if b.Speed < targetSpeed {
+			b.Speed += b.Accel
+			if b.Speed > targetSpeed {
+				b.Speed = targetSpeed
+			}
+		} else if b.Speed > targetSpeed {
+			b.Speed -= b.Accel
+			if b.Speed < targetSpeed {
+				b.Speed = targetSpeed
+			}
+		}
+	}
 }
 
 // UpdateBeamWeapon handles beam targeting and damage application (Testudon only)
-func (b *BaseShip) UpdateBeamWeapon(ctx GameContext) {
-	var targetToFire *BaseShip
+func (b *Ship) UpdateBeamWeapon(ctx GameContext) {
+	var targetToFire *Ship
 
 	// First, check if primary target is valid and in range
 	if b.BeamTargetID >= 0 {
@@ -707,8 +934,10 @@ func (b *BaseShip) UpdateBeamWeapon(ctx GameContext) {
 
 	// If primary target not in range, opportunistically fire at ANY in-range enemy
 	if targetToFire == nil {
-		// TODO: In Phase 3, change FindNearestEnemy to accept *BaseShip instead of Ship
-		// For now, skip opportunistic targeting (Testudon.UpdateBeamWeapon still handles this)
+		nearestInRange, dist := ctx.FindNearestEnemy(b)
+		if nearestInRange != nil && dist <= b.BeamRange {
+			targetToFire = nearestInRange
+		}
 	}
 
 	// Fire at the chosen target (if any)
@@ -727,12 +956,12 @@ func (b *BaseShip) UpdateBeamWeapon(ctx GameContext) {
 // ============================================================================
 
 // GetBeamTargetID returns the current beam target (for rendering)
-func (b *BaseShip) GetBeamTargetID() int {
+func (b *Ship) GetBeamTargetID() int {
 	return b.BeamFiringAtID
 }
 
 // TrackAttacker adds an attacker to the ship's attacker list (Testudon defensive AI)
-func (b *BaseShip) TrackAttacker(attackerID int, ctx GameContext) {
+func (b *Ship) TrackAttacker(attackerID int, ctx GameContext) {
 	// Check if already tracked
 	for _, id := range b.AttackerIDs {
 		if id == attackerID {
@@ -745,7 +974,7 @@ func (b *BaseShip) TrackAttacker(attackerID int, ctx GameContext) {
 }
 
 // ApplyBeamDamage applies damage-over-time to a target
-func (b *BaseShip) ApplyBeamDamage(target *BaseShip, ctx GameContext) {
+func (b *Ship) ApplyBeamDamage(target *Ship, ctx GameContext) {
 	// Accumulate damage
 	b.BeamDamageAccumulator += b.BeamDamagePerTick
 
@@ -766,4 +995,108 @@ func (b *BaseShip) ApplyBeamDamage(target *BaseShip, ctx GameContext) {
 			b.BeamFiringAtID = -1
 		}
 	}
+}
+
+// ============================================================================
+// Target Selection Helpers
+// ============================================================================
+
+// SelectTarget selects an appropriate target based on ship class (public for tests)
+func (b *Ship) SelectTarget(ctx GameContext) {
+	switch b.Class {
+	case ClassTestudon:
+		b.selectTargetTestudon(ctx)
+	case ClassDestroyer, ClassFighter:
+		b.selectTargetFighter(ctx)
+	}
+}
+
+// selectTargetFighter finds the nearest enemy ship (used by Fighter and Destroyer)
+func (b *Ship) selectTargetFighter(ctx GameContext) {
+	nearestShip, _ := ctx.FindNearestEnemy(b)
+	if nearestShip != nil {
+		b.AITargetID = nearestShip.GetID()
+	} else {
+		b.AITargetID = -1
+	}
+}
+
+// selectTargetTestudon uses priority-based targeting for Testudons
+// Priority: 1. Attackers (defensive), 2. Enemy Testudons, 3. Enemy Destroyers, 4. Enemy Fighters
+func (b *Ship) selectTargetTestudon(ctx GameContext) {
+	// First, check for attackers (highest priority)
+	if len(b.AttackerIDs) > 0 {
+		// Clean up invalid attackers and find nearest
+		validAttackers := []int{}
+		var nearestAttackerID int = -1
+		nearestDistance := math.MaxFloat64
+
+		for _, attackerID := range b.AttackerIDs {
+			attacker := ctx.GetShip(attackerID)
+			if attacker != nil && attacker.IsAlive() {
+				validAttackers = append(validAttackers, attackerID)
+				attackerX, attackerY := attacker.GetPosition()
+				dist := Distance(b.X, b.Y, attackerX, attackerY)
+				if dist < nearestDistance {
+					nearestDistance = dist
+					nearestAttackerID = attackerID
+				}
+			}
+		}
+		b.AttackerIDs = validAttackers
+
+		if nearestAttackerID >= 0 {
+			b.BeamTargetID = nearestAttackerID
+			return
+		}
+	}
+
+	// Priority-based targeting: Testudons > Destroyers > Fighters
+	allShips := ctx.GetAllShips()
+
+	var bestTargetID int = -1
+	var bestDistance float64 = math.MaxFloat64
+	bestPriority := -1
+
+	for _, ship := range allShips {
+		// Skip friendlies
+		if ship.GetFaction() == b.FactionID {
+			continue
+		}
+
+		// Skip self (shouldn't happen, but safety check)
+		if ship.GetID() == b.ID {
+			continue
+		}
+
+		// Skip dead ships
+		if !ship.IsAlive() {
+			continue
+		}
+
+		// Determine priority based on ship class
+		var priority int
+		switch ship.GetClass() {
+		case ClassTestudon:
+			priority = 3 // Highest priority
+		case ClassDestroyer:
+			priority = 2
+		case ClassFighter:
+			priority = 1
+		default:
+			priority = 0
+		}
+
+		shipX, shipY := ship.GetPosition()
+		dist := Distance(b.X, b.Y, shipX, shipY)
+
+		// Select ship if higher priority, or same priority but closer
+		if priority > bestPriority || (priority == bestPriority && dist < bestDistance) {
+			bestPriority = priority
+			bestDistance = dist
+			bestTargetID = ship.GetID()
+		}
+	}
+
+	b.BeamTargetID = bestTargetID
 }

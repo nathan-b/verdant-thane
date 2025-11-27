@@ -6,11 +6,11 @@ import (
 )
 
 // NewTestudon creates a new testudon ship
-func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *BaseShip {
+func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *Ship {
 	chars := config.GetShipCharacteristics(ClassTestudon)
 	beamWeapon := config.WeaponDatabase["beam"]
 
-	base := &BaseShip{
+	base := &Ship{
 		ID:                            id,
 		FactionID:                     factionID,
 		Class:                         ClassTestudon,
