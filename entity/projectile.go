@@ -12,7 +12,7 @@ import (
 // MainGunProjectile
 // ============================================================================
 
-// MainGunProjectile is a straight-line laser projectile
+// MainGunProjectile moves in a straight line at constant speed
 type MainGunProjectile struct {
 	ID                   int
 	X, Y                 float64

@@ -8,9 +8,9 @@ import (
 // spatialGrid implements spatial partitioning for efficient collision detection
 // Divides the game world into cells and allows quick lookup of ships in a neighborhood
 type spatialGrid struct {
-	cellSize   int                        // Size of each grid cell in pixels (typically 128)
-	gridWidth  int                        // Number of cells horizontally
-	gridHeight int                        // Number of cells vertically
+	cellSize   int                    // Size of each grid cell in pixels (typically 128)
+	gridWidth  int                    // Number of cells horizontally
+	gridHeight int                    // Number of cells vertically
 	cells      map[int][]*entity.Ship // Cell index → ships in that cell
 }
 
