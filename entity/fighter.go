@@ -3,7 +3,6 @@ package entity
 import (
 	"image/color"
 	"math"
-	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -92,13 +91,8 @@ type BaseShip struct {
 	AttackerIDs           []int
 }
 
-// Fighter is a standard fighter ship
-type Fighter struct {
-	*BaseShip
-}
-
 // NewFighter creates a new fighter ship
-func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Fighter {
+func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *BaseShip {
 	chars := config.GetShipCharacteristics(ClassFighter)
 
 	base := &BaseShip{
@@ -154,34 +148,12 @@ func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Figh
 		AttackerIDs:                   nil, // Unused by fighters
 	}
 
-	return &Fighter{BaseShip: base}
+	return base
 }
 
 // ============================================================================
-// Entity Interface Implementation
+// Entity Interface Implementation (BaseShip methods)
 // ============================================================================
-
-// Update handles all per-frame logic for the fighter
-func (f *Fighter) Update(ctx GameContext) error {
-	if !f.Alive {
-		return nil
-	}
-
-	// Update weapons
-	f.UpdateWeapons()
-
-	// Update control (AI or player)
-	if f.PlayerControlled {
-		f.UpdatePlayerInput(ctx)
-	} else {
-		f.UpdateAI(ctx)
-	}
-
-	// Update movement
-	f.UpdateMovement()
-
-	return nil
-}
 
 // Render draws the ship to the screen (BaseShip method)
 func (b *BaseShip) Render(screen *ebiten.Image, cameraX, cameraY float64) {
@@ -747,129 +719,6 @@ func (b *BaseShip) UpdateBeamWeapon(ctx GameContext) {
 		// No target in range - reset damage accumulator
 		b.BeamDamageAccumulator = 0.0
 		b.BeamFiringAtID = -1
-	}
-}
-
-// UpdateAI handles AI decision-making and movement
-func (f *Fighter) UpdateAI(ctx GameContext) {
-	// Retarget timer
-	f.AIRetargetTimer--
-	if f.AIRetargetTimer <= 0 || f.AITargetID < 0 {
-		f.SelectTarget(ctx)
-		f.AIRetargetTimer = config.AIRetargetInterval
-	}
-
-	// Validate current target
-	target := ctx.GetShip(f.AITargetID)
-	if target == nil || !target.IsAlive() {
-		f.SelectTarget(ctx)
-		f.AIRetargetTimer = config.AIRetargetInterval
-		target = ctx.GetShip(f.AITargetID)
-	}
-
-	// AI behavior
-	if target != nil {
-		// Pursuit: Rotate toward target and fly at 80-100% speed
-		targetX, targetY := target.GetPosition()
-		dx, dy := GetWrappedDistance(f.X, f.Y, targetX, targetY)
-		// Sprites face UP (Y-axis), so use atan2(dx, -dy)
-		angleToTarget := math.Atan2(dx, -dy)
-
-		// Rotate toward target
-		angleDiff := NormalizeAngle(angleToTarget - f.Rotation)
-		if math.Abs(angleDiff) > config.AIRotationSpeed {
-			if angleDiff > 0 {
-				f.Rotation += config.AIRotationSpeed
-			} else {
-				f.Rotation -= config.AIRotationSpeed
-			}
-			f.Rotation = NormalizeAngle(f.Rotation)
-		} else {
-			f.Rotation = angleToTarget
-		}
-
-		// Accelerate toward target at random speed (80-100%)
-		targetSpeed := f.MaxSpeed * (config.AIPursuitSpeedMin + rand.Float64()*(config.AIPursuitSpeedMax-config.AIPursuitSpeedMin))
-
-		// Adjust speed toward target speed
-		if f.Speed < targetSpeed {
-			f.Speed += f.Accel
-			if f.Speed > targetSpeed {
-				f.Speed = targetSpeed
-			}
-		} else if f.Speed > targetSpeed {
-			f.Speed -= f.Accel
-			if f.Speed < targetSpeed {
-				f.Speed = targetSpeed
-			}
-		}
-
-		// Fire weapon if target in arc (check first weapon's firing cone)
-		if f.CanFireWeapon() && len(f.Weapons) > 0 {
-			angleFromForward := math.Abs(NormalizeAngle(angleToTarget - f.Rotation))
-			if angleFromForward <= f.Weapons[0].FiringCone/2 {
-				// Calculate distance to target for range-dependent firing
-				distance := math.Sqrt(dx*dx + dy*dy)
-
-				// Calculate firing probability based on range
-				var firingProbability float64
-				if distance <= config.AIPreferredRange {
-					// Close range: max probability
-					firingProbability = config.AIMaxFiringProbability
-				} else if distance >= config.AIMaxRange {
-					// Far range: very low probability (10% of max)
-					firingProbability = config.AIMaxFiringProbability * 0.1
-				} else {
-					// Medium range: linear falloff
-					rangeFactor := (distance - config.AIPreferredRange) / (config.AIMaxRange - config.AIPreferredRange)
-					firingProbability = config.AIMaxFiringProbability * (1.0 - 0.9*rangeFactor)
-				}
-
-				// Roll for firing decision
-				if rand.Float64() < firingProbability {
-					// Decide whether to fire accurately or randomly
-					shotTypeRoll := rand.Float64()
-					accurateFraction := f.AIAccurateShotProbability / (f.AIAccurateShotProbability + f.AIRandomShotProbability)
-
-					if shotTypeRoll < accurateFraction {
-						// Accurate shot
-						f.FireWeapon(targetX, targetY, ctx)
-					} else {
-						// Random shot within cone
-						randomAngle := f.Rotation + (rand.Float64()-0.5)*f.Weapons[0].FiringCone
-						randomTargetX := f.X + math.Cos(randomAngle)*1000
-						randomTargetY := f.Y + math.Sin(randomAngle)*1000
-						f.FireWeapon(randomTargetX, randomTargetY, ctx)
-					}
-				}
-			}
-		}
-	} else {
-		// Patrol: Maintain heading at 50% speed
-		targetSpeed := f.MaxSpeed * config.AIPatrolSpeed
-
-		// Adjust speed toward target speed
-		if f.Speed < targetSpeed {
-			f.Speed += f.Accel
-			if f.Speed > targetSpeed {
-				f.Speed = targetSpeed
-			}
-		} else if f.Speed > targetSpeed {
-			f.Speed -= f.Accel
-			if f.Speed < targetSpeed {
-				f.Speed = targetSpeed
-			}
-		}
-	}
-}
-
-// SelectTarget finds the nearest enemy ship
-func (f *Fighter) SelectTarget(ctx GameContext) {
-	nearestShip, _ := ctx.FindNearestEnemy(f.BaseShip)
-	if nearestShip != nil {
-		f.AITargetID = nearestShip.GetID()
-	} else {
-		f.AITargetID = -1
 	}
 }
 

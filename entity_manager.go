@@ -327,13 +327,13 @@ func (em *EntityManager) SpawnShip(class entity.ShipClass, factionID int, x, y f
 	var ship *entity.BaseShip
 	switch class {
 	case entity.ClassFighter:
-		ship = entity.NewFighter(id, factionID, x, y, sprite).BaseShip
+		ship = entity.NewFighter(id, factionID, x, y, sprite)
 	case entity.ClassDestroyer:
-		ship = entity.NewDestroyer(id, factionID, x, y, sprite).BaseShip
+		ship = entity.NewDestroyer(id, factionID, x, y, sprite)
 	case entity.ClassTestudon:
-		ship = entity.NewTestudon(id, factionID, x, y, sprite).BaseShip
+		ship = entity.NewTestudon(id, factionID, x, y, sprite)
 	default:
-		ship = entity.NewFighter(id, factionID, x, y, sprite).BaseShip
+		ship = entity.NewFighter(id, factionID, x, y, sprite)
 	}
 
 	em.ships[id] = ship
