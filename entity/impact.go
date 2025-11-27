@@ -2,7 +2,7 @@ package entity
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/nathan/verdant-thane/config"
+	"github.com/nathan-b/verdant-thane/config"
 )
 
 // Impact is an animation entity that plays when a ship is hit by a projectile

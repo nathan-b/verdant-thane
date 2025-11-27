@@ -1,4 +1,4 @@
-module github.com/nathan/verdant-thane
+module github.com/nathan-b/verdant-thane
 
 go 1.25.3
 

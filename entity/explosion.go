@@ -2,7 +2,7 @@ package entity
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/nathan/verdant-thane/config"
+	"github.com/nathan-b/verdant-thane/config"
 )
 
 // Explosion is an animation entity that plays a destruction effect

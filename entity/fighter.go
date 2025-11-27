@@ -8,7 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
-	"github.com/nathan/verdant-thane/config"
+	"github.com/nathan-b/verdant-thane/config"
 )
 
 // emptyImage is a 1x1 white image used for drawing solid color triangles

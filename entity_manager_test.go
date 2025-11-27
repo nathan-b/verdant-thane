@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/nathan/verdant-thane/entity"
+	"github.com/nathan-b/verdant-thane/entity"
 )
 
 // Test EntityManager Creation

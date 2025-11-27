@@ -3,7 +3,7 @@ package entity
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 
-	"github.com/nathan/verdant-thane/config"
+	"github.com/nathan-b/verdant-thane/config"
 )
 
 // NewTestudon creates a new testudon ship

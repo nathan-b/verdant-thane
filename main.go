@@ -16,12 +16,12 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
-	"github.com/nathan/verdant-thane/audio"
-	"github.com/nathan/verdant-thane/config"
-	"github.com/nathan/verdant-thane/entity"
-	"github.com/nathan/verdant-thane/persistence"
-	"github.com/nathan/verdant-thane/systems"
-	"github.com/nathan/verdant-thane/ui"
+	"github.com/nathan-b/verdant-thane/audio"
+	"github.com/nathan-b/verdant-thane/config"
+	"github.com/nathan-b/verdant-thane/entity"
+	"github.com/nathan-b/verdant-thane/persistence"
+	"github.com/nathan-b/verdant-thane/systems"
+	"github.com/nathan-b/verdant-thane/ui"
 )
 
 var (

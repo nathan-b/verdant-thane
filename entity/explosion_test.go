@@ -3,7 +3,7 @@ package entity
 import (
 	"testing"
 
-	"github.com/nathan/verdant-thane/config"
+	"github.com/nathan-b/verdant-thane/config"
 )
 
 // Test Explosion Creation

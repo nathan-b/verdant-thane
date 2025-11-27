@@ -3,7 +3,7 @@ package entity
 import (
 	"math"
 
-	"github.com/nathan/verdant-thane/config"
+	"github.com/nathan-b/verdant-thane/config"
 )
 
 // NormalizeAngle brings an angle into the range [-π, π]

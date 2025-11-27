@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/nathan/verdant-thane/config"
+import "github.com/nathan-b/verdant-thane/config"
 
 // CreateTitleScreen creates and returns a Dialog for the title screen
 func CreateTitleScreen() *Dialog {

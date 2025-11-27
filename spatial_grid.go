@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/nathan/verdant-thane/config"
-	"github.com/nathan/verdant-thane/entity"
+	"github.com/nathan-b/verdant-thane/config"
+	"github.com/nathan-b/verdant-thane/entity"
 )
 
 // spatialGrid implements spatial partitioning for efficient collision detection

@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/nathan/verdant-thane/config"
+	"github.com/nathan-b/verdant-thane/config"
 )
 
 // MockGameContext is a test implementation of GameContext

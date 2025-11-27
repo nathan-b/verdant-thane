@@ -7,9 +7,9 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
-	"github.com/nathan/verdant-thane/config"
-	"github.com/nathan/verdant-thane/entity"
-	"github.com/nathan/verdant-thane/systems"
+	"github.com/nathan-b/verdant-thane/config"
+	"github.com/nathan-b/verdant-thane/entity"
+	"github.com/nathan-b/verdant-thane/systems"
 )
 
 // Profiler interface for collecting performance timing data

@@ -1,6 +1,6 @@
 package systems
 
-import "github.com/nathan/verdant-thane/config"
+import "github.com/nathan-b/verdant-thane/config"
 
 // modulo performs proper modulo operation (handles negatives correctly)
 func modulo(a, b int) int {
