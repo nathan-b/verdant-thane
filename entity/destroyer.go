@@ -126,7 +126,7 @@ func (d *Destroyer) UpdateAI(ctx GameContext) {
 	// Additional destroyer behavior: Fire missiles at rear targets
 	if d.CanFireMissile() && len(d.Weapons) > 0 {
 		// Missile launcher is now at index 0 (highest priority)
-		rearTarget, _ := ctx.FindNearestEnemyInArc(d, d.Weapons[0].FiringCone, d.Weapons[0].MaxRange, true)
+		rearTarget, _ := ctx.FindNearestEnemyInArc(d.BaseShip, d.Weapons[0].FiringCone, d.Weapons[0].MaxRange, true)
 		if rearTarget != nil {
 			d.FireMissile(rearTarget.GetID(), ctx)
 		}

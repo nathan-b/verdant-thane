@@ -346,7 +346,7 @@ func (t *Testudon) TrackAttacker(attackerID int, ctx GameContext) {
 
 // UpdateBeamWeapon handles beam targeting and damage application
 func (t *Testudon) UpdateBeamWeapon(ctx GameContext) {
-	var targetToFire Ship
+	var targetToFire *BaseShip
 
 	// First, check if primary target is valid and in range
 	if t.BeamTargetID >= 0 {
@@ -361,7 +361,7 @@ func (t *Testudon) UpdateBeamWeapon(ctx GameContext) {
 
 	// If primary target not in range, opportunistically fire at ANY in-range enemy
 	if targetToFire == nil {
-		nearestInRange, dist := ctx.FindNearestEnemy(t)
+		nearestInRange, dist := ctx.FindNearestEnemy(t.BaseShip)
 		if nearestInRange != nil && dist <= t.BeamRange {
 			targetToFire = nearestInRange
 		}
@@ -379,7 +379,7 @@ func (t *Testudon) UpdateBeamWeapon(ctx GameContext) {
 }
 
 // ApplyBeamDamage applies damage-over-time to a target
-func (t *Testudon) ApplyBeamDamage(target Ship, ctx GameContext) {
+func (t *Testudon) ApplyBeamDamage(target *BaseShip, ctx GameContext) {
 	// Accumulate damage
 	t.BeamDamageAccumulator += t.BeamDamagePerTick
 

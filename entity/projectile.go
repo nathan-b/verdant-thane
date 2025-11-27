@@ -125,7 +125,7 @@ func (l *MainGunProjectile) GetDamage() int {
 }
 
 // CheckCollision checks if this projectile collides with a ship
-func (l *MainGunProjectile) CheckCollision(ship Ship) bool {
+func (l *MainGunProjectile) CheckCollision(ship *BaseShip) bool {
 	if !l.Alive || !ship.IsAlive() {
 		return false
 	}
@@ -275,7 +275,7 @@ func (m *MissileProjectile) GetDamage() int {
 }
 
 // CheckCollision checks if this missile collides with a ship
-func (m *MissileProjectile) CheckCollision(ship Ship) bool {
+func (m *MissileProjectile) CheckCollision(ship *BaseShip) bool {
 	if !m.Alive || !ship.IsAlive() {
 		return false
 	}

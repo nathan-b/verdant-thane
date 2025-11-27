@@ -25,49 +25,12 @@ type Entity interface {
 	IsAlive() bool
 }
 
-// Ship extends Entity with ship-specific methods
-type Ship interface {
-	Entity
-
-	// Combat
-	TakeDamage(amount int, attackerID int, ctx GameContext)
-	GetHealth() (current, max int)
-	GetCollisionRadius() float64
-
-	// Identity
-	GetFaction() int
-	GetClass() ShipClass
-
-	// Physics
-	GetVelocity() (vx, vy float64)
-	GetRotation() float64
-
-	// Control
-	SetPlayerControlled(controlled bool)
-	IsPlayerControlled() bool
-
-	// Weapons
-	FireWeapon(mouseX, mouseY float64, ctx GameContext)
-	CanFireWeapon() bool
-
-	// Afterburner (fighters and destroyers only)
-	GetAfterburnerCharge() float64
-	IsAfterburnerActive() bool
-	HasAfterburner() bool
-
-	// Update subsystems (for profiling)
-	UpdateWeapons()
-	UpdateAI(ctx GameContext)
-	UpdatePlayerInput(ctx GameContext)
-	UpdateMovement()
-}
-
 // Projectile extends Entity with projectile-specific methods
 type Projectile interface {
 	Entity
 	GetOwnerID() int
 	GetDamage() int
-	CheckCollision(ship Ship) bool
+	CheckCollision(ship *BaseShip) bool
 	GetFaction() int // Inherited from owner
 }
 
@@ -82,11 +45,11 @@ type GameContext interface {
 	SpawnParticle(x, y, vx, vy float64)
 
 	// Entity queries
-	GetShip(id int) Ship
-	GetAllShips() []Ship
-	GetShipsByFaction(factionID int) []Ship
-	FindNearestEnemy(ship Ship) (nearestShip Ship, distance float64)
-	FindNearestEnemyInArc(ship Ship, arc, maxRange float64, rearFacing bool) (nearestShip Ship, distance float64)
+	GetShip(id int) *BaseShip
+	GetAllShips() []*BaseShip
+	GetShipsByFaction(factionID int) []*BaseShip
+	FindNearestEnemy(ship *BaseShip) (nearestShip *BaseShip, distance float64)
+	FindNearestEnemyInArc(ship *BaseShip, arc, maxRange float64, rearFacing bool) (nearestShip *BaseShip, distance float64)
 
 	// World info
 	GetWorldSize() (width, height float64)
@@ -96,7 +59,7 @@ type GameContext interface {
 	AddScore(points int)
 
 	// Audio
-	PlayImpactSound(targetShip Ship)
+	PlayImpactSound(targetShip *BaseShip)
 
 	// Chat events
 	OnShipDestroyed(victimShipID int, killerShipID int)

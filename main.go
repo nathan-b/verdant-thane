@@ -484,7 +484,7 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 
 	// Spawn ships according to fleet configuration
 	const spawnRadius = 75.0 // Radius for circular spawn pattern
-	var playerShip entity.Ship
+	var playerShip *entity.BaseShip
 
 	t = time.Now()
 	for factionID := 0; factionID < fleetConfig.NumFactions; factionID++ {
@@ -732,7 +732,7 @@ func (g *Game) Update() error {
 		}
 
 		// Update camera to follow player or spectated ship
-		var shipToFollow entity.Ship
+		var shipToFollow *entity.BaseShip
 		if g.entityManager.IsSpectating() {
 			shipToFollow = g.entityManager.GetSpectatedShip()
 		} else {
@@ -1022,35 +1022,32 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		t = time.Now()
 		for _, ship := range g.entityManager.ships {
 			// Check if this is a testudon with an active beam
-			if ship.GetClass() == entity.ClassTestudon {
-				// Type assert to get beam target info
-				if testudon, ok := ship.(*entity.Testudon); ok && testudon.IsAlive() {
-					beamTargetID := testudon.GetBeamTargetID()
-					if beamTargetID >= 0 {
-						target := g.entityManager.GetShip(beamTargetID)
-						if target != nil && target.IsAlive() {
-							// Get positions
-							shipX, shipY := testudon.GetPosition()
-							targetX, targetY := target.GetPosition()
+			if ship.GetClass() == entity.ClassTestudon && ship.IsAlive() {
+				beamTargetID := ship.GetBeamTargetID()
+				if beamTargetID >= 0 {
+					target := g.entityManager.GetShip(beamTargetID)
+					if target != nil && target.IsAlive() {
+						// Get positions
+						shipX, shipY := ship.GetPosition()
+						targetX, targetY := target.GetPosition()
 
-							// Convert to screen coordinates using wrapped positions
-							screenX1, screenY1 := entity.GetWrappedScreenPosition(shipX, shipY, g.cameraX, g.cameraY)
-							screenX2, screenY2 := entity.GetWrappedScreenPosition(targetX, targetY, g.cameraX, g.cameraY)
+						// Convert to screen coordinates using wrapped positions
+						screenX1, screenY1 := entity.GetWrappedScreenPosition(shipX, shipY, g.cameraX, g.cameraY)
+						screenX2, screenY2 := entity.GetWrappedScreenPosition(targetX, targetY, g.cameraX, g.cameraY)
 
-							// Check if at least one endpoint is visible
-							// This prevents drawing beams "the long way" when both endpoints
-							// are off-screen on opposite sides
-							testudonVisible := screenX1 >= 0 && screenX1 < float64(config.ScreenWidth) &&
-								screenY1 >= 0 && screenY1 < float64(config.ScreenHeight)
-							targetVisible := screenX2 >= 0 && screenX2 < float64(config.ScreenWidth) &&
-								screenY2 >= 0 && screenY2 < float64(config.ScreenHeight)
+						// Check if at least one endpoint is visible
+						// This prevents drawing beams "the long way" when both endpoints
+						// are off-screen on opposite sides
+						testudonVisible := screenX1 >= 0 && screenX1 < float64(config.ScreenWidth) &&
+							screenY1 >= 0 && screenY1 < float64(config.ScreenHeight)
+						targetVisible := screenX2 >= 0 && screenX2 < float64(config.ScreenWidth) &&
+							screenY2 >= 0 && screenY2 < float64(config.ScreenHeight)
 
-							if testudonVisible || targetVisible {
-								// Draw beam line using testudon's faction color
-								factionID := testudon.GetFaction()
-								beamColor := g.factionColors[factionID%len(g.factionColors)]
-								vector.StrokeLine(screen, float32(screenX1), float32(screenY1), float32(screenX2), float32(screenY2), 2, beamColor, false)
-							}
+						if testudonVisible || targetVisible {
+							// Draw beam line using testudon's faction color
+							factionID := ship.GetFaction()
+							beamColor := g.factionColors[factionID%len(g.factionColors)]
+							vector.StrokeLine(screen, float32(screenX1), float32(screenY1), float32(screenX2), float32(screenY2), 2, beamColor, false)
 						}
 					}
 				}

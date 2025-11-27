@@ -720,7 +720,7 @@ func (b *BaseShip) updateAITestudon(ctx GameContext) {
 
 // UpdateBeamWeapon handles beam targeting and damage application (Testudon only)
 func (b *BaseShip) UpdateBeamWeapon(ctx GameContext) {
-	var targetToFire Ship
+	var targetToFire *BaseShip
 
 	// First, check if primary target is valid and in range
 	if b.BeamTargetID >= 0 {
@@ -865,7 +865,7 @@ func (f *Fighter) UpdateAI(ctx GameContext) {
 
 // SelectTarget finds the nearest enemy ship
 func (f *Fighter) SelectTarget(ctx GameContext) {
-	nearestShip, _ := ctx.FindNearestEnemy(f)
+	nearestShip, _ := ctx.FindNearestEnemy(f.BaseShip)
 	if nearestShip != nil {
 		f.AITargetID = nearestShip.GetID()
 	} else {
@@ -896,7 +896,7 @@ func (b *BaseShip) TrackAttacker(attackerID int, ctx GameContext) {
 }
 
 // ApplyBeamDamage applies damage-over-time to a target
-func (b *BaseShip) ApplyBeamDamage(target Ship, ctx GameContext) {
+func (b *BaseShip) ApplyBeamDamage(target *BaseShip, ctx GameContext) {
 	// Accumulate damage
 	b.BeamDamageAccumulator += b.BeamDamagePerTick
 

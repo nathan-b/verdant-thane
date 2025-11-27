@@ -31,7 +31,7 @@ type EntityManager struct {
 	nextID int
 
 	// Entity collections
-	ships       map[int]entity.Ship
+	ships       map[int]*entity.BaseShip
 	projectiles map[int]entity.Projectile
 	explosions  map[int]*entity.Explosion
 	impacts     map[int]*entity.Impact
@@ -81,7 +81,7 @@ type ChatWindowInterface interface {
 func NewEntityManager(mainGunSprite, missileSprite, explosionSprite, impactSprite *ebiten.Image, factionSprites *systems.FactionSprites) *EntityManager {
 	return &EntityManager{
 		nextID:             1,
-		ships:              make(map[int]entity.Ship),
+		ships:              make(map[int]*entity.BaseShip),
 		projectiles:        make(map[int]entity.Projectile),
 		explosions:         make(map[int]*entity.Explosion),
 		impacts:            make(map[int]*entity.Impact),
@@ -177,13 +177,13 @@ func (em *EntityManager) SpawnParticle(x, y, vx, vy float64) {
 }
 
 // GetShip returns a ship by ID
-func (em *EntityManager) GetShip(id int) entity.Ship {
+func (em *EntityManager) GetShip(id int) *entity.BaseShip {
 	return em.ships[id]
 }
 
 // GetAllShips returns a slice of all ships
-func (em *EntityManager) GetAllShips() []entity.Ship {
-	ships := make([]entity.Ship, 0, len(em.ships))
+func (em *EntityManager) GetAllShips() []*entity.BaseShip {
+	ships := make([]*entity.BaseShip, 0, len(em.ships))
 	for _, ship := range em.ships {
 		ships = append(ships, ship)
 	}
@@ -191,8 +191,8 @@ func (em *EntityManager) GetAllShips() []entity.Ship {
 }
 
 // GetShipsByFaction returns all ships belonging to a faction
-func (em *EntityManager) GetShipsByFaction(factionID int) []entity.Ship {
-	ships := make([]entity.Ship, 0)
+func (em *EntityManager) GetShipsByFaction(factionID int) []*entity.BaseShip {
+	ships := make([]*entity.BaseShip, 0)
 	for _, ship := range em.ships {
 		if ship.GetFaction() == factionID {
 			ships = append(ships, ship)
@@ -202,7 +202,7 @@ func (em *EntityManager) GetShipsByFaction(factionID int) []entity.Ship {
 }
 
 // FindNearestEnemy finds the nearest enemy ship to the given ship
-func (em *EntityManager) FindNearestEnemy(ship entity.Ship) (entity.Ship, float64) {
+func (em *EntityManager) FindNearestEnemy(ship *entity.BaseShip) (*entity.BaseShip, float64) {
 	// Use spatial grid for optimized O(k) search instead of O(n)
 	// Grid is rebuilt each frame in UpdateAll()
 	if em.spatialGrid != nil {
@@ -210,7 +210,7 @@ func (em *EntityManager) FindNearestEnemy(ship entity.Ship) (entity.Ship, float6
 	}
 
 	// Fallback to linear search if grid not available (shouldn't happen in normal gameplay)
-	var nearestShip entity.Ship
+	var nearestShip *entity.BaseShip
 	minDistance := math.MaxFloat64
 
 	shipX, shipY := ship.GetPosition()
@@ -245,8 +245,8 @@ func (em *EntityManager) FindNearestEnemy(ship entity.Ship) (entity.Ship, float6
 }
 
 // FindNearestEnemyInArc finds the nearest enemy within a firing arc
-func (em *EntityManager) FindNearestEnemyInArc(ship entity.Ship, arc, maxRange float64, rearFacing bool) (entity.Ship, float64) {
-	var nearestShip entity.Ship
+func (em *EntityManager) FindNearestEnemyInArc(ship *entity.BaseShip, arc, maxRange float64, rearFacing bool) (*entity.BaseShip, float64) {
+	var nearestShip *entity.BaseShip
 	minDistance := math.MaxFloat64
 
 	shipX, shipY := ship.GetPosition()
@@ -317,23 +317,23 @@ func (em *EntityManager) AddScore(points int) {
 // ============================================================================
 
 // SpawnShip creates a new ship of the given class at a specific position
-func (em *EntityManager) SpawnShip(class entity.ShipClass, factionID int, x, y float64) entity.Ship {
+func (em *EntityManager) SpawnShip(class entity.ShipClass, factionID int, x, y float64) *entity.BaseShip {
 	id := em.nextID
 	em.nextID++
 
 	// Get faction sprite for this ship class
 	sprite := em.getSpriteForShip(class, factionID)
 
-	var ship entity.Ship
+	var ship *entity.BaseShip
 	switch class {
 	case entity.ClassFighter:
-		ship = entity.NewFighter(id, factionID, x, y, sprite)
+		ship = entity.NewFighter(id, factionID, x, y, sprite).BaseShip
 	case entity.ClassDestroyer:
-		ship = entity.NewDestroyer(id, factionID, x, y, sprite)
+		ship = entity.NewDestroyer(id, factionID, x, y, sprite).BaseShip
 	case entity.ClassTestudon:
-		ship = entity.NewTestudon(id, factionID, x, y, sprite)
+		ship = entity.NewTestudon(id, factionID, x, y, sprite).BaseShip
 	default:
-		ship = entity.NewFighter(id, factionID, x, y, sprite)
+		ship = entity.NewFighter(id, factionID, x, y, sprite).BaseShip
 	}
 
 	em.ships[id] = ship
@@ -341,7 +341,7 @@ func (em *EntityManager) SpawnShip(class entity.ShipClass, factionID int, x, y f
 }
 
 // SpawnShipAtFactionPoint spawns a ship at the faction's spawn point
-func (em *EntityManager) SpawnShipAtFactionPoint(class entity.ShipClass, factionID int) entity.Ship {
+func (em *EntityManager) SpawnShipAtFactionPoint(class entity.ShipClass, factionID int) *entity.BaseShip {
 	x, y, ok := em.GetFactionSpawnPoint(factionID)
 	if !ok {
 		// Fallback to center if spawn point not found
@@ -422,7 +422,7 @@ func (em *EntityManager) SetChatWindow(cw ChatWindowInterface) {
 }
 
 // PlayImpactSound plays impact sound only if the target ship is player-controlled
-func (em *EntityManager) PlayImpactSound(targetShip entity.Ship) {
+func (em *EntityManager) PlayImpactSound(targetShip *entity.BaseShip) {
 	if em.game != nil && targetShip.IsPlayerControlled() {
 		em.game.audioManager.PlaySound("impact")
 	}
@@ -458,17 +458,16 @@ func (em *EntityManager) updateBeamSounds() {
 
 	// Track which testudons are currently firing and audible
 	for _, ship := range em.ships {
-		testudon, ok := ship.(*entity.Testudon)
-		if !ok {
+		if ship.GetClass() != entity.ClassTestudon {
 			continue
 		}
 
-		testudonID := testudon.GetID()
-		isFiring := testudon.GetBeamTargetID() >= 0
-		x, y := testudon.GetPosition()
+		testudonID := ship.GetID()
+		isFiring := ship.GetBeamTargetID() >= 0
+		x, y := ship.GetPosition()
 		isAudible := em.isAudibleToPlayer(x, y)
 
-		if isFiring && isAudible && testudon.IsAlive() {
+		if isFiring && isAudible && ship.IsAlive() {
 			// Start beam sound if not already playing
 			em.game.audioManager.StartLoopingSound(testudonID, "beam")
 		} else {
@@ -601,8 +600,8 @@ func (em *EntityManager) UpdateAll() {
 		}
 
 		// Only Testudons have beam weapons
-		if testudon, ok := ship.(*entity.Testudon); ok {
-			testudon.UpdateBeamWeapon(em)
+		if ship.GetClass() == entity.ClassTestudon {
+			ship.UpdateBeamWeapon(em)
 		}
 	}
 	if em.profiler != nil {
@@ -815,7 +814,7 @@ func (em *EntityManager) SetPlayerShip(shipID int) {
 }
 
 // GetPlayerShip returns the player-controlled ship
-func (em *EntityManager) GetPlayerShip() entity.Ship {
+func (em *EntityManager) GetPlayerShip() *entity.BaseShip {
 	if em.playerShipID < 0 {
 		return nil
 	}
@@ -823,7 +822,7 @@ func (em *EntityManager) GetPlayerShip() entity.Ship {
 }
 
 // GetSpectatedShip returns the currently spectated ship
-func (em *EntityManager) GetSpectatedShip() entity.Ship {
+func (em *EntityManager) GetSpectatedShip() *entity.BaseShip {
 	if em.spectatedShipID < 0 {
 		return nil
 	}
@@ -863,7 +862,7 @@ func (em *EntityManager) CycleSpectateNext() {
 	}
 
 	playerFaction := 0
-	var allies []entity.Ship
+	var allies []*entity.BaseShip
 	for _, ship := range em.ships {
 		if ship.GetFaction() == playerFaction && ship.IsAlive() {
 			allies = append(allies, ship)
@@ -896,7 +895,7 @@ func (em *EntityManager) CycleSpectatePrevious() {
 	}
 
 	playerFaction := 0
-	var allies []entity.Ship
+	var allies []*entity.BaseShip
 	for _, ship := range em.ships {
 		if ship.GetFaction() == playerFaction && ship.IsAlive() {
 			allies = append(allies, ship)
@@ -942,16 +941,10 @@ func (em *EntityManager) RespawnIntoSpectatedShip() bool {
 	}
 
 	// Replenish shields and reset afterburner when taking control
-	// We need to access the underlying implementation to restore health and reset afterburner
-	switch s := ship.(type) {
-	case *entity.Fighter:
-		s.Health = s.MaxHealth
-		// Reset afterburner to prevent accidental activation from held space bar
-		s.AfterburnerCharge = 0
-	case *entity.Destroyer:
-		s.Health = s.MaxHealth
-		// Reset afterburner to prevent accidental activation from held space bar
-		s.AfterburnerCharge = 0
+	ship.Health = ship.MaxHealth
+	// Reset afterburner to prevent accidental activation from held space bar (only if ship has afterburner)
+	if ship.HasAfterburnerSystem {
+		ship.AfterburnerCharge = 0
 	}
 
 	// Take control
@@ -1036,7 +1029,7 @@ func (em *EntityManager) GetFactionSpawnPoint(factionID int) (float64, float64, 
 // Clear removes all entities but preserves player stats (score, kills, deaths)
 // This allows stats to accumulate across multiple battles in a game session
 func (em *EntityManager) Clear() {
-	em.ships = make(map[int]entity.Ship)
+	em.ships = make(map[int]*entity.BaseShip)
 	em.projectiles = make(map[int]entity.Projectile)
 	em.explosions = make(map[int]*entity.Explosion)
 	em.impacts = make(map[int]*entity.Impact)

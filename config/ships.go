@@ -44,19 +44,19 @@ var WeaponDatabase = map[string]WeaponCharacteristics{
 
 // ShipCharacteristics defines the gameplay stats for a ship class
 type ShipCharacteristics struct {
-	MaxSpeed                   float64                 // Pixels per tick
-	Acceleration               float64                 // Speed increase per tick
-	MaxShield                  int                     // Hit points
-	Weapons                    []WeaponCharacteristics // Ship weapons
-	CollisionRadius            float64                 // Collision detection radius in pixels
-	BaseSpritePath             string                  // Path to grayscale base sprite
-	KillScore                  int                     // Points awarded for destroying this ship
-	AfterburnerDrain           float64                 // Afterburner fuel consumed per tick
-	AfterburnerRecharge          float64                 // Afterburner recharge rate per tick
-	AfterburnerAccelMultiplier   float64                 // Acceleration multiplier when afterburner active
+	MaxSpeed                      float64                 // Pixels per tick
+	Acceleration                  float64                 // Speed increase per tick
+	MaxShield                     int                     // Hit points
+	Weapons                       []WeaponCharacteristics // Ship weapons
+	CollisionRadius               float64                 // Collision detection radius in pixels
+	BaseSpritePath                string                  // Path to grayscale base sprite
+	KillScore                     int                     // Points awarded for destroying this ship
+	AfterburnerDrain              float64                 // Afterburner fuel consumed per tick
+	AfterburnerRecharge           float64                 // Afterburner recharge rate per tick
+	AfterburnerAccelMultiplier    float64                 // Acceleration multiplier when afterburner active
 	AfterburnerMaxSpeedMultiplier float64                 // Max speed multiplier when afterburner active
-	AIAccurateShotProbability    float64                 // Probability AI fires accurate shot (0.0-1.0)
-	AIRandomShotProbability      float64                 // Probability AI fires random shot within cone (0.0-1.0)
+	AIAccurateShotProbability     float64                 // Probability AI fires accurate shot (0.0-1.0)
+	AIRandomShotProbability       float64                 // Probability AI fires random shot within cone (0.0-1.0)
 }
 
 // ShipDatabase holds characteristics for all ship classes
@@ -97,10 +97,10 @@ var ShipDatabase = map[ShipClass]ShipCharacteristics{
 		AIRandomShotProbability:       0.20, // 20% chance of random shot (0.40-0.60 range)
 	},
 	ClassTestudon: {
-		MaxSpeed:                   3.0,                       // Very slow battleship
-		Acceleration:               2.0 / 60.0,                // Slow acceleration
-		MaxShield:                  100,                       // Heavy armor (12.5x fighter)
-		Weapons:                    []WeaponCharacteristics{}, // No weapons (beam weapon handled separately for now)
+		MaxSpeed:                      3.0,                       // Very slow battleship
+		Acceleration:                  2.0 / 60.0,                // Slow acceleration
+		MaxShield:                     100,                       // Heavy armor (12.5x fighter)
+		Weapons:                       []WeaponCharacteristics{}, // No weapons (beam weapon handled separately for now)
 		CollisionRadius:               50.0,                      // 100x100 sprite, half-width for circular hitbox
 		BaseSpritePath:                "assets/testudon.png",
 		KillScore:                     100,
