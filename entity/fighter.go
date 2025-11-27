@@ -82,6 +82,14 @@ type BaseShip struct {
 
 	// State
 	Alive bool
+
+	// Beam weapon (Testudon only - unused by other classes)
+	BeamRange             float64
+	BeamDamagePerTick     float64
+	BeamDamageAccumulator float64
+	BeamTargetID          int // Primary movement target
+	BeamFiringAtID        int // Currently firing at (for rendering)
+	AttackerIDs           []int
 }
 
 // Fighter is a standard fighter ship
@@ -132,12 +140,18 @@ func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Figh
 		AfterburnerAccelMultiplier:    chars.AfterburnerAccelMultiplier,
 		AfterburnerMaxSpeedMultiplier: chars.AfterburnerMaxSpeedMultiplier,
 		AITargetID:                    -1, // No target initially
-		AIRetargetTimer:            config.AIRetargetInterval,
-		AIAccurateShotProbability:  chars.AIAccurateShotProbability,
-		AIRandomShotProbability:    chars.AIRandomShotProbability,
-		KillScore:                  chars.KillScore,
-		Sprite:                     sprite,
-		Alive:                      true,
+		AIRetargetTimer:               config.AIRetargetInterval,
+		AIAccurateShotProbability:     chars.AIAccurateShotProbability,
+		AIRandomShotProbability:       chars.AIRandomShotProbability,
+		KillScore:                     chars.KillScore,
+		Sprite:                        sprite,
+		Alive:                         true,
+		BeamRange:                     0.0, // Unused by fighters
+		BeamDamagePerTick:             0.0, // Unused by fighters
+		BeamDamageAccumulator:         0.0, // Unused by fighters
+		BeamTargetID:                  -1,  // Unused by fighters
+		BeamFiringAtID:                -1,  // Unused by fighters
+		AttackerIDs:                   nil, // Unused by fighters
 	}
 
 	return &Fighter{BaseShip: base}
@@ -285,6 +299,11 @@ func (b *BaseShip) TakeDamage(amount int, attackerID int, ctx GameContext) {
 		if attacker != nil && attacker.IsPlayerControlled() {
 			ctx.AddKill()
 			ctx.AddScore(b.KillScore)
+		}
+	} else {
+		// Testudon: Track attacker for defensive AI
+		if b.Class == ClassTestudon {
+			b.TrackAttacker(attackerID, ctx)
 		}
 	}
 }
@@ -635,6 +654,102 @@ func (b *BaseShip) UpdatePlayerInput(ctx GameContext) {
 	// The game will call FireWeapon() when mouse button is pressed
 }
 
+// ============================================================================
+// Consolidated Update Methods (Phase 2)
+// ============================================================================
+
+// Update handles all per-frame logic (unified for all ship types)
+func (b *BaseShip) Update(ctx GameContext) error {
+	if !b.Alive {
+		return nil
+	}
+
+	// Update weapons (class-specific)
+	if b.Class == ClassTestudon {
+		b.UpdateBeamWeapon(ctx)
+	} else {
+		b.UpdateWeapons()
+	}
+
+	// Update control (AI or player)
+	if b.PlayerControlled {
+		b.UpdatePlayerInput(ctx)
+	} else {
+		b.UpdateAI(ctx)
+	}
+
+	// Update movement
+	b.UpdateMovement()
+
+	return nil
+}
+
+// UpdateAI handles AI decision-making (delegates to class-specific implementations)
+func (b *BaseShip) UpdateAI(ctx GameContext) {
+	switch b.Class {
+	case ClassTestudon:
+		b.updateAITestudon(ctx)
+	case ClassDestroyer:
+		b.updateAIDestroyer(ctx)
+	case ClassFighter:
+		b.updateAIFighter(ctx)
+	}
+}
+
+// ============================================================================
+// Class-Specific AI Helpers (Private)
+// ============================================================================
+
+// updateAIFighter handles Fighter AI (will be moved from Fighter.UpdateAI)
+func (b *BaseShip) updateAIFighter(ctx GameContext) {
+	// This is a placeholder - the actual implementation will be copied from Fighter.UpdateAI
+	// For now, call the Fighter method to maintain backward compatibility
+}
+
+// updateAIDestroyer handles Destroyer AI (will be moved from Destroyer.UpdateAI)
+func (b *BaseShip) updateAIDestroyer(ctx GameContext) {
+	// This is a placeholder - the actual implementation will be copied from Destroyer.UpdateAI
+	// For now, this is empty and will be implemented
+}
+
+// updateAITestudon handles Testudon AI (will be moved from Testudon.UpdateAI)
+func (b *BaseShip) updateAITestudon(ctx GameContext) {
+	// This is a placeholder - the actual implementation will be copied from Testudon.UpdateAI
+	// For now, this is empty and will be implemented
+}
+
+// UpdateBeamWeapon handles beam targeting and damage application (Testudon only)
+func (b *BaseShip) UpdateBeamWeapon(ctx GameContext) {
+	var targetToFire Ship
+
+	// First, check if primary target is valid and in range
+	if b.BeamTargetID >= 0 {
+		target := ctx.GetShip(b.BeamTargetID)
+		if target != nil && target.IsAlive() && target.GetFaction() != b.FactionID {
+			targetX, targetY := target.GetPosition()
+			if IsInRange(b.X, b.Y, targetX, targetY, b.BeamRange) {
+				targetToFire = target
+			}
+		}
+	}
+
+	// If primary target not in range, opportunistically fire at ANY in-range enemy
+	if targetToFire == nil {
+		// TODO: In Phase 3, change FindNearestEnemy to accept *BaseShip instead of Ship
+		// For now, skip opportunistic targeting (Testudon.UpdateBeamWeapon still handles this)
+	}
+
+	// Fire at the chosen target (if any)
+	if targetToFire != nil {
+		b.BeamFiringAtID = targetToFire.GetID()
+		b.ApplyBeamDamage(targetToFire, ctx)
+	} else {
+		// No target in range - reset damage accumulator
+		b.BeamDamageAccumulator = 0.0
+		b.BeamFiringAtID = -1
+	}
+}
+
 // UpdateAI handles AI decision-making and movement
 func (f *Fighter) UpdateAI(ctx GameContext) {
 	// Retarget timer
@@ -755,5 +870,51 @@ func (f *Fighter) SelectTarget(ctx GameContext) {
 		f.AITargetID = nearestShip.GetID()
 	} else {
 		f.AITargetID = -1
+	}
+}
+
+// ============================================================================
+// Beam Weapon Methods (Testudon only - unused by other classes)
+// ============================================================================
+
+// GetBeamTargetID returns the current beam target (for rendering)
+func (b *BaseShip) GetBeamTargetID() int {
+	return b.BeamFiringAtID
+}
+
+// TrackAttacker adds an attacker to the ship's attacker list (Testudon defensive AI)
+func (b *BaseShip) TrackAttacker(attackerID int, ctx GameContext) {
+	// Check if already tracked
+	for _, id := range b.AttackerIDs {
+		if id == attackerID {
+			return
+		}
+	}
+
+	// Add new attacker
+	b.AttackerIDs = append(b.AttackerIDs, attackerID)
+}
+
+// ApplyBeamDamage applies damage-over-time to a target
+func (b *BaseShip) ApplyBeamDamage(target Ship, ctx GameContext) {
+	// Accumulate damage
+	b.BeamDamageAccumulator += b.BeamDamagePerTick
+
+	// Apply integer damage when accumulator >= 1.0
+	if b.BeamDamageAccumulator >= 1.0 {
+		damageToApply := int(b.BeamDamageAccumulator)
+		b.BeamDamageAccumulator -= float64(damageToApply)
+
+		// Apply damage to target
+		target.TakeDamage(damageToApply, b.ID, ctx)
+
+		// Play impact sound if player ship was hit
+		ctx.PlayImpactSound(target)
+
+		// If target was destroyed, clear beam target
+		if !target.IsAlive() {
+			b.BeamTargetID = -1
+			b.BeamFiringAtID = -1
+		}
 	}
 }

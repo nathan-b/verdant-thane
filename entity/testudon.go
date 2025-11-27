@@ -26,22 +26,22 @@ func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *Tes
 	beamWeapon := config.WeaponDatabase["beam"]
 
 	base := &BaseShip{
-		ID:                         id,
-		FactionID:                  factionID,
-		Class:                      ClassTestudon,
-		X:                          x,
-		Y:                          y,
-		VelocityX:                  0,
-		VelocityY:                  0,
-		Rotation:                   0,
-		Health:                     chars.MaxShield,
-		MaxHealth:                  chars.MaxShield,
-		Speed:                      0,
-		MaxSpeed:                   chars.MaxSpeed,
-		Accel:                      chars.Acceleration,
-		CollisionRadius:            chars.CollisionRadius,
-		PlayerControlled:           false,
-		Weapons:                    []Weapon{}, // Testudons don't use projectile weapons (beam weapon only)
+		ID:                            id,
+		FactionID:                     factionID,
+		Class:                         ClassTestudon,
+		X:                             x,
+		Y:                             y,
+		VelocityX:                     0,
+		VelocityY:                     0,
+		Rotation:                      0,
+		Health:                        chars.MaxShield,
+		MaxHealth:                     chars.MaxShield,
+		Speed:                         0,
+		MaxSpeed:                      chars.MaxSpeed,
+		Accel:                         chars.Acceleration,
+		CollisionRadius:               chars.CollisionRadius,
+		PlayerControlled:              false,
+		Weapons:                       []Weapon{}, // Testudons don't use projectile weapons (beam weapon only)
 		AfterburnerCharge:             0.0,
 		AfterburnerActive:             false,
 		AfterburnerMaxCharge:          0.0,
@@ -51,17 +51,13 @@ func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *Tes
 		AfterburnerAccelMultiplier:    chars.AfterburnerAccelMultiplier,
 		AfterburnerMaxSpeedMultiplier: chars.AfterburnerMaxSpeedMultiplier,
 		AITargetID:                    -1,
-		AIRetargetTimer:            config.AIRetargetInterval,
-		AIAccurateShotProbability:  chars.AIAccurateShotProbability,
-		AIRandomShotProbability:    chars.AIRandomShotProbability,
-		KillScore:                  chars.KillScore,
-		Sprite:                     sprite,
-		Alive:                      true,
-	}
-
-	return &Testudon{
-		BaseShip:  base,
-		BeamRange: beamWeapon.MaxRange,
+		AIRetargetTimer:               config.AIRetargetInterval,
+		AIAccurateShotProbability:     chars.AIAccurateShotProbability,
+		AIRandomShotProbability:       chars.AIRandomShotProbability,
+		KillScore:                     chars.KillScore,
+		Sprite:                        sprite,
+		Alive:                         true,
+		BeamRange:                     beamWeapon.MaxRange,
 		// IMPORTANT: BeamDamagePerTick must be exactly representable in binary floating point
 		// to avoid accumulation errors that affect game balance.
 		//
@@ -75,6 +71,17 @@ func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *Tes
 		//
 		// Safe values are powers of 2: 0.5 (1/2), 0.25 (1/4), 0.125 (1/8), 0.0625 (1/16)
 		// Current setting from config: 8 ticks per 1 damage = 7.5 DPS at 60 TPS
+		BeamDamagePerTick:     beamWeapon.DamagePerTick,
+		BeamDamageAccumulator: 0.0,
+		BeamTargetID:          -1,
+		BeamFiringAtID:        -1,
+		AttackerIDs:           []int{},
+	}
+
+	return &Testudon{
+		BaseShip: base,
+		// Beam weapon fields are now in BaseShip (duplicated here for backward compatibility during Phase 1)
+		BeamRange:             beamWeapon.MaxRange,
 		BeamDamagePerTick:     beamWeapon.DamagePerTick,
 		BeamDamageAccumulator: 0.0,
 		BeamTargetID:          -1,

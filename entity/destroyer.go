@@ -71,12 +71,18 @@ func NewDestroyer(id int, factionID int, x, y float64, sprite *ebiten.Image) *De
 		AfterburnerAccelMultiplier:    chars.AfterburnerAccelMultiplier,
 		AfterburnerMaxSpeedMultiplier: chars.AfterburnerMaxSpeedMultiplier,
 		AITargetID:                    -1,
-		AIRetargetTimer:            config.AIRetargetInterval,
-		AIAccurateShotProbability:  chars.AIAccurateShotProbability,
-		AIRandomShotProbability:    chars.AIRandomShotProbability,
-		KillScore:                  chars.KillScore,
-		Sprite:                     sprite,
-		Alive:                      true,
+		AIRetargetTimer:               config.AIRetargetInterval,
+		AIAccurateShotProbability:     chars.AIAccurateShotProbability,
+		AIRandomShotProbability:       chars.AIRandomShotProbability,
+		KillScore:                     chars.KillScore,
+		Sprite:                        sprite,
+		Alive:                         true,
+		BeamRange:                     0.0, // Unused by destroyers
+		BeamDamagePerTick:             0.0, // Unused by destroyers
+		BeamDamageAccumulator:         0.0, // Unused by destroyers
+		BeamTargetID:                  -1,  // Unused by destroyers
+		BeamFiringAtID:                -1,  // Unused by destroyers
+		AttackerIDs:                   nil, // Unused by destroyers
 	}
 
 	return &Destroyer{
