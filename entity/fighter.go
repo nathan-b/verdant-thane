@@ -922,6 +922,7 @@ func (b *Ship) UpdateBeamWeapon(ctx GameContext) {
 	var targetToFire *Ship
 
 	// First, check if primary target is valid and in range
+	// If primary target is in range, fire EXCLUSIVELY at it
 	if b.BeamTargetID >= 0 {
 		target := ctx.GetShip(b.BeamTargetID)
 		if target != nil && target.IsAlive() && target.GetFaction() != b.FactionID {
@@ -932,11 +933,33 @@ func (b *Ship) UpdateBeamWeapon(ctx GameContext) {
 		}
 	}
 
-	// If primary target not in range, opportunistically fire at ANY in-range enemy
+	// If primary target not in range, opportunistically fire at in-range enemies
+	// Priority: Attackers > Any nearest enemy
 	if targetToFire == nil {
-		nearestInRange, dist := ctx.FindNearestEnemy(b)
-		if nearestInRange != nil && dist <= b.BeamRange {
-			targetToFire = nearestInRange
+		// First check for attackers in range (defensive priority)
+		var nearestAttacker *Ship
+		nearestAttackerDist := math.MaxFloat64
+
+		for _, attackerID := range b.AttackerIDs {
+			attacker := ctx.GetShip(attackerID)
+			if attacker != nil && attacker.IsAlive() && attacker.GetFaction() != b.FactionID {
+				attackerX, attackerY := attacker.GetPosition()
+				dist := Distance(b.X, b.Y, attackerX, attackerY)
+				if dist <= b.BeamRange && dist < nearestAttackerDist {
+					nearestAttacker = attacker
+					nearestAttackerDist = dist
+				}
+			}
+		}
+
+		if nearestAttacker != nil {
+			targetToFire = nearestAttacker
+		} else {
+			// No attackers in range, fire at any nearest enemy
+			nearestInRange, dist := ctx.FindNearestEnemy(b)
+			if nearestInRange != nil && dist <= b.BeamRange {
+				targetToFire = nearestInRange
+			}
 		}
 	}
 
@@ -1021,37 +1044,22 @@ func (b *Ship) selectTargetFighter(ctx GameContext) {
 	}
 }
 
-// selectTargetTestudon uses priority-based targeting for Testudons
-// Priority: 1. Attackers (defensive), 2. Enemy Testudons, 3. Enemy Destroyers, 4. Enemy Fighters
+// selectTargetTestudon uses priority-based targeting for Testudons (primary target selection)
+// Priority: Enemy Testudons > Enemy Destroyers > Enemy Fighters (nearest within class)
+// Note: Attackers are tracked but NOT used for primary target selection (only for opportunistic firing)
 func (b *Ship) selectTargetTestudon(ctx GameContext) {
-	// First, check for attackers (highest priority)
-	if len(b.AttackerIDs) > 0 {
-		// Clean up invalid attackers and find nearest
-		validAttackers := []int{}
-		var nearestAttackerID int = -1
-		nearestDistance := math.MaxFloat64
-
-		for _, attackerID := range b.AttackerIDs {
-			attacker := ctx.GetShip(attackerID)
-			if attacker != nil && attacker.IsAlive() {
-				validAttackers = append(validAttackers, attackerID)
-				attackerX, attackerY := attacker.GetPosition()
-				dist := Distance(b.X, b.Y, attackerX, attackerY)
-				if dist < nearestDistance {
-					nearestDistance = dist
-					nearestAttackerID = attackerID
-				}
-			}
-		}
-		b.AttackerIDs = validAttackers
-
-		if nearestAttackerID >= 0 {
-			b.BeamTargetID = nearestAttackerID
-			return
+	// Clean up invalid attackers (but don't use them for primary targeting)
+	validAttackers := []int{}
+	for _, attackerID := range b.AttackerIDs {
+		attacker := ctx.GetShip(attackerID)
+		if attacker != nil && attacker.IsAlive() {
+			validAttackers = append(validAttackers, attackerID)
 		}
 	}
+	b.AttackerIDs = validAttackers
 
 	// Priority-based targeting: Testudons > Destroyers > Fighters
+	// (Attackers are NOT used for primary target selection, only opportunistic firing)
 	allShips := ctx.GetAllShips()
 
 	var bestTargetID int = -1

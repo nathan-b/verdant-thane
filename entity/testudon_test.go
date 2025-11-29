@@ -312,14 +312,20 @@ func TestTestudonDefensiveTargetingAttackers(t *testing.T) {
 	attacker := NewFighter(3, 1, 1000, 1000, nil)
 	ctx.ships[3] = attacker
 
-	// Take damage from distant fighter
+	// Take damage from distant fighter (adds to AttackerIDs)
 	testudon.TakeDamage(1, 3, ctx)
 
-	// Select target - should prioritize attacker over closer testudon
+	// Select target - should still prioritize nearby testudon for PRIMARY target
+	// (attackers are only used for opportunistic firing, not primary targeting)
 	testudon.SelectTarget(ctx)
 
-	if testudon.BeamTargetID != 3 {
-		t.Errorf("Expected to target attacker (ID 3), got ID %d", testudon.BeamTargetID)
+	if testudon.BeamTargetID != 2 {
+		t.Errorf("Expected to target nearby testudon (ID 2), got ID %d", testudon.BeamTargetID)
+	}
+
+	// Verify attacker was tracked
+	if len(testudon.AttackerIDs) != 1 || testudon.AttackerIDs[0] != 3 {
+		t.Errorf("Expected attacker ID 3 to be tracked, got AttackerIDs: %v", testudon.AttackerIDs)
 	}
 }
 
@@ -334,15 +340,20 @@ func TestTestudonDefensiveTargetingNearestAttacker(t *testing.T) {
 	ctx.ships[2] = attacker1
 	ctx.ships[3] = attacker2
 
-	// Take damage from both
+	// Take damage from both (adds to AttackerIDs)
 	testudon.TakeDamage(1, 2, ctx)
 	testudon.TakeDamage(1, 3, ctx)
 
 	testudon.SelectTarget(ctx)
 
-	// Should target nearest attacker
+	// Should target nearest fighter (ID 3) - happens to be an attacker but selected by distance
 	if testudon.BeamTargetID != 3 {
-		t.Errorf("Expected to target nearest attacker (ID 3), got ID %d", testudon.BeamTargetID)
+		t.Errorf("Expected to target nearest fighter (ID 3), got ID %d", testudon.BeamTargetID)
+	}
+
+	// Verify both attackers were tracked
+	if len(testudon.AttackerIDs) != 2 {
+		t.Errorf("Expected 2 attackers tracked, got %d", len(testudon.AttackerIDs))
 	}
 }
 
@@ -501,6 +512,68 @@ func TestTestudonBeamOpportunisticFiring(t *testing.T) {
 	}
 	if testudon.BeamDamageAccumulator == 0 {
 		t.Error("Should be accumulating damage on opportunistic target")
+	}
+}
+
+func TestTestudonBeamOpportunisticFiringPrioritizesAttackers(t *testing.T) {
+	testudon := NewTestudon(1, 0, 500, 500, nil)
+	ctx := NewMockGameContext()
+
+	// Primary target (destroyer) out of range
+	primaryTarget := NewDestroyer(2, 1, 2000, 2000, nil)
+	ctx.ships[2] = primaryTarget
+	testudon.BeamTargetID = 2 // Targeting out-of-range destroyer
+
+	// Closer enemy fighter (not an attacker)
+	closeEnemy := NewFighter(3, 1, 550, 500, nil)
+	ctx.ships[3] = closeEnemy
+
+	// Farther attacker fighter (attacked us, but still in range)
+	attacker := NewFighter(4, 1, 650, 500, nil)
+	ctx.ships[4] = attacker
+
+	// Take damage from the farther fighter
+	testudon.TakeDamage(1, 4, ctx)
+
+	testudon.UpdateBeamWeapon(ctx)
+
+	// Should prioritize attacker (ID 4) over closer non-attacker (ID 3) for opportunistic firing
+	if testudon.BeamFiringAtID != 4 {
+		t.Errorf("Expected opportunistic firing at attacker (ID 4), got ID %d", testudon.BeamFiringAtID)
+	}
+
+	// Primary target should remain the destroyer
+	if testudon.BeamTargetID != 2 {
+		t.Errorf("Primary target should remain destroyer (ID 2), got ID %d", testudon.BeamTargetID)
+	}
+}
+
+func TestTestudonBeamPrimaryTargetExclusive(t *testing.T) {
+	testudon := NewTestudon(1, 0, 500, 500, nil)
+	ctx := NewMockGameContext()
+
+	// Primary target (destroyer) in range
+	primaryTarget := NewDestroyer(2, 1, 600, 500, nil)
+	ctx.ships[2] = primaryTarget
+	testudon.BeamTargetID = 2
+
+	// Closer attacker fighter
+	attacker := NewFighter(3, 1, 520, 500, nil)
+	ctx.ships[3] = attacker
+
+	// Take damage from the closer fighter
+	testudon.TakeDamage(1, 3, ctx)
+
+	testudon.UpdateBeamWeapon(ctx)
+
+	// Should fire EXCLUSIVELY at primary target (ID 2), ignoring closer attacker
+	if testudon.BeamFiringAtID != 2 {
+		t.Errorf("Expected exclusive firing at primary target (ID 2), got ID %d", testudon.BeamFiringAtID)
+	}
+
+	// Verify attacker was tracked (but not fired upon)
+	if len(testudon.AttackerIDs) != 1 || testudon.AttackerIDs[0] != 3 {
+		t.Errorf("Expected attacker ID 3 to be tracked, got AttackerIDs: %v", testudon.AttackerIDs)
 	}
 }
 
@@ -978,16 +1051,21 @@ func TestTestudonDefensiveCombat(t *testing.T) {
 	// Get attacked by fighter
 	testudon.TakeDamage(1, 3, ctx)
 
-	// Should switch to defensive targeting
+	// Primary target should remain the enemy testudon (attackers don't change primary target)
 	testudon.SelectTarget(ctx)
-	if testudon.BeamTargetID != 3 {
-		t.Errorf("Expected defensive retarget to attacker (ID 3), got ID %d", testudon.BeamTargetID)
+	if testudon.BeamTargetID != 2 {
+		t.Errorf("Expected primary target to remain enemy testudon (ID 2), got ID %d", testudon.BeamTargetID)
 	}
 
-	// Should be firing at attacker (in range)
+	// Verify attacker was tracked
+	if len(testudon.AttackerIDs) != 1 || testudon.AttackerIDs[0] != 3 {
+		t.Errorf("Expected attacker ID 3 to be tracked, got AttackerIDs: %v", testudon.AttackerIDs)
+	}
+
+	// Should be opportunistically firing at attacker (in range, while primary target is out of range)
 	testudon.UpdateBeamWeapon(ctx)
 	if testudon.BeamFiringAtID != 3 {
-		t.Error("Should be firing at attacker")
+		t.Error("Should be opportunistically firing at attacker (ID 3)")
 	}
 }
 
