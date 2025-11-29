@@ -14,7 +14,15 @@ type WeaponCharacteristics struct {
 	FiringCone          float64 // Radians
 	MaxRange            float64 // Maximum effective range in pixels (0 = unlimited)
 	SpawnOffset         float64 // Distance from ship center where projectiles spawn
-	DamagePerTick       float64 // For beam weapons: damage dealt per tick (0 for projectile weapons)
+	// IMPORTANT: Floating point errors can accumulate over time with certain values.
+	//
+	// Values like 0.1 (1/10) can cause floating point drift:
+	//   0.1 is not exactly representable in binary (repeating decimal in binary)
+	//   After 10 additions: 0.1*10 = 0.999999... (requires 11 ticks for 1 damage!)
+	//   This creates a ~10% DPS reduction from intended design.
+	//
+	// Safe values are powers of 2: 0.25 (1/4), 0.125 (1/8), 0.0625 (1/16)
+	DamagePerTick float64 // For beam weapons: damage dealt per tick (0 for projectile weapons)
 }
 
 // WeaponDatabase holds named weapon configurations that can be referenced by ships
@@ -34,11 +42,11 @@ var WeaponDatabase = map[string]WeaponCharacteristics{
 		DamagePerTick:       0.0,                              // Projectile weapon, not beam
 	},
 	"beam": {
-		CapacitorChargeRate: 0.0,   // Beam weapons don't use capacitor charging
-		FiringCone:          360.0, // 360-degree firing arc (testudon can fire in any direction)
-		MaxRange:            200.0, // 200 pixel effective range
-		SpawnOffset:         0.0,   // Beam originates from ship center
-		DamagePerTick:       0.125, // 0.125 damage per tick (8 ticks = 1 HP)
+		CapacitorChargeRate: 0.0,    // Beam weapons don't use capacitor charging
+		FiringCone:          360.0,  // 360-degree firing arc (testudon can fire in any direction)
+		MaxRange:            200.0,  // 200 pixel effective range
+		SpawnOffset:         0.0,    // Beam originates from ship center
+		DamagePerTick:       0.0625, // 1/16 damage per tick (3.75 damage per second)
 	},
 }
 

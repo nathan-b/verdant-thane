@@ -798,6 +798,8 @@ func TestFighterAINoFiringOutsideArc(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		fighter.Weapons[0].WeaponCapacitor = 1.0
 		fighter.UpdateAI(ctx)
+		// Reset rotation to prevent AI from rotating target into arc
+		fighter.Rotation = 0
 	}
 
 	// Should not fire when target is behind (outside cone)
