@@ -305,6 +305,11 @@ func (em *EntityManager) GetWorldSize() (float64, float64) {
 // AddKill increments the player's kill count
 func (em *EntityManager) AddKill() {
 	em.kills++
+
+	// Notify game of kill (for killstreak tracking)
+	if em.game != nil {
+		em.game.OnPlayerKill()
+	}
 }
 
 // AddScore adds points to the player's score

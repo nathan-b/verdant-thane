@@ -193,6 +193,11 @@ type Game struct {
 	// Pause state
 	paused bool
 
+	// Killstreak system
+	roundKillCount    int                // Kills in current round (resets each round)
+	killstreakText    *KillstreakText    // Killstreak message mapping
+	killstreakDisplay *KillstreakDisplay // Killstreak display manager
+
 	// Debounce control to avoid multiple toggles per key press
 	prevKeyA     bool
 	prevKeyD     bool
@@ -334,6 +339,21 @@ func NewGame() (*Game, error) {
 	}
 	startupProfile.CreateChatWindow = time.Since(t)
 
+	// Load killstreak text
+	t = time.Now()
+	killstreakText, err := LoadKillstreakText("assets/killtext.json")
+	if err != nil {
+		log.Printf("Warning: Failed to load killstreak text: %v", err)
+		killstreakText = nil // Continue without killstreak messages
+	}
+
+	// Create killstreak display
+	var killstreakDisplay *KillstreakDisplay
+	if killstreakText != nil {
+		killstreakDisplay = NewKillstreakDisplay(killstreakText, fontSource)
+	}
+	loadKillstreak := time.Since(t)
+
 	t = time.Now()
 	game := &Game{
 		currentState:       TitleScreen,
@@ -347,6 +367,9 @@ func NewGame() (*Game, error) {
 		entityManager:      entityManager,
 		chatWindow:         chatWindow,
 		audioManager:       audioManager,
+		roundKillCount:     0,
+		killstreakText:     killstreakText,
+		killstreakDisplay:  killstreakDisplay,
 		laserSprite:        laserSprite,
 		missileSprite:      missileSprite,
 		explosionSprite:    explosionSprite,
@@ -420,6 +443,7 @@ func NewGame() (*Game, error) {
 				startupProfile.LoadSoundEffects +
 				startupProfile.LoadMenuMusic +
 				startupProfile.CreateChatWindow +
+				loadKillstreak +
 				startupProfile.LoadBGMTracks +
 				createGameStruct +
 				wireUpGame +
@@ -462,6 +486,17 @@ func (g *Game) ReturnToTitleScreen() {
 	}
 }
 
+// OnPlayerKill is called when the player gets a kill (for killstreak tracking)
+func (g *Game) OnPlayerKill() {
+	// Increment round kill count
+	g.roundKillCount++
+
+	// Trigger killstreak display if available
+	if g.killstreakDisplay != nil {
+		g.killstreakDisplay.OnKill(g.roundKillCount)
+	}
+}
+
 // StartGame transitions from title screen to in-game state by spawning ships
 func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 	totalStart := time.Now()
@@ -471,6 +506,9 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 
 	// Save current player stats for battle restart functionality
 	g.battleStartScore, g.battleStartKills, g.battleStartDeaths = g.entityManager.GetPlayerStats()
+
+	// Reset round kill counter for killstreak tracking
+	g.roundKillCount = 0
 
 	// Clear entity manager for new game
 	t := time.Now()
@@ -743,6 +781,11 @@ func (g *Game) Update() error {
 			x, y := shipToFollow.GetPosition()
 			g.cameraX = x - float64(config.ScreenWidth)/2
 			g.cameraY = y - float64(config.ScreenHeight)/2
+		}
+
+		// Update killstreak display
+		if g.killstreakDisplay != nil {
+			g.killstreakDisplay.Update()
 		}
 
 		g.profileData.TotalUpdate += time.Since(updateStart)
@@ -1132,6 +1175,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		killsOp.GeoM.Translate(float64(config.ScreenWidth)-killsWidth-10, 27)
 		killsOp.ColorScale.ScaleWithColor(textColor)
 		text.Draw(screen, killsText, g.hudFont, killsOp)
+
+		// Draw killstreak text (if active)
+		if g.killstreakDisplay != nil {
+			g.killstreakDisplay.Render(screen)
+		}
 
 		// Pause message (centered)
 		if g.paused {
