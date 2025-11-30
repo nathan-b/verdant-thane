@@ -321,6 +321,12 @@ func NewGame() (*Game, error) {
 	if err := audioManager.LoadSound("afterburner", "assets/afterburner.wav"); err != nil {
 		log.Printf("Warning: Failed to load afterburner sound: %v", err)
 	}
+	if err := audioManager.LoadSound("missile", "assets/missile.wav"); err != nil {
+		log.Printf("Warning: Failed to load missile sound: %v", err)
+	}
+	if err := audioManager.LoadSound("missile_impact", "assets/missile_impact.wav"); err != nil {
+		log.Printf("Warning: Failed to load missile impact sound: %v", err)
+	}
 	startupProfile.LoadSoundEffects = time.Since(t)
 
 	// Load menu music

@@ -1009,8 +1009,8 @@ func (b *Ship) ApplyBeamDamage(target *Ship, ctx GameContext) {
 		// Apply damage to target
 		target.TakeDamage(damageToApply, b.ID, ctx)
 
-		// Play impact sound if player ship was hit
-		ctx.PlayImpactSound(target)
+		// Play impact sound if player ship was hit (nil projectile = beam weapon)
+		ctx.PlayImpactSound(target, nil)
 
 		// If target was destroyed, clear beam target
 		if !target.IsAlive() {

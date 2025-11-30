@@ -857,7 +857,7 @@ func TestPlayImpactSound(t *testing.T) {
 	ship := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
 
 	// Should not crash with nil audio manager
-	em.PlayImpactSound(ship)
+	em.PlayImpactSound(ship, nil)
 
 	// Test passes if no panic
 }

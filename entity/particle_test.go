@@ -334,5 +334,5 @@ func (m *mockGameContext) SpawnExplosion(x, y float64)                        {}
 func (m *mockGameContext) SpawnParticle(x, y, vx, vy float64)                 {}
 func (m *mockGameContext) AddKill()                                           {}
 func (m *mockGameContext) AddScore(points int)                                {}
-func (m *mockGameContext) PlayImpactSound(targetShip *Ship)                   {}
+func (m *mockGameContext) PlayImpactSound(targetShip *Ship, proj Projectile)  {}
 func (m *mockGameContext) OnShipDestroyed(victimShipID int, killerShipID int) {}

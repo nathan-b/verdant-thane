@@ -18,6 +18,6 @@ The background music for this game is all royalty-free and sourced from pixabay.
 **9JackJack8** (https://pixabay.com/users/9jackjack8-44663645/)
 * Energy Electrowave Game Beat (main menu bgm)
 
-Creators such as these giving their work away to be used for free is what enables independent, open-source, free projects like this one to have things like background music at all. My gratitude goes out to everyone who has released their creations out into the world.
+Creators such as these giving their work away for free is what enables independent, open-source, free projects like this one to have things like background music at all. My gratitude goes out to everyone who has released their creations out into the world.
 
 

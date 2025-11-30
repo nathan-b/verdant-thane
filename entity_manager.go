@@ -133,9 +133,9 @@ func (em *EntityManager) SpawnMissile(cfg entity.MissileConfig) {
 	missile := entity.NewMissileProjectile(id, cfg)
 	em.projectiles[id] = missile
 
-	// Play laser sound effect if within audible range (missiles use same sound as main gun for now)
+	// Play missile launch sound if within audible range
 	if em.game != nil && em.isAudibleToPlayer(cfg.X, cfg.Y) {
-		em.game.audioManager.PlaySound("laser")
+		em.game.audioManager.PlaySound("missile")
 	}
 }
 
@@ -427,9 +427,15 @@ func (em *EntityManager) SetChatWindow(cw ChatWindowInterface) {
 }
 
 // PlayImpactSound plays impact sound only if the target ship is player-controlled
-func (em *EntityManager) PlayImpactSound(targetShip *entity.Ship) {
+// Uses different sound for missile impacts vs main gun impacts
+func (em *EntityManager) PlayImpactSound(targetShip *entity.Ship, proj entity.Projectile) {
 	if em.game != nil && targetShip.IsPlayerControlled() {
-		em.game.audioManager.PlaySound("impact")
+		// Check if projectile is a missile
+		if _, isMissile := proj.(*entity.MissileProjectile); isMissile {
+			em.game.audioManager.PlaySound("missile_impact")
+		} else {
+			em.game.audioManager.PlaySound("impact")
+		}
 	}
 }
 
@@ -761,7 +767,7 @@ func (em *EntityManager) updateCollisions() {
 				ship.TakeDamage(proj.GetDamage(), proj.GetOwnerID(), em)
 
 				// Play impact sound effect only for player ship
-				em.PlayImpactSound(ship)
+				em.PlayImpactSound(ship, proj)
 
 				// Mark projectile for deletion
 				toDelete = append(toDelete, projID)

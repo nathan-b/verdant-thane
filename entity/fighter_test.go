@@ -100,7 +100,7 @@ func (m *MockGameContext) AddScore(points int) {
 	m.scoreAdded += points
 }
 
-func (m *MockGameContext) PlayImpactSound(targetShip *Ship) {
+func (m *MockGameContext) PlayImpactSound(targetShip *Ship, proj Projectile) {
 	// No-op for tests
 }
 

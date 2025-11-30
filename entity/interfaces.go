@@ -59,7 +59,7 @@ type GameContext interface {
 	AddScore(points int)
 
 	// Audio
-	PlayImpactSound(targetShip *Ship)
+	PlayImpactSound(targetShip *Ship, proj Projectile)
 
 	// Chat events
 	OnShipDestroyed(victimShipID int, killerShipID int)
