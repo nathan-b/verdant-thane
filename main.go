@@ -481,6 +481,8 @@ func NewGame() (*Game, error) {
 // ReturnToTitleScreen transitions to the title screen and resumes menu music
 func (g *Game) ReturnToTitleScreen() {
 	g.currentState = TitleScreen
+	// Stop all looping sounds when leaving game
+	g.audioManager.StopAllLoopingSounds()
 	if err := g.audioManager.PlayMusic("menu"); err != nil {
 		log.Printf("Warning: Failed to play menu music: %v", err)
 	}
@@ -509,6 +511,9 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 
 	// Reset round kill counter for killstreak tracking
 	g.roundKillCount = 0
+
+	// Stop any looping sounds from previous battle (defensive)
+	g.audioManager.StopAllLoopingSounds()
 
 	// Clear entity manager for new game
 	t := time.Now()
@@ -765,8 +770,12 @@ func (g *Game) Update() error {
 		switch battleResult {
 		case PlayerVictory:
 			g.currentState = Victory
+			// Stop all looping sounds (beam weapons, afterburner, etc.)
+			g.audioManager.StopAllLoopingSounds()
 		case PlayerDefeat:
 			g.currentState = GameOver
+			// Stop all looping sounds (beam weapons, afterburner, etc.)
+			g.audioManager.StopAllLoopingSounds()
 		}
 
 		// Update camera to follow player or spectated ship
