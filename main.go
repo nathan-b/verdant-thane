@@ -45,6 +45,16 @@ var (
 	maxSpeed        = flag.Float64("ms", 0, "Fighter max speed in pixels per tick (4-10, 0=use default)")
 	acceleration    = flag.Float64("ac", 0, "Fighter acceleration in pixels per second (2-10, 0=use default)")
 	aiFire          = flag.Float64("af", 0, "AI firing probability (0.1-1.0, 0=use default)")
+
+	// Version flag
+	showVersion = flag.Bool("version", false, "Show version information and exit")
+)
+
+var (
+	// Build-time version information (set via ldflags)
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
 )
 
 // GameState represents the current state of the game
@@ -1741,6 +1751,14 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 func main() {
 	mainStart := time.Now()
 	flag.Parse()
+
+	// Show version if requested
+	if *showVersion {
+		fmt.Printf("Verdant Thane %s\n", version)
+		fmt.Printf("Commit: %s\n", commit)
+		fmt.Printf("Built: %s\n", date)
+		os.Exit(0)
+	}
 
 	if *profileStartup {
 		fmt.Printf("\n=== Main() Profiling ===\n")

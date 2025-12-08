@@ -1,0 +1,120 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: verdant-thane
+    binary: verdant-thane
+    main: .
+
+    env:
+      - CGO_ENABLED=1
+
+    goos:
+      - linux
+      - windows
+      - darwin
+
+    goarch:
+      - amd64
+      - arm64
+
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: verdant-thane-archive
+
+    name_template: >-
+      {{ .ProjectName }}-
+      {{- .Version }}-
+      {{- .Os }}-
+      {{- .Arch }}
+
+    format_overrides:
+      - goos: windows
+        format: zip
+      - goos: linux
+        format: tar.gz
+      - goos: darwin
+        format: tar.gz
+
+    files:
+      - src: assets/**/*
+        dst: assets
+        strip_parent: false
+      - RELEASE_README.txt
+      - LICENSE*
+
+    rlcp: true
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Performance Improvements
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: nathan-b
+    name: verdant-thane
+
+  header: |
+    ## Verdant Thane {{ .Tag }}
+
+    A reimplementation of the classic Flash game Azul Baronis.
+
+    ### Downloads
+
+    Choose the appropriate archive for your platform:
+    - **Linux**: `verdant-thane-{{ .Tag }}-linux-amd64.tar.gz` or `verdant-thane-{{ .Tag }}-linux-arm64.tar.gz`
+    - **Windows**: `verdant-thane-{{ .Tag }}-windows-amd64.zip`
+    - **macOS**: `verdant-thane-{{ .Tag }}-darwin-amd64.tar.gz` (Intel) or `verdant-thane-{{ .Tag }}-darwin-arm64.tar.gz` (Apple Silicon)
+
+    Each archive includes the game binary, all required assets, and a README with instructions.
+
+  footer: |
+    ---
+
+    **Full Changelog**: https://github.com/nathan-b/verdant-thane/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ### Verifying Downloads
+
+    All binaries can be verified using the checksums in `checksums.txt`:
+    ```bash
+    sha256sum -c checksums.txt
+    ```
+
+  draft: false
+  prerelease: auto
+  name_template: "Verdant Thane {{.Version}}"

@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Fetch all tags
+      run: git fetch --force --tags
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25.x'
+        cache: true
+
+    - name: Run tests
+      run: go test ./...
+
+    - name: Create release README
+      run: |
+        cat > RELEASE_README.txt << 'EOF'
+        # Verdant Thane
+
+        A reimplementation of the classic Flash game Azul Baronis.
+
+        ## How to Run
+
+        ### Linux / macOS
+        1. Extract the archive
+        2. Make the binary executable: chmod +x verdant-thane
+        3. Run: ./verdant-thane
+
+        ### Windows
+        1. Extract the archive
+        2. Double-click verdant-thane.exe or run from command prompt
+
+        ## Controls
+        - Mouse: Aim weapons
+        - W/Up Arrow: Accelerate
+        - A/Left Arrow: Rotate left
+        - D/Right Arrow: Rotate right
+        - S/Down Arrow: Decelerate
+        - Left Click: Fire main weapon
+        - Right Click: Fire secondary weapon (Destroyer only)
+        - Space: Afterburner
+        - P: Pause
+        - ESC: Return to menu
+
+        ## Command-Line Flags (Optional)
+        - -fps: Show FPS counter
+        - -perf: Performance test mode with large fleets
+        - -ships N: Number of ships in performance mode (default: 800)
+        - -factions N: Number of factions (default: 4)
+
+        ## Requirements
+        The assets/ directory must be in the same directory as the executable.
+
+        ## More Information
+        Visit: https://github.com/nathan-b/verdant-thane
+        EOF
+
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v6
+      with:
+        distribution: goreleaser
+        version: '~> v2'
+        args: release --clean
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
