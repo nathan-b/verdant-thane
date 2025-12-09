@@ -456,3 +456,50 @@ func createEmptyChatterFile(t *testing.T) string {
 
 	return tempFile
 }
+
+// Test Clear Method
+func TestChatWindowClear(t *testing.T) {
+	tempFile := createTestChatterFile(t)
+	defer os.Remove(tempFile)
+
+	cw, err := NewChatWindow(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to create ChatWindow: %v", err)
+	}
+
+	// Disable throttle for testing
+	cw.messageThrottle = 0
+
+	// Add some messages
+	cw.AddMessage("Green1", "First message", 0)
+	cw.lastMessageTime = time.Time{} // Reset throttle
+	cw.AddMessage("Blue2", "Second message", 1)
+	cw.lastMessageTime = time.Time{} // Reset throttle
+	cw.AddMessage("Red3", "Third message", 2)
+
+	// Verify messages were added
+	messages := cw.GetMessages()
+	if len(messages) != 3 {
+		t.Fatalf("Expected 3 messages before clear, got %d", len(messages))
+	}
+
+	// Clear messages
+	cw.Clear()
+
+	// Verify messages are cleared
+	messages = cw.GetMessages()
+	if len(messages) != 0 {
+		t.Errorf("Expected 0 messages after clear, got %d", len(messages))
+	}
+
+	// Verify lastMessageTime is reset (should allow immediate message)
+	added := cw.AddMessage("Green4", "After clear message", 0)
+	if !added {
+		t.Error("Message should be added immediately after clear (no throttle)")
+	}
+
+	messages = cw.GetMessages()
+	if len(messages) != 1 {
+		t.Errorf("Expected 1 message after clear and new add, got %d", len(messages))
+	}
+}

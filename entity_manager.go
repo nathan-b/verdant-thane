@@ -75,6 +75,7 @@ type ChatWindowInterface interface {
 	OnKillTestudon(killerFactionID, killerShipID int)
 	OnFriendlyDestroyerDestroyed(observerFactionID, observerShipID int)
 	OnFriendlyTestudonDestroyed(observerFactionID, observerShipID int)
+	Clear()
 }
 
 // NewEntityManager creates a new entity manager

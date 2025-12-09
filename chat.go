@@ -174,3 +174,9 @@ func (cw *ChatWindow) OnFriendlyTestudonDestroyed(observerFactionID, observerShi
 	text := cw.templates.FriendlyTestudonDown[rand.Intn(len(cw.templates.FriendlyTestudonDown))]
 	cw.AddMessage(speakerName, text, observerFactionID)
 }
+
+// Clear removes all messages from the chat window
+func (cw *ChatWindow) Clear() {
+	cw.messages = make([]ChatMessage, 0)
+	cw.lastMessageTime = time.Time{}
+}

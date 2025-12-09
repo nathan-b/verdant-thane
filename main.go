@@ -528,6 +528,11 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 	// Reset round kill counter for killstreak tracking
 	g.roundKillCount = 0
 
+	// Clear chat window for new battle
+	if g.chatWindow != nil {
+		g.chatWindow.Clear()
+	}
+
 	// Stop any looping sounds from previous battle (defensive)
 	g.audioManager.StopAllLoopingSounds()
 
