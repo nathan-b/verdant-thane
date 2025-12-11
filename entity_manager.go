@@ -48,6 +48,10 @@ type EntityManager struct {
 	kills           int
 	deaths          int
 
+	// Per-battle stats tracking (for pre-battle screen)
+	battleStartKills  int // Kills at start of current battle
+	battleStartDeaths int // Deaths at start of current battle
+
 	// Sprites (shared across entities)
 	mainGunSprite   *ebiten.Image
 	missileSprite   *ebiten.Image
@@ -865,6 +869,18 @@ func (em *EntityManager) SetPlayerStats(score, kills, deaths int) {
 	em.score = score
 	em.kills = kills
 	em.deaths = deaths
+}
+
+// MarkBattleStart captures current kills and deaths for per-battle tracking
+// Called at the start of each battle (including battle 1)
+func (em *EntityManager) MarkBattleStart() {
+	em.battleStartKills = em.kills
+	em.battleStartDeaths = em.deaths
+}
+
+// GetBattleStats returns kills and deaths in the current/most recent battle
+func (em *EntityManager) GetBattleStats() (battleKills, battleDeaths int) {
+	return em.kills - em.battleStartKills, em.deaths - em.battleStartDeaths
 }
 
 // CycleSpectateNext cycles to the next allied ship

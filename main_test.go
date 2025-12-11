@@ -58,7 +58,7 @@ func TestStateTransitionStartGame(t *testing.T) {
 		},
 	}
 
-	err := game.StartGame(fleetConfig)
+	err := game.StartGame(fleetConfig, nil)
 	if err != nil {
 		t.Fatalf("StartGame failed: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestStateTransitionInGameToVictory(t *testing.T) {
 			{Fighters: 1, Destroyers: 0, Testudons: 0},
 		},
 	}
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	if game.currentState != InGame {
 		t.Fatalf("Game should be in InGame state")
@@ -132,14 +132,19 @@ func TestStateTransitionInGameToVictory(t *testing.T) {
 	// Run update to detect battle end
 	game.Update()
 
-	// Verify state transition to Victory
-	if game.currentState != Victory {
-		t.Errorf("Expected state Victory after defeating all enemies, got %v", game.currentState)
+	// Verify state transition to PreBattle (skips Victory screen)
+	if game.currentState != PreBattle {
+		t.Errorf("Expected state PreBattle after defeating all enemies, got %v", game.currentState)
 	}
 
-	// Verify battle number is still 0 (it gets incremented after victory screen, not during)
-	if game.battleNumber != 0 {
-		t.Errorf("Battle number should still be 0 during victory screen, got %d", game.battleNumber)
+	// Verify battle number is incremented immediately (no longer waits for victory screen)
+	if game.battleNumber != 1 {
+		t.Errorf("Battle number should be 1 after victory, got %d", game.battleNumber)
+	}
+
+	// Verify next fleet config was generated
+	if game.nextFleetConfig == nil {
+		t.Error("nextFleetConfig should be generated after victory")
 	}
 }
 
@@ -155,7 +160,7 @@ func TestStateTransitionInGameToGameOver(t *testing.T) {
 			{Fighters: 1, Destroyers: 0, Testudons: 0},
 		},
 	}
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	if game.currentState != InGame {
 		t.Fatalf("Game should be in InGame state")
@@ -181,52 +186,62 @@ func TestStateTransitionInGameToGameOver(t *testing.T) {
 	}
 }
 
-// TestStateTransitionVictoryToInterstitial tests victory screen progression
-func TestStateTransitionVictoryToInterstitial(t *testing.T) {
+// TestStateTransitionVictoryToPreBattle tests that victory transitions to PreBattle screen
+func TestStateTransitionVictoryToPreBattle(t *testing.T) {
 	game := createMinimalTestGame(t)
 
 	// Set initial battle number
 	game.battleNumber = 1
 
-	// Start in Victory state
+	// Simulate battle victory - in the new flow, PlayerVictory detection immediately
+	// transitions to PreBattle and increments battle number
+	// We can't easily test this without triggering actual battle end,
+	// but we verify that the Victory state itself is now unused
+
+	// Start in Victory state (this should not normally happen)
 	game.currentState = Victory
 
-	// Verify next fleet config hasn't been generated yet
-	if game.nextFleetConfig != nil {
-		t.Error("nextFleetConfig should be nil before first Victory update")
-	}
-
-	// Run update in Victory state (generates next fleet config)
+	// Run update in Victory state (should do nothing now)
 	game.Update()
 
-	// Verify next fleet config was generated
-	if game.nextFleetConfig == nil {
-		t.Error("nextFleetConfig should be generated during Victory update")
+	// Victory state should remain Victory (it's a no-op now)
+	if game.currentState != Victory {
+		t.Errorf("Victory state should remain Victory, got %v", game.currentState)
 	}
 
-	// Verify battle number was incremented
-	if game.battleNumber != 2 {
-		t.Errorf("Expected battle number 2 after victory, got %d", game.battleNumber)
-	}
-
-	// Note: Actual transition to Interstitial requires key press (Enter/Space)
-	// which we can't simulate in headless tests
-	// We verify that the preconditions are set up correctly
+	// Note: The actual flow now goes InGame -> PreBattle on victory
+	// This test verifies the old Victory state is safely neutered
 }
 
 // TestBattleNumberProgression tests battle number increments across victories
 func TestBattleNumberProgression(t *testing.T) {
 	game := createMinimalTestGame(t)
 
-	// Start at battle 1
-	game.battleNumber = 1
+	// Start at battle 0
+	game.battleNumber = 0
 
-	// Simulate victory by entering Victory state and running update
-	game.currentState = Victory
+	// Start a simple battle
+	fleetConfig := config.FleetConfig{
+		NumFactions: 2,
+		Compositions: []config.FactionComposition{
+			{Fighters: 1, Destroyers: 0, Testudons: 0},
+			{Fighters: 1, Destroyers: 0, Testudons: 0},
+		},
+	}
+	game.StartGame(fleetConfig, nil)
+
+	// Kill all enemy ships
+	enemyShips := game.entityManager.GetShipsByFaction(1)
+	for _, ship := range enemyShips {
+		ship.TakeDamage(1000, -1, game.entityManager)
+	}
+
+	// Run update to trigger victory
 	game.Update()
 
-	if game.battleNumber != 2 {
-		t.Errorf("Expected battle 2 after first victory, got %d", game.battleNumber)
+	// Battle number should increment to 1
+	if game.battleNumber != 1 {
+		t.Errorf("Expected battle 1 after first victory, got %d", game.battleNumber)
 	}
 
 	// Verify next fleet config was generated with correct difficulty
@@ -234,14 +249,9 @@ func TestBattleNumberProgression(t *testing.T) {
 		t.Fatal("nextFleetConfig should be generated")
 	}
 
-	// Battle 2 should be harder than battle 1
-	totalShips := 0
-	for _, comp := range game.nextFleetConfig.Compositions {
-		totalShips += comp.Total()
-	}
-
-	if totalShips <= 4 {
-		t.Logf("Battle 2 has %d total ships (may be randomly easy)", totalShips)
+	// Should be in PreBattle state
+	if game.currentState != PreBattle {
+		t.Errorf("Expected PreBattle state, got %v", game.currentState)
 	}
 }
 
@@ -249,24 +259,40 @@ func TestBattleNumberProgression(t *testing.T) {
 func TestNextFleetConfigGeneration(t *testing.T) {
 	game := createMinimalTestGame(t)
 
-	game.battleNumber = 1
-	game.currentState = Victory
-	game.nextFleetConfig = nil
+	game.battleNumber = 0
 
-	// First update generates next fleet config
-	game.Update()
+	// Start a simple battle
+	fleetConfig := config.FleetConfig{
+		NumFactions: 2,
+		Compositions: []config.FactionComposition{
+			{Fighters: 1, Destroyers: 0, Testudons: 0},
+			{Fighters: 1, Destroyers: 0, Testudons: 0},
+		},
+	}
+	game.StartGame(fleetConfig, nil)
 
-	if game.nextFleetConfig == nil {
-		t.Fatal("nextFleetConfig should be generated on first Victory update")
+	// nextFleetConfig should be nil during battle
+	if game.nextFleetConfig != nil {
+		t.Error("nextFleetConfig should be nil during active battle")
 	}
 
-	firstConfig := game.nextFleetConfig
+	// Kill all enemy ships to trigger victory
+	enemyShips := game.entityManager.GetShipsByFaction(1)
+	for _, ship := range enemyShips {
+		ship.TakeDamage(1000, -1, game.entityManager)
+	}
 
-	// Second update should not regenerate config
+	// Run update to trigger victory (generates config immediately)
 	game.Update()
 
-	if game.nextFleetConfig != firstConfig {
-		t.Error("nextFleetConfig should not be regenerated on subsequent Victory updates")
+	// nextFleetConfig should be generated when victory is detected
+	if game.nextFleetConfig == nil {
+		t.Fatal("nextFleetConfig should be generated when victory is detected")
+	}
+
+	// Should transition to PreBattle state
+	if game.currentState != PreBattle {
+		t.Errorf("Expected PreBattle state after victory, got %v", game.currentState)
 	}
 }
 
@@ -282,7 +308,7 @@ func TestCurrentFleetConfigSaved(t *testing.T) {
 		},
 	}
 
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	// Verify config was saved
 	if game.currentFleetConfig == nil {
@@ -314,7 +340,7 @@ func TestUpdateInGameState(t *testing.T) {
 			{Fighters: 2, Destroyers: 0, Testudons: 0},
 		},
 	}
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	// Get initial ship position
 	playerShip := game.entityManager.GetPlayerShip()
@@ -366,7 +392,7 @@ func TestPauseToggle(t *testing.T) {
 			{Fighters: 2, Destroyers: 0, Testudons: 0},
 		},
 	}
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	// Initially not paused
 	if game.paused {
@@ -419,7 +445,7 @@ func TestCameraFollowsPlayer(t *testing.T) {
 			{Fighters: 1, Destroyers: 0, Testudons: 0},
 		},
 	}
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	playerShip := game.entityManager.GetPlayerShip()
 	if playerShip == nil {
@@ -456,7 +482,7 @@ func TestCameraFollowsSpectatedShip(t *testing.T) {
 			{Fighters: 1, Destroyers: 0, Testudons: 0},
 		},
 	}
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	// Get player and friendly ship
 	friendlyShips := game.entityManager.GetShipsByFaction(0)
@@ -524,7 +550,7 @@ func TestPlayerStatsInitialization(t *testing.T) {
 			{Fighters: 1, Destroyers: 0, Testudons: 0},
 		},
 	}
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	// Check initial stats
 	score, kills, deaths := game.entityManager.GetPlayerStats()
@@ -551,7 +577,7 @@ func TestPlayerStatsScoring(t *testing.T) {
 			{Fighters: 3, Destroyers: 0, Testudons: 0},
 		},
 	}
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	playerShip := game.entityManager.GetPlayerShip()
 	if playerShip == nil {
@@ -593,7 +619,7 @@ func TestPlayerStatsDeaths(t *testing.T) {
 			{Fighters: 1, Destroyers: 0, Testudons: 0},
 		},
 	}
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	playerShip := game.entityManager.GetPlayerShip()
 	if playerShip == nil {
@@ -683,7 +709,7 @@ func TestStartGameWithNoPlayerShips(t *testing.T) {
 		},
 	}
 
-	err := game.StartGame(fleetConfig)
+	err := game.StartGame(fleetConfig, nil)
 
 	// Should return error about no player ship
 	if err == nil {
@@ -703,7 +729,7 @@ func TestBattleEndWithNoShips(t *testing.T) {
 			{Fighters: 1, Destroyers: 0, Testudons: 0},
 		},
 	}
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	// Kill all ships
 	allShips := game.entityManager.GetAllShips()
@@ -731,7 +757,7 @@ func TestMultipleUpdatesDoNotCorruptState(t *testing.T) {
 			{Fighters: 5, Destroyers: 0, Testudons: 0},
 		},
 	}
-	game.StartGame(fleetConfig)
+	game.StartGame(fleetConfig, nil)
 
 	// Run many updates
 	for i := 0; i < 100; i++ {

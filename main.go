@@ -67,8 +67,8 @@ const (
 	GameOver
 	Instructions
 	HighScores
-	Interstitial
 	Settings
+	PreBattle
 )
 
 // ProfileData tracks timing for performance profiling
@@ -161,11 +161,12 @@ type Game struct {
 	instructionsDialog *ui.Dialog              // Instructions screen dialog
 	highScoresDialog   *ui.Dialog              // High scores screen dialog
 	settingsScreen     *ui.SettingsScreen      // Settings screen
+	preBattleScreen    *ui.PreBattleScreen     // Pre-battle screen
 	highScores         *persistence.HighScores // High scores loaded at game start
 	settings           *persistence.Settings   // Game settings loaded at game start
 	battleNumber       int                     // Current battle number (1-indexed)
 	currentFleetConfig *config.FleetConfig     // Config for current battle (used for quick restart)
-	nextFleetConfig    *config.FleetConfig     // Config for next battle (used by interstitial)
+	nextFleetConfig    *config.FleetConfig     // Config for next battle (used by pre-battle screen)
 	battleStartScore   int                     // Player score at start of current battle (for restart)
 	battleStartKills   int                     // Player kills at start of current battle (for restart)
 	battleStartDeaths  int                     // Player deaths at start of current battle (for restart)
@@ -516,7 +517,7 @@ func (g *Game) OnPlayerKill() {
 }
 
 // StartGame transitions from title screen to in-game state by spawning ships
-func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
+func (g *Game) StartGame(fleetConfig config.FleetConfig, startingShipClass *config.ShipClass) error {
 	totalStart := time.Now()
 
 	// Store fleet config for quick restart
@@ -524,6 +525,9 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 
 	// Save current player stats for battle restart functionality
 	g.battleStartScore, g.battleStartKills, g.battleStartDeaths = g.entityManager.GetPlayerStats()
+
+	// Mark battle start for per-battle stats tracking
+	g.entityManager.MarkBattleStart()
 
 	// Reset round kill counter for killstreak tracking
 	g.roundKillCount = 0
@@ -558,17 +562,46 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig) error {
 		// Build list of ship classes to spawn for this faction
 		shipClasses := make([]entity.ShipClass, 0, totalShips)
 
-		// Add fighters first (player will be first fighter of faction 0)
-		for i := 0; i < comp.Fighters; i++ {
-			shipClasses = append(shipClasses, entity.ClassFighter)
-		}
-		// Add destroyers
-		for i := 0; i < comp.Destroyers; i++ {
-			shipClasses = append(shipClasses, entity.ClassDestroyer)
-		}
-		// Add testudons
-		for i := 0; i < comp.Testudons; i++ {
-			shipClasses = append(shipClasses, entity.ClassTestudon)
+		// For player faction (faction 0), add starting ship class first
+		if factionID == 0 && startingShipClass != nil {
+			shipClasses = append(shipClasses, entity.ShipClass(*startingShipClass))
+
+			// Add remaining ships (excluding the one we just added)
+			fightersRemaining := comp.Fighters
+			destroyersRemaining := comp.Destroyers
+
+			if *startingShipClass == config.ClassFighter {
+				fightersRemaining--
+			} else if *startingShipClass == config.ClassDestroyer {
+				destroyersRemaining--
+			}
+
+			// Add remaining fighters
+			for i := 0; i < fightersRemaining; i++ {
+				shipClasses = append(shipClasses, entity.ClassFighter)
+			}
+			// Add remaining destroyers
+			for i := 0; i < destroyersRemaining; i++ {
+				shipClasses = append(shipClasses, entity.ClassDestroyer)
+			}
+			// Add testudons (player doesn't start as testudon)
+			for i := 0; i < comp.Testudons; i++ {
+				shipClasses = append(shipClasses, entity.ClassTestudon)
+			}
+		} else {
+			// Non-player factions: add ships in default order
+			// Add fighters first (player will be first fighter of faction 0)
+			for i := 0; i < comp.Fighters; i++ {
+				shipClasses = append(shipClasses, entity.ClassFighter)
+			}
+			// Add destroyers
+			for i := 0; i < comp.Destroyers; i++ {
+				shipClasses = append(shipClasses, entity.ClassDestroyer)
+			}
+			// Add testudons
+			for i := 0; i < comp.Testudons; i++ {
+				shipClasses = append(shipClasses, entity.ClassTestudon)
+			}
 		}
 
 		// Debug flags can override ship classes
@@ -681,9 +714,9 @@ func (g *Game) Update() error {
 				g.battleNumber = 1
 				// Generate random fleet configuration for round 1
 				fleetConfig := config.GenerateRandomFleetConfig(rand.Int63(), g.battleNumber)
-				if err := g.StartGame(fleetConfig); err != nil {
-					return fmt.Errorf("failed to start game: %w", err)
-				}
+				g.nextFleetConfig = &fleetConfig
+				// Transition to pre-battle screen for first battle
+				g.currentState = PreBattle
 			} else if buttonIndex == 1 { // "Settings" button
 				g.currentState = Settings
 			} else if buttonIndex == 2 { // "Instructions" button
@@ -790,7 +823,12 @@ func (g *Game) Update() error {
 		battleResult := g.entityManager.CheckBattleEnd()
 		switch battleResult {
 		case PlayerVictory:
-			g.currentState = Victory
+			// Generate next battle configuration
+			g.battleNumber++
+			nextConfig := config.GenerateRandomFleetConfig(rand.Int63(), g.battleNumber)
+			g.nextFleetConfig = &nextConfig
+			// Go directly to pre-battle screen
+			g.currentState = PreBattle
 			// Stop all looping sounds (beam weapons, afterburner, etc.)
 			g.audioManager.StopAllLoopingSounds()
 		case PlayerDefeat:
@@ -822,18 +860,8 @@ func (g *Game) Update() error {
 		g.profileFrameCount++
 
 	case Victory:
-		// Generate next battle configuration on first entry to Victory state
-		if g.nextFleetConfig == nil {
-			// Increment battle number and generate harder fleet
-			g.battleNumber++
-			nextConfig := config.GenerateRandomFleetConfig(rand.Int63(), g.battleNumber)
-			g.nextFleetConfig = &nextConfig
-		}
-
-		// Transition to interstitial on key press
-		if ebiten.IsKeyPressed(ebiten.KeyEnter) || ebiten.IsKeyPressed(ebiten.KeySpace) {
-			g.currentState = Interstitial
-		}
+		// Victory state no longer used - transitions directly to PreBattle
+		// This case kept for safety but should not be reached
 
 	case GameOver:
 		// Create game over screen if not already created
@@ -875,7 +903,7 @@ func (g *Game) Update() error {
 						g.entityManager.SetPlayerStats(g.battleStartScore, g.battleStartKills, currentDeaths)
 
 						// Restart with same fleet configuration
-						if err := g.StartGame(*g.currentFleetConfig); err != nil {
+						if err := g.StartGame(*g.currentFleetConfig, nil); err != nil {
 							log.Printf("Error restarting game: %v", err)
 							g.ReturnToTitleScreen()
 						}
@@ -896,7 +924,7 @@ func (g *Game) Update() error {
 					fleetConfig := config.GenerateRandomFleetConfig(rand.Int63(), g.battleNumber)
 
 					// Start new game
-					if err := g.StartGame(fleetConfig); err != nil {
+					if err := g.StartGame(fleetConfig, nil); err != nil {
 						log.Printf("Error starting new game: %v", err)
 						g.ReturnToTitleScreen()
 					}
@@ -935,22 +963,46 @@ func (g *Game) Update() error {
 			g.currentState = TitleScreen
 		}
 
-	case Interstitial:
-		// Handle interstitial screen - start next battle
-		if ebiten.IsKeyPressed(ebiten.KeyEnter) || ebiten.IsKeyPressed(ebiten.KeySpace) {
-			// Start next battle
+	case PreBattle:
+		// Create pre-battle screen if not already created
+		if g.preBattleScreen == nil {
 			if g.nextFleetConfig != nil {
-				if err := g.StartGame(*g.nextFleetConfig); err != nil {
-					log.Printf("Error starting next battle: %v", err)
-					g.ReturnToTitleScreen()
-				} else {
-					// Clear next fleet config after using it
-					g.nextFleetConfig = nil
-				}
+				// Get player stats
+				score, totalKills, totalDeaths := g.entityManager.GetPlayerStats()
+				battleKills, battleDeaths := g.entityManager.GetBattleStats()
+
+				// Create pre-battle screen
+				g.preBattleScreen = ui.NewPreBattleScreen(
+					g.battleNumber,
+					*g.nextFleetConfig,
+					score,
+					totalKills,
+					totalDeaths,
+					battleKills,
+					battleDeaths,
+					g.hudFont.Source,
+					g.factionSprites,
+					func(selectedClass config.ShipClass) {
+						// Start battle with selected ship class
+						if err := g.StartGame(*g.nextFleetConfig, &selectedClass); err != nil {
+							log.Printf("Error starting next battle: %v", err)
+							g.ReturnToTitleScreen()
+						} else {
+							// Clear next fleet config and pre-battle screen after using them
+							g.nextFleetConfig = nil
+							g.preBattleScreen = nil
+						}
+					},
+				)
 			} else {
-				// Fallback: return to title if no config
+				// No fleet config available, return to title
 				g.ReturnToTitleScreen()
 			}
+		}
+
+		// Update pre-battle screen
+		if g.preBattleScreen != nil {
+			g.preBattleScreen.Update()
 		}
 
 	case Settings:
@@ -1329,73 +1381,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 
 	case Victory:
-		// Draw stars background
-		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
-		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
-		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
-		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
-		centerX := float64(config.ScreenWidth) / 2.0
-		centerY := float64(config.ScreenHeight) / 2.0
-
-		for gridX := minGridX; gridX <= maxGridX; gridX++ {
-			for gridY := minGridY; gridY <= maxGridY; gridY++ {
-				stars := systems.GenerateStarsForGrid(gridX, gridY)
-				for _, star := range stars {
-					screenX := star.X - cameraX
-					screenY := star.Y - cameraY
-					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
-						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
-					}
-				}
-			}
-		}
-
-		// Display victory message
-		textColor := color.RGBA{255, 255, 255, 255}
-		goldColor := color.RGBA{255, 215, 0, 255}
-
-		victoryText := fmt.Sprintf("BATTLE %d VICTORY!", g.battleNumber)
-		victoryWidth, _ := text.Measure(victoryText, g.hudFont, 0)
-		victoryOp := &text.DrawOptions{}
-		victoryOp.GeoM.Translate(centerX-victoryWidth/2, centerY-40)
-		victoryOp.ColorScale.ScaleWithColor(goldColor)
-		text.Draw(screen, victoryText, g.hudFont, victoryOp)
-
-		continueText := "Press ENTER to continue"
-		continueWidth, _ := text.Measure(continueText, g.hudFont, 0)
-		continueOp := &text.DrawOptions{}
-		continueOp.GeoM.Translate(centerX-continueWidth/2, centerY+20)
-		continueOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, continueText, g.hudFont, continueOp)
-
-		// Stats
-		statsY := centerY + 50
-		playerScore, playerKills, playerDeaths := g.entityManager.GetPlayerStats()
-
-		// Score
-		scoreText := fmt.Sprintf("Score: %d", playerScore)
-		scoreWidth, _ := text.Measure(scoreText, g.hudFont, 0)
-		scoreOp := &text.DrawOptions{}
-		scoreOp.GeoM.Translate(centerX-scoreWidth/2, statsY)
-		scoreOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, scoreText, g.hudFont, scoreOp)
-
-		// Kills
-		killsText := fmt.Sprintf("Kills: %d", playerKills)
-		killsWidth, _ := text.Measure(killsText, g.hudFont, 0)
-		killsOp := &text.DrawOptions{}
-		killsOp.GeoM.Translate(centerX-killsWidth/2, statsY+30)
-		killsOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, killsText, g.hudFont, killsOp)
-
-		// Deaths
-		deathsText := fmt.Sprintf("Deaths: %d", playerDeaths)
-		deathsWidth, _ := text.Measure(deathsText, g.hudFont, 0)
-		deathsOp := &text.DrawOptions{}
-		deathsOp.GeoM.Translate(centerX-deathsWidth/2, statsY+60)
-		deathsOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, deathsText, g.hudFont, deathsOp)
+		// Victory state no longer used - transitions directly to PreBattle
+		// This case kept for safety but should not be reached
 
 	case GameOver:
 		// Draw stars background
@@ -1475,7 +1462,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		ui.DrawCloseButton(screen, g.highScoresDialog)
 		ui.DrawHighScoresTable(screen, g.hudFont.Source, g.highScores)
 
-	case Interstitial:
+	case PreBattle:
 		// Draw stars background
 		cameraX, cameraY := 0.0, 0.0
 		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
@@ -1496,51 +1483,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			}
 		}
 
-		// Display interstitial information
-		textColor := color.RGBA{255, 255, 255, 255}
-
-		// Get player stats from EntityManager
-		score, kills, _ := g.entityManager.GetPlayerStats()
-
-		// Display current stats
-		statsY := float64(config.ScreenHeight)/2 - 80
-		statsTitle := fmt.Sprintf("Battle %d Complete!", g.battleNumber)
-		statsTitleWidth, _ := text.Measure(statsTitle, g.hudFont, 0)
-		statsTitleOp := &text.DrawOptions{}
-		statsTitleOp.GeoM.Translate(float64(config.ScreenWidth/2)-statsTitleWidth/2, statsY)
-		statsTitleOp.ColorScale.ScaleWithColor(color.RGBA{255, 215, 0, 255})
-		text.Draw(screen, statsTitle, g.hudFont, statsTitleOp)
-
-		scoreText := fmt.Sprintf("Current Score: %d", score)
-		scoreWidth, _ := text.Measure(scoreText, g.hudFont, 0)
-		scoreOp := &text.DrawOptions{}
-		scoreOp.GeoM.Translate(float64(config.ScreenWidth/2)-scoreWidth/2, statsY+40)
-		scoreOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, scoreText, g.hudFont, scoreOp)
-
-		killsText := fmt.Sprintf("Total Kills: %d", kills)
-		killsWidth, _ := text.Measure(killsText, g.hudFont, 0)
-		killsOp := &text.DrawOptions{}
-		killsOp.GeoM.Translate(float64(config.ScreenWidth/2)-killsWidth/2, statsY+70)
-		killsOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, killsText, g.hudFont, killsOp)
-
-		// Next battle info
-		if g.nextFleetConfig != nil {
-			nextBattleText := fmt.Sprintf("Next Battle: %d factions", g.nextFleetConfig.NumFactions)
-			nextBattleWidth, _ := text.Measure(nextBattleText, g.hudFont, 0)
-			nextBattleOp := &text.DrawOptions{}
-			nextBattleOp.GeoM.Translate(float64(config.ScreenWidth/2)-nextBattleWidth/2, statsY+110)
-			nextBattleOp.ColorScale.ScaleWithColor(textColor)
-			text.Draw(screen, nextBattleText, g.hudFont, nextBattleOp)
+		// Draw pre-battle screen UI
+		if g.preBattleScreen != nil {
+			g.preBattleScreen.Draw(screen)
 		}
-
-		continueText := "Press ENTER to continue"
-		continueWidth, _ := text.Measure(continueText, g.hudFont, 0)
-		continueOp := &text.DrawOptions{}
-		continueOp.GeoM.Translate(float64(config.ScreenWidth/2)-continueWidth/2, statsY+150)
-		continueOp.ColorScale.ScaleWithColor(textColor)
-		text.Draw(screen, continueText, g.hudFont, continueOp)
 
 	case Settings:
 		// Draw stars background
@@ -1877,7 +1823,7 @@ func main() {
 			Compositions: compositions,
 		}
 
-		if err := game.StartGame(fleetConfig); err != nil {
+		if err := game.StartGame(fleetConfig, nil); err != nil {
 			log.Fatalf("Failed to start performance test: %v", err)
 		}
 
