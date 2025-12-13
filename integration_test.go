@@ -52,7 +52,7 @@ func TestFullGameFlowWithCombat(t *testing.T) {
 	// Create entity manager
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn two ships from different factions positioned for combat
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -113,7 +113,7 @@ func TestFullGameFlowWithCombat(t *testing.T) {
 func TestMultiFactionBattle(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn 3 ships from different factions
 	faction0Ship := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -167,7 +167,7 @@ func TestMultiFactionBattle(t *testing.T) {
 func TestAICombatBehavior(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn AI ship with enemy ship in front
 	aiShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -216,10 +216,10 @@ func TestAICombatBehavior(t *testing.T) {
 func TestFleetSpawningIntegration(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
 
 	// Create a fleet configuration
 	fleetConfig := config.GenerateFleetConfig(3, 5) // 3 factions, 5 ships each
+	em.InitializeFactions(fleetConfig.NumFactions)
 
 	// Spawn all ships
 	var playerShipID int
@@ -282,7 +282,7 @@ func TestFleetSpawningIntegration(t *testing.T) {
 func TestProjectileLifecycleIntegration(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn ship and fire multiple projectiles
 	ship := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -319,7 +319,7 @@ func TestProjectileLifecycleIntegration(t *testing.T) {
 func TestExplosionLifecycleIntegration(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn ships for combat
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -399,7 +399,7 @@ func TestEntityManagerInitialization(t *testing.T) {
 	}
 
 	// Initialize factions
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Verify faction spawn points were created
 	if len(em.factionSpawnPoints) != 4 {
@@ -411,7 +411,7 @@ func TestEntityManagerInitialization(t *testing.T) {
 func TestBattleEndDetection(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Initial state - no ships means player faction has no ships = defeat
 	result := em.CheckBattleEnd()
@@ -450,7 +450,7 @@ func TestBattleEndDetection(t *testing.T) {
 func TestShipRespawning(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn player ship
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -511,7 +511,7 @@ func TestShipRespawning(t *testing.T) {
 func TestMixedFleetComposition(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn mixed fleet
 	fighter := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -565,7 +565,7 @@ func TestMixedFleetComposition(t *testing.T) {
 func TestSpatialGridIntegration(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn ships in different locations
 	ship1 := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -593,7 +593,7 @@ func TestSpatialGridIntegration(t *testing.T) {
 func TestWorldWrappingIntegration(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn ship near left edge
 	ship := em.SpawnShip(entity.ClassFighter, 0, 10, 100)
@@ -622,7 +622,7 @@ func TestWorldWrappingIntegration(t *testing.T) {
 func TestFindNearestEnemyInArc(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn ship facing up (rotation = 0)
 	ship := em.SpawnShip(entity.ClassDestroyer, 0, 100, 100)
@@ -758,7 +758,7 @@ func TestSetChatWindow(t *testing.T) {
 func TestRemoveFunctions(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn ship and remove it
 	ship := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -815,7 +815,7 @@ func TestRemoveFunctions(t *testing.T) {
 func TestOnShipDestroyed(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Set up chat window
 	chat, err := NewChatWindow("assets/chat/chatter.json")
@@ -851,7 +851,7 @@ func TestOnShipDestroyed(t *testing.T) {
 func TestPlayImpactSound(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn ship
 	ship := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -866,7 +866,7 @@ func TestPlayImpactSound(t *testing.T) {
 func TestResetPlayerStats(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Set some stats
 	em.score = 1000
@@ -892,7 +892,7 @@ func TestResetPlayerStats(t *testing.T) {
 func TestDestroyerMissileTargeting(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn destroyer facing up
 	destroyer := em.SpawnShip(entity.ClassDestroyer, 0, 100, 100)
@@ -936,5 +936,99 @@ func TestDestroyerMissileTargeting(t *testing.T) {
 	// Verify enemy is still in valid position
 	if !enemy.IsAlive() {
 		t.Error("Enemy should still be alive (missile needs time to travel)")
+	}
+}
+
+// TestSpawnPointSelection verifies correct spawn point selection based on faction count
+func TestSpawnPointSelection(t *testing.T) {
+	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
+
+	tests := []struct {
+		name          string
+		numFactions   int
+		expectedCount int
+	}{
+		{"2 factions", 2, 2},
+		{"3 factions", 3, 3},
+		{"4 factions", 4, 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
+			em.InitializeFactions(tt.numFactions)
+
+			// Verify correct number of spawn points were created
+			if len(em.factionSpawnPoints) != tt.expectedCount {
+				t.Errorf("Expected %d faction spawn points, got %d", tt.expectedCount, len(em.factionSpawnPoints))
+			}
+
+			// Verify all spawn points are within world bounds
+			for factionID, point := range em.factionSpawnPoints {
+				if point.x < 0 || point.x > float64(config.GameWidth) {
+					t.Errorf("Faction %d spawn point X (%f) is outside world bounds", factionID, point.x)
+				}
+				if point.y < 0 || point.y > float64(config.GameHeight) {
+					t.Errorf("Faction %d spawn point Y (%f) is outside world bounds", factionID, point.y)
+				}
+			}
+
+			// For 3 factions, verify spawn points form an equilateral triangle pattern
+			// by checking that all pairwise distances are approximately equal
+			if tt.numFactions == 3 {
+				points := make([]struct{ x, y float64 }, 0, 3)
+				for i := 0; i < 3; i++ {
+					points = append(points, em.factionSpawnPoints[i])
+				}
+
+				// Calculate distances between all pairs
+				dist01 := math.Sqrt(math.Pow(points[0].x-points[1].x, 2) + math.Pow(points[0].y-points[1].y, 2))
+				dist02 := math.Sqrt(math.Pow(points[0].x-points[2].x, 2) + math.Pow(points[0].y-points[2].y, 2))
+				dist12 := math.Sqrt(math.Pow(points[1].x-points[2].x, 2) + math.Pow(points[1].y-points[2].y, 2))
+
+				// All distances should be approximately equal (within 10% tolerance)
+				avgDist := (dist01 + dist02 + dist12) / 3.0
+				tolerance := avgDist * 0.1
+
+				if math.Abs(dist01-avgDist) > tolerance || math.Abs(dist02-avgDist) > tolerance || math.Abs(dist12-avgDist) > tolerance {
+					t.Errorf("3-faction spawn points should be equidistant. Distances: %f, %f, %f", dist01, dist02, dist12)
+				}
+			}
+
+			// For 4 factions, verify spawn points form a cross pattern
+			// by checking that there are exactly 2 horizontal and 2 vertical pairs
+			if tt.numFactions == 4 {
+				points := make([]struct{ x, y float64 }, 0, 4)
+				for i := 0; i < 4; i++ {
+					points = append(points, em.factionSpawnPoints[i])
+				}
+
+				// For a cross pattern, expect centerX and centerY to appear exactly twice each
+				centerX := float64(config.GameWidth) / 2
+				centerY := float64(config.GameHeight) / 2
+				tolerance := 1.0 // pixel tolerance
+
+				xCenterCount := 0
+				yCenterCount := 0
+
+				for _, p := range points {
+					if math.Abs(p.x-centerX) < tolerance {
+						xCenterCount++
+					}
+					if math.Abs(p.y-centerY) < tolerance {
+						yCenterCount++
+					}
+				}
+
+				// In a cross pattern, 2 points should be on vertical centerline (share X=centerX)
+				// and 2 points should be on horizontal centerline (share Y=centerY)
+				if xCenterCount != 2 {
+					t.Errorf("Expected 2 points on vertical centerline (X=%f), got %d", centerX, xCenterCount)
+				}
+				if yCenterCount != 2 {
+					t.Errorf("Expected 2 points on horizontal centerline (Y=%f), got %d", centerY, yCenterCount)
+				}
+			}
+		})
 	}
 }

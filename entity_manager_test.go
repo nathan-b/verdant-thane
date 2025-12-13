@@ -701,7 +701,7 @@ func TestRetryBattleResetsKills(t *testing.T) {
 func TestDeathCounterIncrements(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn player and friendly ship
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)
@@ -744,7 +744,7 @@ func TestDeathCounterIncrements(t *testing.T) {
 func TestSpectateTargetSwitchDoesNotIncrementDeaths(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn player and two friendly ships
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 100, 100)

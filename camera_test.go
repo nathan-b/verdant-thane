@@ -12,7 +12,7 @@ import (
 func TestCameraInitialization(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn player ship at a known position
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 1000, 2000)
@@ -90,7 +90,7 @@ func TestCameraCentersOnPlayer(t *testing.T) {
 func TestCameraFollowsPlayerMovement(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn player ship
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 1000, 1000)
@@ -138,7 +138,7 @@ func TestCameraFollowsPlayerMovement(t *testing.T) {
 func TestCameraAtWorldEdge(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn player near world edge
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 10, 10) // Near top-left corner
@@ -169,7 +169,7 @@ func TestCameraAtWorldEdge(t *testing.T) {
 func TestCameraStaysCenteredDuringCombat(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn player and enemy
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 1000, 1000)
@@ -221,7 +221,7 @@ func TestCameraStaysCenteredDuringCombat(t *testing.T) {
 func TestCameraInSpectateMode(t *testing.T) {
 	laserSprite, missileSprite, explosionSprite, factionSprites := createTestSprites()
 	em := NewEntityManager(laserSprite, missileSprite, explosionSprite, nil, factionSprites)
-	em.InitializeFactions()
+	em.InitializeFactions(4)
 
 	// Spawn player and friendly ship
 	playerShip := em.SpawnShip(entity.ClassFighter, 0, 1000, 1000)

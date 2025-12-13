@@ -1069,27 +1069,66 @@ func (em *EntityManager) Clear() {
 	em.nextID = 1
 }
 
-// InitializeFactions creates faction spawn points at cardinal directions
-// Spawn points are randomly shuffled to assign them to factions
-func (em *EntityManager) InitializeFactions() {
-	// Calculate spawn point positions
-	// Each spawn is halfway between center and edge in each cardinal direction
-	spawnPoints := []struct{ x, y float64 }{
-		{float64(config.GameWidth) / 2, float64(config.GameHeight) / 4},     // North
-		{float64(config.GameWidth) / 2, 3 * float64(config.GameHeight) / 4}, // South
-		{3 * float64(config.GameWidth) / 4, float64(config.GameHeight) / 2}, // East
-		{float64(config.GameWidth) / 4, float64(config.GameHeight) / 2},     // West
+// InitializeFactions creates faction spawn points ensuring equidistant placement
+// Spawn points are selected based on faction count and randomly shuffled to assign them to factions
+// - 2 factions: Any 2 of the 7 spawn points
+// - 3 factions: Must use the 3 triangular spawn points (equilateral triangle)
+// - 4 factions: Must use the 4 cross spawn points (cardinal directions)
+func (em *EntityManager) InitializeFactions(numFactions int) {
+	// Define all available spawn points
+	centerX := float64(config.GameWidth) / 2
+	centerY := float64(config.GameHeight) / 2
+
+	// Cross pattern (4 spawn points in cardinal directions)
+	crossSpawnPoints := []struct{ x, y float64 }{
+		{centerX, float64(config.GameHeight) / 4},     // North
+		{centerX, 3 * float64(config.GameHeight) / 4}, // South
+		{3 * float64(config.GameWidth) / 4, centerY},  // East
+		{float64(config.GameWidth) / 4, centerY},      // West
 	}
 
-	// Shuffle spawn points to randomly assign them to factions
-	for i := len(spawnPoints) - 1; i > 0; i-- {
+	// Triangle pattern (3 spawn points forming equilateral triangle)
+	// Top vertex closer to center, two bottom vertices at bottom-left and bottom-right
+	// Positioned at 1/3 from edges (closer to center than original 1/6)
+	triangleSpawnPoints := []struct{ x, y float64 }{
+		{centerX, float64(config.GameHeight) / 3},                               // Top (north)
+		{float64(config.GameWidth) / 3, 2 * float64(config.GameHeight) / 3},     // Bottom-left
+		{2 * float64(config.GameWidth) / 3, 2 * float64(config.GameHeight) / 3}, // Bottom-right
+	}
+
+	var selectedPoints []struct{ x, y float64 }
+
+	switch numFactions {
+	case 2:
+		// For 2 factions, use any 2 of all 7 spawn points
+		allPoints := append(crossSpawnPoints, triangleSpawnPoints...)
+		// Shuffle all points
+		for i := len(allPoints) - 1; i > 0; i-- {
+			j := rand.Intn(i + 1)
+			allPoints[i], allPoints[j] = allPoints[j], allPoints[i]
+		}
+		// Select first 2
+		selectedPoints = allPoints[:2]
+	case 3:
+		// For 3 factions, must use the 3 triangular spawn points
+		selectedPoints = triangleSpawnPoints
+	case 4:
+		// For 4 factions, must use the 4 cross spawn points
+		selectedPoints = crossSpawnPoints
+	default:
+		// Default to cross pattern for any other number
+		selectedPoints = crossSpawnPoints
+	}
+
+	// Shuffle selected spawn points to randomly assign them to factions
+	for i := len(selectedPoints) - 1; i > 0; i-- {
 		j := rand.Intn(i + 1)
-		spawnPoints[i], spawnPoints[j] = spawnPoints[j], spawnPoints[i]
+		selectedPoints[i], selectedPoints[j] = selectedPoints[j], selectedPoints[i]
 	}
 
 	// Assign spawn points to factions
 	// Faction IDs: 0 = Green (player), 1 = Blue, 2 = Red, 3 = Yellow
-	for factionID := 0; factionID < 4; factionID++ {
-		em.SetFactionSpawnPoint(factionID, spawnPoints[factionID].x, spawnPoints[factionID].y)
+	for factionID := 0; factionID < numFactions; factionID++ {
+		em.SetFactionSpawnPoint(factionID, selectedPoints[factionID].x, selectedPoints[factionID].y)
 	}
 }

@@ -547,7 +547,7 @@ func (g *Game) StartGame(fleetConfig config.FleetConfig, startingShipClass *conf
 
 	// Initialize factions and spawn points
 	t = time.Now()
-	g.entityManager.InitializeFactions()
+	g.entityManager.InitializeFactions(fleetConfig.NumFactions)
 	g.newGameProfile.InitializeFactions = time.Since(t)
 
 	// Spawn ships according to fleet configuration
