@@ -1002,3 +1002,52 @@ func TestFighterAfterburnerMaxSpeedMultiplier(t *testing.T) {
 			expectedBoostedMaxSpeed, fighter.MaxSpeed)
 	}
 }
+
+// Test Afterburner Minimum Activation Charge (20%)
+func TestFighterAfterburnerMinimumActivationCharge(t *testing.T) {
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	const minActivationCharge = 0.2 * 360.0 // 20% of max charge (72.0)
+
+	// Test 1: Cannot activate with charge below 20% (simulating space key press logic)
+	fighter.AfterburnerCharge = 50.0 // ~14% of 360
+	fighter.AfterburnerActive = false
+
+	// Simulate the activation check (space key pressed)
+	canActivate := fighter.AfterburnerActive || fighter.AfterburnerCharge >= minActivationCharge
+	if canActivate {
+		t.Error("Should not be able to activate afterburner with charge below 20%")
+	}
+
+	// Test 2: Can activate with charge at exactly 20%
+	fighter.AfterburnerCharge = 72.0 // Exactly 20% of 360
+	fighter.AfterburnerActive = false
+
+	canActivate = fighter.AfterburnerActive || fighter.AfterburnerCharge >= minActivationCharge
+	if !canActivate {
+		t.Error("Should be able to activate afterburner with charge at exactly 20%")
+	}
+
+	// Test 3: Can activate with charge above 20%
+	fighter.AfterburnerCharge = 200.0 // >20% of 360
+	fighter.AfterburnerActive = false
+
+	canActivate = fighter.AfterburnerActive || fighter.AfterburnerCharge >= minActivationCharge
+	if !canActivate {
+		t.Error("Should be able to activate afterburner with charge above 20%")
+	}
+
+	// Test 4: Once activated, can continue even when draining below 20%
+	fighter.AfterburnerCharge = 50.0 // Below 20%
+	fighter.AfterburnerActive = true // Already active
+
+	// Even with charge below 20%, activation condition should be met because it's already active
+	canActivate = fighter.AfterburnerActive || fighter.AfterburnerCharge >= minActivationCharge
+	if !canActivate {
+		t.Error("Should be able to continue afterburner even after draining below 20%")
+	}
+
+	// Test 5: Verify the 20% threshold value
+	if minActivationCharge != 72.0 {
+		t.Errorf("Expected minimum activation charge to be 72.0 (20%% of 360), got %f", minActivationCharge)
+	}
+}

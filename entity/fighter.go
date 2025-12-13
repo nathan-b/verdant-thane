@@ -642,15 +642,25 @@ func (b *Ship) UpdatePlayerInput(ctx GameContext) {
 
 	// Afterburner activation (space bar)
 	if b.HasAfterburnerSystem {
-		if ebiten.IsKeyPressed(ebiten.KeySpace) && b.AfterburnerCharge > 0 {
-			b.AfterburnerActive = true
-			// Consume fuel
-			b.AfterburnerCharge -= b.AfterburnerDrain
-			if b.AfterburnerCharge < 0 {
-				b.AfterburnerCharge = 0
+		const minActivationCharge = 0.2 * 360.0 // 20% of max charge (72.0)
+
+		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+			// Allow activation only if charge >= 20%, or already active
+			if b.AfterburnerActive || b.AfterburnerCharge >= minActivationCharge {
+				b.AfterburnerActive = true
+				// Consume fuel
+				b.AfterburnerCharge -= b.AfterburnerDrain
+				if b.AfterburnerCharge < 0 {
+					b.AfterburnerCharge = 0
+				}
+				// Flame cone is now rendered in Render() instead of spawning particles
 			}
-			// Flame cone is now rendered in Render() instead of spawning particles
 		} else {
+			b.AfterburnerActive = false
+		}
+
+		// Deactivate if charge reaches 0
+		if b.AfterburnerCharge <= 0 {
 			b.AfterburnerActive = false
 		}
 	}

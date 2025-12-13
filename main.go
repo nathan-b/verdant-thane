@@ -1620,6 +1620,12 @@ func (g *Game) renderAfterburnerBar(screen *ebiten.Image) {
 		vector.FillRect(screen, barX, fillY, barWidth, fillHeight, fillColor, false)
 	}
 
+	// Draw 20% threshold indicator line (minimum activation charge)
+	const minActivationRatio = 0.2
+	thresholdY := barY + barHeight - (float32(barHeight) * minActivationRatio)
+	thresholdColor := color.RGBA{200, 200, 200, 255} // Light gray
+	vector.StrokeLine(screen, barX, thresholdY, barX+barWidth, thresholdY, 1, thresholdColor, false)
+
 	// Draw border
 	borderColor := color.RGBA{100, 100, 100, 255}
 	vector.StrokeRect(screen, barX, barY, barWidth, barHeight, 1, borderColor, false)
