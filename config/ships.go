@@ -87,7 +87,7 @@ var ShipDatabase = map[ShipClass]ShipCharacteristics{
 		AIRandomShotProbability:       0.20, // 20% chance of random shot (0.40-0.60 range)
 	},
 	ClassDestroyer: {
-		MaxSpeed:     5.0,        // Slower than fighter
+		MaxSpeed:     4.0,        // Slower than fighter
 		Acceleration: 3.0 / 60.0, // Slower acceleration
 		MaxShield:    32,         // Heavy armor (4x fighter)
 		Weapons: []WeaponCharacteristics{

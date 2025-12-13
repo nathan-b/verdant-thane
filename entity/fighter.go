@@ -184,17 +184,32 @@ func (b *Ship) Render(screen *ebiten.Image, cameraX, cameraY float64) {
 
 // renderAfterburnerFlame draws a cone-shaped flame behind the ship
 func (b *Ship) renderAfterburnerFlame(screen *ebiten.Image, screenX, screenY float64) {
-	// Flame cone dimensions: half the sprite height in length, spreads to ~1/3 sprite width
-	spriteHeight := float64(b.Sprite.Bounds().Dy())
-	flameLength := spriteHeight * 0.5
-	flameBaseWidth := spriteHeight * 0.3
+	// Class-specific flame dimensions to match ship sizes
+	var flameLength, flameBaseWidth, rearOffset float64
+	switch b.Class {
+	case ClassFighter:
+		// Fighter: 24x24 sprite
+		flameLength = 12.0   // Half the sprite height
+		flameBaseWidth = 7.2 // ~30% of sprite height
+		rearOffset = 9.6     // 40% of sprite height
+	case ClassDestroyer:
+		// Destroyer: 40x60 sprite, but visual ship body is smaller
+		flameLength = 16.0    // Proportional to visual ship size
+		flameBaseWidth = 10.0 // Wider base for larger ship
+		rearOffset = 12.0     // Positioned at visual rear of ship
+	default:
+		// Fallback (shouldn't happen for ships with afterburners)
+		spriteHeight := float64(b.Sprite.Bounds().Dy())
+		flameLength = spriteHeight * 0.5
+		flameBaseWidth = spriteHeight * 0.3
+		rearOffset = spriteHeight * 0.4
+	}
 
 	// Rear direction is opposite of rotation (rotation + π)
 	// Ships face UP (negative Y), so rear is positive Y in local space
 	rearAngle := b.Rotation + math.Pi
 
 	// Calculate the rear center point (where flame originates, at back of ship)
-	rearOffset := spriteHeight * 0.4 // Slightly inside the back of the ship
 	rearX := screenX + math.Sin(rearAngle)*rearOffset
 	rearY := screenY - math.Cos(rearAngle)*rearOffset
 
