@@ -1,8 +1,6 @@
 package persistence
 
 import (
-	"encoding/json"
-	"os"
 	"os/user"
 	"path/filepath"
 	"sort"
@@ -47,59 +45,19 @@ func GetScoresPath() (string, error) {
 	return filepath.Join(configPath, scoresFile), nil
 }
 
-// LoadHighScores loads high scores from disk
+// LoadHighScores loads high scores using the default persistence provider
 // Returns an empty list if file doesn't exist
+// This function is kept for backwards compatibility with existing code and tests
 func LoadHighScores() (*HighScores, error) {
-	scoresPath, err := GetScoresPath()
-	if err != nil {
-		return &HighScores{Entries: []HighScore{}}, err
-	}
-
-	// If file doesn't exist, return empty list
-	if _, err := os.Stat(scoresPath); os.IsNotExist(err) {
-		return &HighScores{Entries: []HighScore{}}, nil
-	}
-
-	// Read file
-	data, err := os.ReadFile(scoresPath)
-	if err != nil {
-		return &HighScores{Entries: []HighScore{}}, err
-	}
-
-	// Parse JSON
-	var scores HighScores
-	if err := json.Unmarshal(data, &scores); err != nil {
-		return &HighScores{Entries: []HighScore{}}, err
-	}
-
-	return &scores, nil
+	provider := NewProvider()
+	return provider.LoadHighScores()
 }
 
-// SaveHighScores saves high scores to disk
+// SaveHighScores saves high scores using the default persistence provider
+// This function is kept for backwards compatibility with existing code and tests
 func SaveHighScores(scores *HighScores) error {
-	configPath, err := GetConfigPath()
-	if err != nil {
-		return err
-	}
-
-	// Create config directory if it doesn't exist
-	if err := os.MkdirAll(configPath, 0755); err != nil {
-		return err
-	}
-
-	scoresPath, err := GetScoresPath()
-	if err != nil {
-		return err
-	}
-
-	// Marshal to JSON with indentation
-	data, err := json.MarshalIndent(scores, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	// Write to file
-	return os.WriteFile(scoresPath, data, 0644)
+	provider := NewProvider()
+	return provider.SaveHighScores(scores)
 }
 
 // AddScore adds a new high score and returns true if it made the top 10
