@@ -78,7 +78,7 @@ func (p *Particle) Render(screen *ebiten.Image, cameraX, cameraY float64) {
 	screenX, screenY := GetWrappedScreenPosition(p.X, p.Y, cameraX, cameraY)
 
 	// Draw small circle
-	vector.DrawFilledCircle(screen, float32(screenX), float32(screenY), float32(p.Size), fadeColor, false)
+	vector.FillCircle(screen, float32(screenX), float32(screenY), float32(p.Size), fadeColor, false)
 }
 
 // GetID returns the particle's ID

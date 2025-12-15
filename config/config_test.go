@@ -30,8 +30,8 @@ func TestGetShipCharacteristicsFighter(t *testing.T) {
 func TestGetShipCharacteristicsDestroyer(t *testing.T) {
 	chars := GetShipCharacteristics(ClassDestroyer)
 
-	if chars.MaxSpeed != 5.0 {
-		t.Errorf("Destroyer MaxSpeed: expected 5.0, got %f", chars.MaxSpeed)
+	if chars.MaxSpeed != 4.0 {
+		t.Errorf("Destroyer MaxSpeed: expected 4.0, got %f", chars.MaxSpeed)
 	}
 	if chars.MaxShield != 32 {
 		t.Errorf("Destroyer MaxShield: expected 32, got %d", chars.MaxShield)

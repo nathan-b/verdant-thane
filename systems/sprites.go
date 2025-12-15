@@ -2,6 +2,7 @@ package systems
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -88,19 +89,19 @@ func LoadFactionSprites() (*FactionSprites, error) {
 // LoadFactionSpritesWithBasePath loads sprites with a custom base path (useful for testing)
 func LoadFactionSpritesWithBasePath(basePath string) (*FactionSprites, error) {
 	// Load fighter sprites
-	fighterSprites, err := loadShipClassSprites(basePath + "/fighter.png")
+	fighterSprites, err := loadShipClassSprites(filepath.Join(basePath, "fighter.png"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fighter sprites: %w", err)
 	}
 
 	// Load destroyer sprites
-	destroyerSprites, err := loadShipClassSprites(basePath + "/destroyer.png")
+	destroyerSprites, err := loadShipClassSprites(filepath.Join(basePath, "destroyer.png"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load destroyer sprites: %w", err)
 	}
 
 	// Load testudon sprites
-	testudonSprites, err := loadShipClassSprites(basePath + "/testudon.png")
+	testudonSprites, err := loadShipClassSprites(filepath.Join(basePath, "testudon.png"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load testudon sprites: %w", err)
 	}
