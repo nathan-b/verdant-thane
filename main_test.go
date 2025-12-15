@@ -2,11 +2,21 @@ package main
 
 import (
 	"image/color"
+	"os"
 	"testing"
 
 	"github.com/nathan-b/verdant-thane/config"
 	"github.com/nathan-b/verdant-thane/entity"
 )
+
+// TestMain runs before all tests to initialize platform-specific code
+func TestMain(m *testing.M) {
+	// Initialize flags before running tests
+	parseFlags()
+
+	// Run tests
+	os.Exit(m.Run())
+}
 
 // createMinimalTestGame creates a minimal Game instance for testing without loading assets from disk
 func createMinimalTestGame(t *testing.T) *Game {

@@ -1,0 +1,72 @@
+#!/bin/bash
+# Pre-commit hook for Verdant Thane
+# Install: cp scripts/pre-commit-hook .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# 1. Quick format check
+echo "→ Checking code formatting..."
+UNFORMATTED=$(gofmt -l . 2>&1 | grep -v "^vendor/" || true)
+if [ -n "$UNFORMATTED" ]; then
+    echo "Error: The following files need formatting:"
+    echo "$UNFORMATTED"
+    echo "Run: go fmt ./..."
+    exit 1
+fi
+echo "  ✓ Code is formatted"
+
+# 2. Quick desktop build check
+echo "→ Checking desktop build compiles..."
+if ! go build -o /tmp/verdant-thane-test . >/dev/null 2>&1; then
+    echo "Error: Desktop build failed"
+    echo "Run 'go build' to see errors"
+    exit 1
+fi
+rm -f /tmp/verdant-thane-test
+echo "  ✓ Desktop build compiles"
+
+# 3. Quick WASM build check (most important for catching regressions)
+echo "→ Checking WASM build compiles..."
+if ! GOOS=js GOARCH=wasm go build -o /tmp/verdant-thane-wasm-test . >/dev/null 2>&1; then
+    echo "Error: WASM build failed"
+    echo "Run 'GOOS=js GOARCH=wasm go build' to see errors"
+    exit 1
+fi
+rm -f /tmp/verdant-thane-wasm-test
+echo "  ✓ WASM build compiles"
+
+# 4. Quick test run (only if test files changed)
+STAGED_TEST_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '_test\.go$' || true)
+if [ -n "$STAGED_TEST_FILES" ]; then
+    echo "→ Running tests (test files changed)..."
+    if ! go test ./... >/dev/null 2>&1; then
+        echo "Error: Tests failed"
+        echo "Run 'go test ./...' to see errors"
+        exit 1
+    fi
+    echo "  ✓ Tests pass"
+fi
+
+# 5. Check for common WASM pitfalls
+echo "→ Checking for WASM compatibility issues..."
+
+# Check for direct filesystem access in non-platform files
+MAIN_FILES=$(find . -name "*.go" ! -name "*_test.go" ! -name "platform_*.go" ! -path "./vendor/*" ! -path "./.git/*")
+if echo "$MAIN_FILES" | xargs grep -l "os\.ReadFile\|ioutil\.ReadFile\|os\.Open" 2>/dev/null | grep -v "persistence/provider_desktop.go" | grep -v "killstreak_test.go" | grep -v "chat_test.go"; then
+    echo "Warning: Found potential direct filesystem access outside platform-specific files"
+    echo "Ensure you're using fs.FS interface or embed.FS"
+fi
+
+# Check for os/user imports outside desktop platform files
+if grep -r "\"os/user\"" --include="*.go" --exclude="platform_desktop.go" --exclude-dir=vendor --exclude-dir=.git . 2>/dev/null; then
+    echo "Warning: Found os/user import outside platform_desktop.go"
+    echo "This package is not available in WASM"
+fi
+
+echo "  ✓ No obvious compatibility issues"
+
+echo ""
+echo "✓ All pre-commit checks passed!"
+echo ""

@@ -20,6 +20,4 @@ type PersistenceProvider interface {
 // NewProvider creates the appropriate PersistenceProvider for the current platform
 // On desktop, this returns a file-based provider
 // On WASM, this returns a localStorage-based provider
-func NewProvider() PersistenceProvider {
-	return newDesktopProvider()
-}
+// The actual implementation is in platform-specific files with build tags

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verdant Thane - Browser Edition</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #fff;
+        }
+
+        #game-container {
+            position: relative;
+            margin: 20px;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 40px;
+            border-radius: 8px;
+            border: 2px solid #4a9eff;
+        }
+
+        #loading.hidden {
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid rgba(74, 158, 255, 0.3);
+            border-top: 4px solid #4a9eff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #error {
+            display: none;
+            background: rgba(139, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #ff4444;
+            margin: 20px;
+            max-width: 600px;
+        }
+
+        #error.visible {
+            display: block;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            color: #4a9eff;
+        }
+
+        p {
+            margin: 10px 0;
+            line-height: 1.5;
+        }
+
+        .footer {
+            margin-top: 20px;
+            padding: 20px;
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #4a9eff;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="loading">
+            <div class="spinner"></div>
+            <h1>Loading Verdant Thane...</h1>
+            <p>Initializing WebAssembly runtime</p>
+        </div>
+        <div id="error">
+            <h1>Error Loading Game</h1>
+            <p id="error-message"></p>
+            <p>Please ensure you're using a modern browser with WebAssembly support:</p>
+            <ul style="text-align: left;">
+                <li>Chrome 57+ or Edge 16+</li>
+                <li>Firefox 52+</li>
+                <li>Safari 11+</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Verdant Thane - A reimplementation of Azul Baronis</p>
+        <p>Controls: WASD or Arrow Keys to move, Mouse to aim and fire, Space for afterburner</p>
+    </div>
+
+    <script src="wasm_exec.js"></script>
+    <script>
+        // Check WebAssembly support
+        if (!WebAssembly) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('error').classList.add('visible');
+            document.getElementById('error-message').textContent =
+                'Your browser does not support WebAssembly. Please upgrade to a modern browser.';
+        } else {
+            // Initialize Go WASM runtime
+            const go = new Go();
+
+            // Load and instantiate the WASM module
+            WebAssembly.instantiateStreaming(fetch("verdant-thane.wasm"), go.importObject)
+                .then((result) => {
+                    // Hide loading indicator
+                    document.getElementById('loading').classList.add('hidden');
+
+                    // Run the Go program
+                    go.run(result.instance);
+                })
+                .catch((err) => {
+                    // Show error
+                    console.error('Failed to load WASM:', err);
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('error').classList.add('visible');
+                    document.getElementById('error-message').textContent =
+                        'Failed to load game: ' + err.message;
+                });
+        }
+    </script>
+</body>
+</html>

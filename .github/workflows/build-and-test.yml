@@ -1,0 +1,232 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # Test on multiple platforms
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: ['1.23.x']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+    - name: Upload coverage
+      if: matrix.os == 'ubuntu-latest'
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage.txt
+        fail_ci_if_error: false
+
+  # Desktop builds for all platforms
+  build-desktop:
+    name: Build Desktop (${{ matrix.os }}-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+          - os: linux
+            arch: arm64
+            runner: ubuntu-latest
+          - os: darwin
+            arch: amd64
+            runner: macos-13
+          - os: darwin
+            arch: arm64
+            runner: macos-latest
+          - os: windows
+            arch: amd64
+            runner: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23.x'
+
+    - name: Build
+      env:
+        GOOS: ${{ matrix.os }}
+        GOARCH: ${{ matrix.arch }}
+        CGO_ENABLED: 1
+      run: |
+        go build -v -o verdant-thane${{ matrix.os == 'windows' && '.exe' || '' }} .
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: verdant-thane-${{ matrix.os }}-${{ matrix.arch }}
+        path: verdant-thane${{ matrix.os == 'windows' && '.exe' || '' }}
+        retention-days: 7
+
+  # WASM build (critical - this catches WASM-specific issues)
+  build-wasm:
+    name: Build WASM
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23.x'
+
+    - name: Build WASM
+      env:
+        GOOS: js
+        GOARCH: wasm
+        CGO_ENABLED: 0
+      run: |
+        echo "Building WASM binary..."
+        go build -v -o web/verdant-thane.wasm .
+
+        echo "Checking binary size..."
+        ls -lh web/verdant-thane.wasm
+
+        # Fail if binary is unreasonably large (>60MB suggests asset duplication)
+        SIZE=$(stat -f%z web/verdant-thane.wasm 2>/dev/null || stat -c%s web/verdant-thane.wasm)
+        if [ $SIZE -gt 62914560 ]; then
+          echo "Error: WASM binary is too large ($SIZE bytes, expected <60MB)"
+          echo "This may indicate duplicate asset embedding or other issues"
+          exit 1
+        fi
+
+        echo "Binary size: $SIZE bytes (OK)"
+
+    - name: Copy wasm_exec.js
+      run: |
+        # Try Go 1.25+ location first
+        if [ -f "$(go env GOROOT)/lib/wasm/wasm_exec.js" ]; then
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/
+        elif [ -f "$(go env GOROOT)/misc/wasm/wasm_exec.js" ]; then
+          cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" web/
+        else
+          echo "Error: wasm_exec.js not found in Go installation"
+          exit 1
+        fi
+
+    - name: Verify deployment files
+      run: |
+        echo "Verifying all required files exist..."
+        test -f web/index.html || (echo "Missing web/index.html" && exit 1)
+        test -f web/wasm_exec.js || (echo "Missing web/wasm_exec.js" && exit 1)
+        test -f web/verdant-thane.wasm || (echo "Missing web/verdant-thane.wasm" && exit 1)
+        test -f web/README.md || (echo "Missing web/README.md" && exit 1)
+        echo "✓ All deployment files present"
+
+    - name: Upload WASM artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: verdant-thane-wasm
+        path: |
+          web/*.html
+          web/*.js
+          web/*.wasm
+          web/README.md
+        retention-days: 7
+
+  # WASM-specific tests (if applicable)
+  test-wasm:
+    name: Test WASM Build
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23.x'
+
+    - name: Run WASM-specific tests
+      env:
+        GOOS: js
+        GOARCH: wasm
+      run: |
+        # Run tests that are compatible with WASM build
+        go test -v ./persistence
+
+    - name: Check for forbidden imports
+      run: |
+        echo "Checking for WASM-incompatible imports..."
+
+        # Files with WASM build tag should not import these packages
+        FORBIDDEN_IMPORTS="os/user"
+
+        for pkg in $FORBIDDEN_IMPORTS; do
+          if grep -r "import.*\"$pkg\"" --include="*_wasm.go" .; then
+            echo "Error: WASM files should not import $pkg"
+            exit 1
+          fi
+        done
+
+        echo "✓ No forbidden imports found"
+
+  # Build check for build script
+  test-build-script:
+    name: Test Build Script
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23.x'
+
+    - name: Make script executable
+      run: chmod +x scripts/build-wasm.sh
+
+    - name: Run build script
+      run: ./scripts/build-wasm.sh
+
+    - name: Verify build succeeded
+      run: |
+        test -f web/verdant-thane.wasm || (echo "Build script failed to create WASM binary" && exit 1)
+        test -f web/wasm_exec.js || (echo "Build script failed to copy wasm_exec.js" && exit 1)
+        echo "✓ Build script succeeded"
