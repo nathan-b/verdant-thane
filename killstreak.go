@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"image/color"
+	"io/fs"
 	"math"
-	"os"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -18,9 +18,9 @@ type KillstreakText struct {
 	messages map[int]string // Maps kill count to message text
 }
 
-// LoadKillstreakText loads the killtext.json file and returns the mapping
-func LoadKillstreakText(filepath string) (*KillstreakText, error) {
-	data, err := os.ReadFile(filepath)
+// LoadKillstreakText loads the killtext.json file from an embedded filesystem and returns the mapping
+func LoadKillstreakText(fsys fs.FS, path string) (*KillstreakText, error) {
+	data, err := fs.ReadFile(fsys, path)
 	if err != nil {
 		return nil, err
 	}

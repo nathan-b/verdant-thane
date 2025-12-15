@@ -2,6 +2,7 @@ package systems
 
 import (
 	"fmt"
+	"io/fs"
 	"path/filepath"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -59,11 +60,11 @@ type FactionSprites struct {
 }
 
 // loadShipClassSprites loads and generates faction sprites for a ship class
-func loadShipClassSprites(basePath string) (*ShipClassSprites, error) {
+func loadShipClassSprites(fsys fs.FS, path string) (*ShipClassSprites, error) {
 	// Load the grayscale base sprite
-	baseSprite, _, err := ebitenutil.NewImageFromFile(basePath)
+	baseSprite, _, err := ebitenutil.NewImageFromFileSystem(fsys, path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load base sprite from %s: %w", basePath, err)
+		return nil, fmt.Errorf("failed to load base sprite from %s: %w", path, err)
 	}
 
 	// Generate faction sprites using palette swapping
@@ -81,27 +82,27 @@ func loadShipClassSprites(basePath string) (*ShipClassSprites, error) {
 	}, nil
 }
 
-// LoadFactionSprites loads sprites for all ship classes
-func LoadFactionSprites() (*FactionSprites, error) {
-	return LoadFactionSpritesWithBasePath("assets")
+// LoadFactionSprites loads sprites for all ship classes from an embedded filesystem
+func LoadFactionSprites(fsys fs.FS) (*FactionSprites, error) {
+	return LoadFactionSpritesWithBasePath(fsys, "assets")
 }
 
 // LoadFactionSpritesWithBasePath loads sprites with a custom base path (useful for testing)
-func LoadFactionSpritesWithBasePath(basePath string) (*FactionSprites, error) {
+func LoadFactionSpritesWithBasePath(fsys fs.FS, basePath string) (*FactionSprites, error) {
 	// Load fighter sprites
-	fighterSprites, err := loadShipClassSprites(filepath.Join(basePath, "fighter.png"))
+	fighterSprites, err := loadShipClassSprites(fsys, filepath.Join(basePath, "fighter.png"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fighter sprites: %w", err)
 	}
 
 	// Load destroyer sprites
-	destroyerSprites, err := loadShipClassSprites(filepath.Join(basePath, "destroyer.png"))
+	destroyerSprites, err := loadShipClassSprites(fsys, filepath.Join(basePath, "destroyer.png"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load destroyer sprites: %w", err)
 	}
 
 	// Load testudon sprites
-	testudonSprites, err := loadShipClassSprites(filepath.Join(basePath, "testudon.png"))
+	testudonSprites, err := loadShipClassSprites(fsys, filepath.Join(basePath, "testudon.png"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load testudon sprites: %w", err)
 	}

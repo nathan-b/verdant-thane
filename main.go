@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"embed"
 	"flag"
 	"fmt"
 	"image/color"
+	"io/fs"
 	"log"
 	"math"
 	"math/rand"
@@ -23,6 +25,9 @@ import (
 	"github.com/nathan-b/verdant-thane/systems"
 	"github.com/nathan-b/verdant-thane/ui"
 )
+
+//go:embed assets
+var assetsFS embed.FS
 
 var (
 	// Command-line flags (for testing)
@@ -225,31 +230,31 @@ func NewGame() (*Game, error) {
 
 	// Load assets
 	t := time.Now()
-	laserSprite, _, err := ebitenutil.NewImageFromFile("assets/laser.png")
+	laserSprite, _, err := ebitenutil.NewImageFromFileSystem(assetsFS, "assets/laser.png")
 	if err != nil {
 		return nil, err
 	}
 
-	missileSprite, _, err := ebitenutil.NewImageFromFile("assets/missile.png")
+	missileSprite, _, err := ebitenutil.NewImageFromFileSystem(assetsFS, "assets/missile.png")
 	if err != nil {
 		return nil, err
 	}
 
 	// Load explosion sprite sheet (400x70, 4 frames of 100x70 each)
-	explosionSprite, _, err := ebitenutil.NewImageFromFile("assets/explosion.png")
+	explosionSprite, _, err := ebitenutil.NewImageFromFileSystem(assetsFS, "assets/explosion.png")
 	if err != nil {
 		return nil, err
 	}
 
 	// Load impact sprite sheet (2000x400, 5 frames of 400x400 each)
-	impactSprite, _, err := ebitenutil.NewImageFromFile("assets/impact.png")
+	impactSprite, _, err := ebitenutil.NewImageFromFileSystem(assetsFS, "assets/impact.png")
 	if err != nil {
 		return nil, err
 	}
 	startupProfile.LoadBaseSprites = time.Since(t)
 
 	t = time.Now()
-	factionSprites, err := systems.LoadFactionSprites()
+	factionSprites, err := systems.LoadFactionSprites(assetsFS)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +262,7 @@ func NewGame() (*Game, error) {
 
 	// Load game font
 	t = time.Now()
-	fontBytes, err := os.ReadFile("assets/orbitron.ttf")
+	fontBytes, err := fs.ReadFile(assetsFS, "assets/orbitron.ttf")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load font: %w", err)
 	}
@@ -314,42 +319,42 @@ func NewGame() (*Game, error) {
 
 	// Load sound effects
 	t = time.Now()
-	if err := audioManager.LoadSound("laser", "assets/laser.wav"); err != nil {
+	if err := audioManager.LoadSound("laser", assetsFS, "assets/laser.wav"); err != nil {
 		log.Printf("Warning: Failed to load laser sound: %v", err)
 	}
-	if err := audioManager.LoadSound("impact", "assets/impact2.wav"); err != nil {
+	if err := audioManager.LoadSound("impact", assetsFS, "assets/impact2.wav"); err != nil {
 		log.Printf("Warning: Failed to load impact sound: %v", err)
 	}
-	if err := audioManager.LoadSound("enemy_impact", "assets/impact3.wav"); err != nil {
+	if err := audioManager.LoadSound("enemy_impact", assetsFS, "assets/impact3.wav"); err != nil {
 		log.Printf("Warning: Failed to load enemy impact sound: %v", err)
 	}
-	if err := audioManager.LoadSound("explosion", "assets/explosion.wav"); err != nil {
+	if err := audioManager.LoadSound("explosion", assetsFS, "assets/explosion.wav"); err != nil {
 		log.Printf("Warning: Failed to load explosion sound: %v", err)
 	}
-	if err := audioManager.LoadSound("beam", "assets/beam.wav"); err != nil {
+	if err := audioManager.LoadSound("beam", assetsFS, "assets/beam.wav"); err != nil {
 		log.Printf("Warning: Failed to load beam sound: %v", err)
 	}
-	if err := audioManager.LoadSound("afterburner", "assets/afterburner.wav"); err != nil {
+	if err := audioManager.LoadSound("afterburner", assetsFS, "assets/afterburner.wav"); err != nil {
 		log.Printf("Warning: Failed to load afterburner sound: %v", err)
 	}
-	if err := audioManager.LoadSound("missile", "assets/missile.wav"); err != nil {
+	if err := audioManager.LoadSound("missile", assetsFS, "assets/missile.wav"); err != nil {
 		log.Printf("Warning: Failed to load missile sound: %v", err)
 	}
-	if err := audioManager.LoadSound("missile_impact", "assets/missile_impact.wav"); err != nil {
+	if err := audioManager.LoadSound("missile_impact", assetsFS, "assets/missile_impact.wav"); err != nil {
 		log.Printf("Warning: Failed to load missile impact sound: %v", err)
 	}
 	startupProfile.LoadSoundEffects = time.Since(t)
 
 	// Load menu music
 	t = time.Now()
-	if err := audioManager.LoadMusic("menu", "assets/energy-electrowave.mp3"); err != nil {
+	if err := audioManager.LoadMusic("menu", assetsFS, "assets/energy-electrowave.mp3"); err != nil {
 		log.Printf("Warning: Failed to load menu music: %v", err)
 	}
 	startupProfile.LoadMenuMusic = time.Since(t)
 
 	// Create chat window
 	t = time.Now()
-	chatWindow, err := NewChatWindow("assets/chatter.json")
+	chatWindow, err := NewChatWindow(assetsFS, "assets/chatter.json")
 	if err != nil {
 		log.Printf("Warning: Failed to create chat window: %v", err)
 		chatWindow = nil // Continue without chat
@@ -358,7 +363,7 @@ func NewGame() (*Game, error) {
 
 	// Load killstreak text
 	t = time.Now()
-	killstreakText, err := LoadKillstreakText("assets/killtext.json")
+	killstreakText, err := LoadKillstreakText(assetsFS, "assets/killtext.json")
 	if err != nil {
 		log.Printf("Warning: Failed to load killstreak text: %v", err)
 		killstreakText = nil // Continue without killstreak messages
@@ -429,7 +434,7 @@ func NewGame() (*Game, error) {
 	for i, track := range bgmTracks {
 		musicName := fmt.Sprintf("bgm%d", i)
 		// Use game.audioManager to operate on the same copy
-		if err := game.audioManager.LoadMusic(musicName, track); err != nil {
+		if err := game.audioManager.LoadMusic(musicName, assetsFS, track); err != nil {
 			log.Printf("Warning: Failed to load BGM track %s: %v", track, err)
 		}
 	}

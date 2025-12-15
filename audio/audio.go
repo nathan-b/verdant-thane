@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
+	"io/fs"
 
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/audio/mp3"
@@ -65,28 +65,28 @@ func NewManager() Manager {
 	return m
 }
 
-// LoadSound loads a WAV file into memory
-func (m *Manager) LoadSound(name string, filepath string) error {
+// LoadSound loads a WAV file into memory from an embedded filesystem
+func (m *Manager) LoadSound(name string, fsys fs.FS, path string) error {
 	if !m.initialized {
 		return nil // No-op if uninitialized
 	}
 
 	// Read the WAV file
-	fileData, err := os.ReadFile(filepath)
+	fileData, err := fs.ReadFile(fsys, path)
 	if err != nil {
-		return fmt.Errorf("failed to read sound file %s: %w", filepath, err)
+		return fmt.Errorf("failed to read sound file %s: %w", path, err)
 	}
 
 	// Decode WAV data
 	stream, err := wav.DecodeWithoutResampling(bytes.NewReader(fileData))
 	if err != nil {
-		return fmt.Errorf("failed to decode WAV file %s: %w", filepath, err)
+		return fmt.Errorf("failed to decode WAV file %s: %w", path, err)
 	}
 
 	// Read all data into memory
 	data, err := io.ReadAll(stream)
 	if err != nil {
-		return fmt.Errorf("failed to read stream data %s: %w", filepath, err)
+		return fmt.Errorf("failed to read stream data %s: %w", path, err)
 	}
 
 	// Store the sound effect
@@ -126,16 +126,16 @@ func (m *Manager) PlaySound(name string) error {
 	return nil
 }
 
-// LoadMusic loads an MP3 file into memory (keeps it compressed)
-func (m *Manager) LoadMusic(name string, filepath string) error {
+// LoadMusic loads an MP3 file into memory (keeps it compressed) from an embedded filesystem
+func (m *Manager) LoadMusic(name string, fsys fs.FS, path string) error {
 	if !m.initialized {
 		return nil // No-op if uninitialized
 	}
 
 	// Read the compressed MP3 file
-	fileData, err := os.ReadFile(filepath)
+	fileData, err := fs.ReadFile(fsys, path)
 	if err != nil {
-		return fmt.Errorf("failed to read music file %s: %w", filepath, err)
+		return fmt.Errorf("failed to read music file %s: %w", path, err)
 	}
 
 	// Store the compressed MP3 data (we'll decode on-the-fly during playback)

@@ -1,6 +1,8 @@
 package systems
 
 import (
+	"io/fs"
+	"os"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -281,7 +283,8 @@ func TestFactionSprites_Structure(t *testing.T) {
 func TestLoadFactionSprites(t *testing.T) {
 	// This is an integration test that requires assets to be present
 	// When running from the systems package, assets are in ../assets
-	sprites, err := LoadFactionSpritesWithBasePath("../assets")
+	fsys := os.DirFS("..")
+	sprites, err := LoadFactionSpritesWithBasePath(fsys, "assets")
 
 	if err != nil {
 		t.Fatalf("LoadFactionSpritesWithBasePath failed: %v", err)
@@ -304,7 +307,8 @@ func TestLoadFactionSprites(t *testing.T) {
 }
 
 func TestLoadFactionSprites_FighterSprites(t *testing.T) {
-	sprites, err := LoadFactionSpritesWithBasePath("../assets")
+	fsys := os.DirFS("..")
+	sprites, err := LoadFactionSpritesWithBasePath(fsys, "assets")
 	if err != nil {
 		t.Fatalf("LoadFactionSpritesWithBasePath failed: %v", err)
 	}
@@ -330,7 +334,8 @@ func TestLoadFactionSprites_FighterSprites(t *testing.T) {
 }
 
 func TestLoadFactionSprites_DestroyerSprites(t *testing.T) {
-	sprites, err := LoadFactionSpritesWithBasePath("../assets")
+	fsys := os.DirFS("..")
+	sprites, err := LoadFactionSpritesWithBasePath(fsys, "assets")
 	if err != nil {
 		t.Fatalf("LoadFactionSpritesWithBasePath failed: %v", err)
 	}
@@ -356,7 +361,8 @@ func TestLoadFactionSprites_DestroyerSprites(t *testing.T) {
 }
 
 func TestLoadFactionSprites_TestudonSprites(t *testing.T) {
-	sprites, err := LoadFactionSpritesWithBasePath("../assets")
+	fsys := os.DirFS("..")
+	sprites, err := LoadFactionSpritesWithBasePath(fsys, "assets")
 	if err != nil {
 		t.Fatalf("LoadFactionSpritesWithBasePath failed: %v", err)
 	}
@@ -382,7 +388,8 @@ func TestLoadFactionSprites_TestudonSprites(t *testing.T) {
 }
 
 func TestLoadFactionSprites_FighterDimensions(t *testing.T) {
-	sprites, err := LoadFactionSpritesWithBasePath("../assets")
+	fsys := os.DirFS("..")
+	sprites, err := LoadFactionSpritesWithBasePath(fsys, "assets")
 	if err != nil {
 		t.Fatalf("LoadFactionSpritesWithBasePath failed: %v", err)
 	}
@@ -409,7 +416,8 @@ func TestLoadFactionSprites_FighterDimensions(t *testing.T) {
 }
 
 func TestLoadFactionSprites_DestroyerDimensions(t *testing.T) {
-	sprites, err := LoadFactionSpritesWithBasePath("../assets")
+	fsys := os.DirFS("..")
+	sprites, err := LoadFactionSpritesWithBasePath(fsys, "assets")
 	if err != nil {
 		t.Fatalf("LoadFactionSpritesWithBasePath failed: %v", err)
 	}
@@ -435,7 +443,8 @@ func TestLoadFactionSprites_DestroyerDimensions(t *testing.T) {
 }
 
 func TestLoadFactionSprites_TestudonDimensions(t *testing.T) {
-	sprites, err := LoadFactionSpritesWithBasePath("../assets")
+	fsys := os.DirFS("..")
+	sprites, err := LoadFactionSpritesWithBasePath(fsys, "assets")
 	if err != nil {
 		t.Fatalf("LoadFactionSpritesWithBasePath failed: %v", err)
 	}
@@ -461,7 +470,8 @@ func TestLoadFactionSprites_TestudonDimensions(t *testing.T) {
 }
 
 func TestLoadFactionSprites_InvalidPath(t *testing.T) {
-	_, err := LoadFactionSpritesWithBasePath("/nonexistent/path")
+	fsys := os.DirFS("/")
+	_, err := LoadFactionSpritesWithBasePath(fsys, "nonexistent/path")
 
 	if err == nil {
 		t.Error("LoadFactionSpritesWithBasePath should return error for invalid path")
@@ -475,7 +485,7 @@ func TestLoadFactionSprites_DefaultPath(t *testing.T) {
 
 	// We can't actually test this reliably in all environments,
 	// so we just verify the function signature exists
-	var testFunc func() (*FactionSprites, error) = LoadFactionSprites
+	var testFunc func(fsys fs.FS) (*FactionSprites, error) = LoadFactionSprites
 	if testFunc == nil {
 		t.Error("LoadFactionSprites function should exist")
 	}
@@ -499,7 +509,8 @@ func TestApplyFactionPalette_NilSprite(t *testing.T) {
 }
 
 func TestShipClassSprites_AllSpritesUnique(t *testing.T) {
-	sprites, err := LoadFactionSpritesWithBasePath("../assets")
+	fsys := os.DirFS("..")
+	sprites, err := LoadFactionSpritesWithBasePath(fsys, "assets")
 	if err != nil {
 		t.Fatalf("LoadFactionSpritesWithBasePath failed: %v", err)
 	}
@@ -522,7 +533,8 @@ func TestShipClassSprites_AllSpritesUnique(t *testing.T) {
 }
 
 func TestFactionSprites_AllShipClassesUnique(t *testing.T) {
-	sprites, err := LoadFactionSpritesWithBasePath("../assets")
+	fsys := os.DirFS("..")
+	sprites, err := LoadFactionSpritesWithBasePath(fsys, "assets")
 	if err != nil {
 		t.Fatalf("LoadFactionSpritesWithBasePath failed: %v", err)
 	}

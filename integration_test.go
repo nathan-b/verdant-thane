@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"os"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -740,7 +741,8 @@ func TestSetChatWindow(t *testing.T) {
 	}
 
 	// Create mock chat window
-	chat, err := NewChatWindow("assets/chat/chatter.json")
+	fsys := os.DirFS(".")
+	chat, err := NewChatWindow(fsys, "assets/chatter.json")
 	if err != nil {
 		// If file doesn't exist, just test with nil
 		em.SetChatWindow(nil)
@@ -818,7 +820,8 @@ func TestOnShipDestroyed(t *testing.T) {
 	em.InitializeFactions(4)
 
 	// Set up chat window
-	chat, err := NewChatWindow("assets/chat/chatter.json")
+	fsys := os.DirFS(".")
+	chat, err := NewChatWindow(fsys, "assets/chatter.json")
 	if err != nil {
 		// Skip chat test if file doesn't exist
 		t.Skip("Chat data file not available")

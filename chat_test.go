@@ -14,7 +14,8 @@ func TestNewChatWindow(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -42,7 +43,8 @@ func TestNewChatWindow(t *testing.T) {
 
 // Test ChatWindow with Invalid File
 func TestNewChatWindowInvalidFile(t *testing.T) {
-	_, err := NewChatWindow("/nonexistent/path/to/chatter.json")
+	fsys := os.DirFS("/")
+	_, err := NewChatWindow(fsys, "nonexistent/path/to/chatter.json")
 	if err == nil {
 		t.Error("Expected error when loading nonexistent file, got nil")
 	}
@@ -53,7 +55,8 @@ func TestChatWindowMessageThrottling(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -82,7 +85,8 @@ func TestChatWindowMessageThrottlingWithDelay(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -117,7 +121,8 @@ func TestChatWindowMaxMessages(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -147,7 +152,8 @@ func TestChatWindowGenerateShipName(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -179,7 +185,8 @@ func TestChatWindowGenerateShipNameWrapping(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -203,7 +210,8 @@ func TestChatWindowOnKillFighter(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -243,7 +251,8 @@ func TestChatWindowOnKillDestroyer(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -270,7 +279,8 @@ func TestChatWindowOnKillTestudon(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -293,7 +303,8 @@ func TestChatWindowOnUnderAttack(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -316,7 +327,8 @@ func TestChatWindowOnFriendlyDestroyerDestroyed(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -339,7 +351,8 @@ func TestChatWindowOnFriendlyTestudonDestroyed(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -362,7 +375,8 @@ func TestChatWindowEmptyTemplates(t *testing.T) {
 	tempFile := createEmptyChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -381,7 +395,8 @@ func TestChatWindowMessageTimestamp(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}
@@ -462,7 +477,8 @@ func TestChatWindowClear(t *testing.T) {
 	tempFile := createTestChatterFile(t)
 	defer os.Remove(tempFile)
 
-	cw, err := NewChatWindow(tempFile)
+	fsys := os.DirFS(filepath.Dir(tempFile))
+	cw, err := NewChatWindow(fsys, filepath.Base(tempFile))
 	if err != nil {
 		t.Fatalf("Failed to create ChatWindow: %v", err)
 	}

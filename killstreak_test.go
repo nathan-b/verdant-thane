@@ -1,5 +1,6 @@
 package main
 
+import "path/filepath"
 import (
 	"bytes"
 	"os"
@@ -12,7 +13,8 @@ import (
 
 func TestLoadKillstreakText(t *testing.T) {
 	// Test loading actual killtext.json file
-	kt, err := LoadKillstreakText("assets/killtext.json")
+	fsys := os.DirFS(".")
+	kt, err := LoadKillstreakText(fsys, "assets/killtext.json")
 	if err != nil {
 		t.Fatalf("Failed to load killtext.json: %v", err)
 	}
@@ -43,7 +45,8 @@ func TestLoadKillstreakText(t *testing.T) {
 }
 
 func TestLoadKillstreakTextInvalidFile(t *testing.T) {
-	_, err := LoadKillstreakText("nonexistent.json")
+	fsys := os.DirFS(".")
+	_, err := LoadKillstreakText(fsys, "nonexistent.json")
 	if err == nil {
 		t.Error("Expected error loading nonexistent file, got nil")
 	}
@@ -64,7 +67,8 @@ func TestLoadKillstreakTextInvalidJSON(t *testing.T) {
 	tmpFile.Close()
 
 	// Should fail to load
-	_, err = LoadKillstreakText(tmpFile.Name())
+	fsys := os.DirFS(filepath.Dir(tmpFile.Name()))
+	_, err = LoadKillstreakText(fsys, filepath.Base(tmpFile.Name()))
 	if err == nil {
 		t.Error("Expected error loading invalid JSON, got nil")
 	}
@@ -90,7 +94,8 @@ func TestLoadKillstreakTextWithStringKeys(t *testing.T) {
 	tmpFile.Close()
 
 	// Load and verify
-	kt, err := LoadKillstreakText(tmpFile.Name())
+	fsys := os.DirFS(filepath.Dir(tmpFile.Name()))
+	kt, err := LoadKillstreakText(fsys, filepath.Base(tmpFile.Name()))
 	if err != nil {
 		t.Fatalf("Failed to load killtext: %v", err)
 	}

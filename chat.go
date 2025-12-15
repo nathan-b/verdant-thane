@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"math/rand"
-	"os"
 	"time"
 )
 
@@ -37,9 +37,9 @@ type ChatWindow struct {
 }
 
 // NewChatWindow creates a new chat window
-func NewChatWindow(chatterFilePath string) (*ChatWindow, error) {
+func NewChatWindow(fsys fs.FS, chatterFilePath string) (*ChatWindow, error) {
 	// Load chatter templates
-	templates, err := loadChatterTemplates(chatterFilePath)
+	templates, err := loadChatterTemplates(fsys, chatterFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load chatter templates: %w", err)
 	}
@@ -54,9 +54,9 @@ func NewChatWindow(chatterFilePath string) (*ChatWindow, error) {
 	}, nil
 }
 
-// loadChatterTemplates loads message templates from JSON file
-func loadChatterTemplates(filePath string) (*ChatterTemplates, error) {
-	data, err := os.ReadFile(filePath)
+// loadChatterTemplates loads message templates from JSON file in an embedded filesystem
+func loadChatterTemplates(fsys fs.FS, filePath string) (*ChatterTemplates, error) {
+	data, err := fs.ReadFile(fsys, filePath)
 	if err != nil {
 		return nil, err
 	}
