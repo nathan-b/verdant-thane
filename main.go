@@ -794,6 +794,9 @@ func (g *Game) Update() error {
 					playerShip.FireWeapon(worldMouseX, worldMouseY, g.entityManager)
 				}
 			}
+
+			// Update previous key states for proper debouncing when transitioning to spectate mode
+			g.prevKeySpace = ebiten.IsKeyPressed(ebiten.KeySpace)
 		}
 
 		// Check for battle end conditions

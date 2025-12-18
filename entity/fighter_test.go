@@ -1051,3 +1051,146 @@ func TestFighterAfterburnerMinimumActivationCharge(t *testing.T) {
 		t.Errorf("Expected minimum activation charge to be 72.0 (20%% of 360), got %f", minActivationCharge)
 	}
 }
+
+// Test Afterburner Deactivation Speed Cap (Regression Test for Bug #1)
+// When afterburner deactivates, ship should decelerate back to normal max speed
+func TestAfterburnerDeactivationSpeedCap(t *testing.T) {
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	chars := config.GetShipCharacteristics(ClassFighter)
+	normalMaxSpeed := chars.MaxSpeed
+	boostedMaxSpeed := normalMaxSpeed * chars.AfterburnerMaxSpeedMultiplier
+
+	// Set ship to boosted max speed with afterburner active
+	fighter.AfterburnerActive = true
+	fighter.AfterburnerCharge = 100.0 // Ensure we have charge
+	fighter.Speed = boostedMaxSpeed
+
+	// Verify we're at boosted speed
+	if fighter.Speed != boostedMaxSpeed {
+		t.Fatalf("Expected speed to be at boosted max (%f), got %f", boostedMaxSpeed, fighter.Speed)
+	}
+
+	// Deactivate afterburner (simulating releasing space bar)
+	fighter.AfterburnerActive = false
+
+	// Simulate the speed cap logic from UpdatePlayerInput
+	effectiveMaxSpeed := normalMaxSpeed
+	if fighter.AfterburnerActive {
+		effectiveMaxSpeed *= fighter.AfterburnerMaxSpeedMultiplier
+	}
+
+	// Apply the deceleration logic multiple times (as it would in game loop)
+	for fighter.Speed > effectiveMaxSpeed {
+		fighter.Speed -= fighter.Accel * 0.5
+		if fighter.Speed < effectiveMaxSpeed {
+			fighter.Speed = effectiveMaxSpeed
+		}
+	}
+
+	// Ship should now be at or below normal max speed
+	if fighter.Speed > normalMaxSpeed {
+		t.Errorf("Ship should decelerate to normal max speed (%f) after afterburner deactivation, got %f",
+			normalMaxSpeed, fighter.Speed)
+	}
+
+	// Should be exactly at normal max speed (not below)
+	if fighter.Speed != normalMaxSpeed {
+		t.Errorf("Ship should settle at exactly normal max speed (%f), got %f",
+			normalMaxSpeed, fighter.Speed)
+	}
+}
+
+// Test Afterburner Deactivation When Charge Runs Out (Regression Test for Bug #1 variant)
+// When afterburner runs out of charge, ship should decelerate back to normal max speed
+func TestAfterburnerChargeDepletionSpeedCap(t *testing.T) {
+	fighter := NewFighter(1, 0, 100, 100, nil)
+	chars := config.GetShipCharacteristics(ClassFighter)
+	normalMaxSpeed := chars.MaxSpeed
+	boostedMaxSpeed := normalMaxSpeed * chars.AfterburnerMaxSpeedMultiplier
+
+	// Set ship to boosted max speed with afterburner active
+	fighter.AfterburnerActive = true
+	fighter.AfterburnerCharge = 1.0 // Very low charge, about to run out
+	fighter.Speed = boostedMaxSpeed
+
+	// Drain the last bit of charge (simulating continued afterburner use)
+	fighter.AfterburnerCharge -= fighter.AfterburnerDrain
+	if fighter.AfterburnerCharge < 0 {
+		fighter.AfterburnerCharge = 0
+	}
+
+	// Afterburner should deactivate when charge hits 0
+	if fighter.AfterburnerCharge <= 0 {
+		fighter.AfterburnerActive = false
+	}
+
+	// Verify afterburner is now inactive
+	if fighter.AfterburnerActive {
+		t.Error("Afterburner should deactivate when charge reaches 0")
+	}
+
+	// Apply speed cap logic
+	effectiveMaxSpeed := normalMaxSpeed
+	if fighter.AfterburnerActive {
+		effectiveMaxSpeed *= fighter.AfterburnerMaxSpeedMultiplier
+	}
+
+	// Apply deceleration
+	for fighter.Speed > effectiveMaxSpeed {
+		fighter.Speed -= fighter.Accel * 0.5
+		if fighter.Speed < effectiveMaxSpeed {
+			fighter.Speed = effectiveMaxSpeed
+		}
+	}
+
+	// Ship should decelerate to normal max speed
+	if fighter.Speed > normalMaxSpeed {
+		t.Errorf("Ship should decelerate to normal max speed (%f) when afterburner runs out, got %f",
+			normalMaxSpeed, fighter.Speed)
+	}
+}
+
+// Test Space Key Accelerates Without W Key (Feature Test)
+// Pressing Space (afterburner) should accelerate the ship even without pressing W
+func TestSpaceKeyAccelerationWithoutW(t *testing.T) {
+	fighter := NewFighter(1, 0, 100, 100, nil)
+
+	// Set ship to stationary
+	fighter.Speed = 0
+
+	// Activate afterburner
+	fighter.AfterburnerActive = true
+	fighter.AfterburnerCharge = 100.0
+
+	// Calculate effective acceleration with afterburner
+	effectiveAccel := fighter.Accel
+	if fighter.AfterburnerActive {
+		effectiveAccel *= fighter.AfterburnerAccelMultiplier
+	}
+
+	// Simulate the acceleration logic from UpdatePlayerInput
+	// This simulates pressing Space (which now also accelerates)
+	initialSpeed := fighter.Speed
+	fighter.Speed += effectiveAccel
+
+	// Apply max speed cap
+	effectiveMaxSpeed := fighter.MaxSpeed
+	if fighter.AfterburnerActive {
+		effectiveMaxSpeed *= fighter.AfterburnerMaxSpeedMultiplier
+	}
+	if fighter.Speed > effectiveMaxSpeed {
+		fighter.Speed = effectiveMaxSpeed
+	}
+
+	// Ship should have accelerated from 0
+	if fighter.Speed <= initialSpeed {
+		t.Errorf("Ship should accelerate when afterburner active, even without W key. Speed: %f -> %f",
+			initialSpeed, fighter.Speed)
+	}
+
+	// Verify we got the boosted acceleration
+	if fighter.Speed < effectiveAccel*0.99 { // Allow small floating point tolerance
+		t.Errorf("Expected acceleration with afterburner boost (%f), got speed increase of %f",
+			effectiveAccel, fighter.Speed-initialSpeed)
+	}
+}

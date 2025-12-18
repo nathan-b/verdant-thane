@@ -672,7 +672,8 @@ func (b *Ship) UpdatePlayerInput(ctx GameContext) {
 	}
 
 	// Acceleration/Deceleration (modify Speed scalar, not velocity)
-	if ebiten.IsKeyPressed(ebiten.KeyW) {
+	// Space (afterburner) also accelerates even without W key
+	if ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeySpace) {
 		// Accelerate
 		b.Speed += effectiveAccel
 		// Apply afterburner max speed boost if active
@@ -690,6 +691,19 @@ func (b *Ship) UpdatePlayerInput(ctx GameContext) {
 		b.Speed -= decel
 		if b.Speed < 0 {
 			b.Speed = 0
+		}
+	}
+
+	// Cap speed to effective max speed (handles afterburner deactivation)
+	effectiveMaxSpeed := b.MaxSpeed
+	if b.AfterburnerActive {
+		effectiveMaxSpeed *= b.AfterburnerMaxSpeedMultiplier
+	}
+	if b.Speed > effectiveMaxSpeed {
+		// Decelerate to match new max speed
+		b.Speed -= effectiveAccel * 0.5
+		if b.Speed < effectiveMaxSpeed {
+			b.Speed = effectiveMaxSpeed
 		}
 	}
 
