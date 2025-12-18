@@ -144,6 +144,7 @@ type Game struct {
 	battleNumber       int                     // Current battle number (1-indexed)
 	currentFleetConfig *config.FleetConfig     // Config for current battle (used for quick restart)
 	nextFleetConfig    *config.FleetConfig     // Config for next battle (used by pre-battle screen)
+	selectedShipClass  *config.ShipClass       // Player's selected ship class (preserved across retries)
 	battleStartScore   int                     // Player score at start of current battle (for restart)
 	battleStartKills   int                     // Player kills at start of current battle (for restart)
 	battleStartDeaths  int                     // Player deaths at start of current battle (for restart)
@@ -882,8 +883,8 @@ func (g *Game) Update() error {
 						_, _, currentDeaths := g.entityManager.GetPlayerStats()
 						g.entityManager.SetPlayerStats(g.battleStartScore, g.battleStartKills, currentDeaths)
 
-						// Restart with same fleet configuration
-						if err := g.StartGame(*g.currentFleetConfig, nil); err != nil {
+						// Restart with same fleet configuration and preserve selected ship class
+						if err := g.StartGame(*g.currentFleetConfig, g.selectedShipClass); err != nil {
 							log.Printf("Error restarting game: %v", err)
 							g.ReturnToTitleScreen()
 						}
@@ -963,6 +964,9 @@ func (g *Game) Update() error {
 					g.hudFont.Source,
 					g.factionSprites,
 					func(selectedClass config.ShipClass) {
+						// Store the selected ship class for retry functionality
+						g.selectedShipClass = &selectedClass
+
 						// Start battle with selected ship class
 						if err := g.StartGame(*g.nextFleetConfig, &selectedClass); err != nil {
 							log.Printf("Error starting next battle: %v", err)
