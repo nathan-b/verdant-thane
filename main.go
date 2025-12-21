@@ -901,14 +901,15 @@ func (g *Game) Update() error {
 					// Reset player stats (score, kills, deaths)
 					g.entityManager.ResetPlayerStats()
 
+					// Clear selected ship class from previous game
+					g.selectedShipClass = nil
+
 					// Generate random fleet configuration for round 1
 					fleetConfig := config.GenerateRandomFleetConfig(rand.Int63(), g.battleNumber)
+					g.nextFleetConfig = &fleetConfig
 
-					// Start new game
-					if err := g.StartGame(fleetConfig, nil); err != nil {
-						log.Printf("Error starting new game: %v", err)
-						g.ReturnToTitleScreen()
-					}
+					// Transition to pre-battle screen (matching title screen "Play Game" behavior)
+					g.currentState = PreBattle
 				},
 			)
 		}
