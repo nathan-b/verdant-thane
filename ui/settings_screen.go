@@ -21,6 +21,7 @@ type SettingsScreen struct {
 	chatEnabled     *widget.Checkbox
 	soundVolumeText *widget.Text
 	musicVolumeText *widget.Text
+	onApply         func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64, chatEnabled bool)
 	onClose         func(soundMuted bool, soundVolume float64, musicMuted bool, musicVolume float64, chatEnabled bool)
 	font            text.Face
 	hudFont         *text.GoTextFace
@@ -39,6 +40,7 @@ func NewSettingsScreen(soundMuted bool, soundVolume float64, musicMuted bool, mu
 	}
 
 	ss := &SettingsScreen{
+		onApply: onApply,
 		onClose: onClose,
 		font:    hudFont,
 		hudFont: hudFont,
@@ -88,12 +90,12 @@ func NewSettingsScreen(soundMuted bool, soundVolume float64, musicMuted bool, mu
 		soundVolume,
 		func(checked bool) {
 			// Sound mute checkbox changed
-			onApply(checked, float64(ss.soundVolume.Current)/100.0, ss.musicMute.State() == widget.WidgetChecked, float64(ss.musicVolume.Current)/100.0, ss.chatEnabled.State() == widget.WidgetChecked)
+			ss.applyCurrentSettings()
 		},
 		func(args *widget.SliderChangedEventArgs) {
 			// Sound volume slider changed
 			ss.soundVolumeText.Label = fmt.Sprintf("%d%%", args.Current)
-			onApply(ss.soundMute.State() == widget.WidgetChecked, float64(args.Current)/100.0, ss.musicMute.State() == widget.WidgetChecked, float64(ss.musicVolume.Current)/100.0, ss.chatEnabled.State() == widget.WidgetChecked)
+			ss.applyCurrentSettings()
 		},
 	)
 	ss.soundMute = soundEffectsRow.checkbox
@@ -107,12 +109,12 @@ func NewSettingsScreen(soundMuted bool, soundVolume float64, musicMuted bool, mu
 		musicVolume,
 		func(checked bool) {
 			// Music mute checkbox changed
-			onApply(ss.soundMute.State() == widget.WidgetChecked, float64(ss.soundVolume.Current)/100.0, checked, float64(ss.musicVolume.Current)/100.0, ss.chatEnabled.State() == widget.WidgetChecked)
+			ss.applyCurrentSettings()
 		},
 		func(args *widget.SliderChangedEventArgs) {
 			// Music volume slider changed
 			ss.musicVolumeText.Label = fmt.Sprintf("%d%%", args.Current)
-			onApply(ss.soundMute.State() == widget.WidgetChecked, float64(ss.soundVolume.Current)/100.0, ss.musicMute.State() == widget.WidgetChecked, float64(args.Current)/100.0, ss.chatEnabled.State() == widget.WidgetChecked)
+			ss.applyCurrentSettings()
 		},
 	)
 	ss.musicMute = musicRow.checkbox
@@ -125,7 +127,7 @@ func NewSettingsScreen(soundMuted bool, soundVolume float64, musicMuted bool, mu
 		chatEnabled,
 		func(checked bool) {
 			// Chat enabled checkbox changed
-			onApply(ss.soundMute.State() == widget.WidgetChecked, float64(ss.soundVolume.Current)/100.0, ss.musicMute.State() == widget.WidgetChecked, float64(ss.musicVolume.Current)/100.0, checked)
+			ss.applyCurrentSettings()
 		},
 	)
 	ss.chatEnabled = chatRow.checkbox
@@ -374,6 +376,20 @@ func (ss *SettingsScreen) createSimpleCheckboxRow(label string, checked bool,
 	return simpleCheckboxRow{
 		container: rowContainer,
 		checkbox:  checkbox,
+	}
+}
+
+// applyCurrentSettings calls the onApply callback with current widget states
+// This helper reduces duplication of the same callback logic across multiple handlers
+func (ss *SettingsScreen) applyCurrentSettings() {
+	if ss.onApply != nil {
+		ss.onApply(
+			ss.soundMute.State() == widget.WidgetChecked,
+			float64(ss.soundVolume.Current)/100.0,
+			ss.musicMute.State() == widget.WidgetChecked,
+			float64(ss.musicVolume.Current)/100.0,
+			ss.chatEnabled.State() == widget.WidgetChecked,
+		)
 	}
 }
 

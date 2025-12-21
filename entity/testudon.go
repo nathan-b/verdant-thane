@@ -8,48 +8,30 @@ import (
 
 // NewTestudon creates a new testudon ship
 func NewTestudon(id int, factionID int, x, y float64, sprite *ebiten.Image) *Ship {
+	ship := newShipBase(id, factionID, ClassTestudon, x, y, sprite)
 	chars := config.GetShipCharacteristics(ClassTestudon)
 	beamWeapon := config.WeaponDatabase["beam"]
 
-	base := &Ship{
-		ID:                            id,
-		FactionID:                     factionID,
-		Class:                         ClassTestudon,
-		X:                             x,
-		Y:                             y,
-		VelocityX:                     0,
-		VelocityY:                     0,
-		Rotation:                      0,
-		Health:                        chars.MaxShield,
-		MaxHealth:                     chars.MaxShield,
-		Speed:                         0,
-		MaxSpeed:                      chars.MaxSpeed,
-		Accel:                         chars.Acceleration,
-		CollisionRadius:               chars.CollisionRadius,
-		PlayerControlled:              false,
-		Weapons:                       []Weapon{}, // Testudons don't use projectile weapons (beam weapon only)
-		AfterburnerCharge:             0.0,
-		AfterburnerActive:             false,
-		AfterburnerMaxCharge:          0.0,
-		HasAfterburnerSystem:          false, // Testudons do NOT have afterburner
-		AfterburnerDrain:              chars.AfterburnerDrain,
-		AfterburnerRecharge:           chars.AfterburnerRecharge,
-		AfterburnerAccelMultiplier:    chars.AfterburnerAccelMultiplier,
-		AfterburnerMaxSpeedMultiplier: chars.AfterburnerMaxSpeedMultiplier,
-		AITargetID:                    -1,
-		AIRetargetTimer:               config.AIRetargetInterval,
-		AIAccurateShotProbability:     chars.AIAccurateShotProbability,
-		AIRandomShotProbability:       chars.AIRandomShotProbability,
-		KillScore:                     chars.KillScore,
-		Sprite:                        sprite,
-		Alive:                         true,
-		BeamRange:                     beamWeapon.MaxRange,
-		BeamDamagePerTick:             beamWeapon.DamagePerTick,
-		BeamDamageAccumulator:         0.0,
-		BeamTargetID:                  -1,
-		BeamFiringAtID:                -1,
-		AttackerIDs:                   []int{},
-	}
+	// Configure testudon-specific: no projectile weapons (beam weapon only)
+	ship.Weapons = []Weapon{}
 
-	return base
+	// No afterburner for testudons
+	ship.AfterburnerCharge = 0.0
+	ship.AfterburnerActive = false
+	ship.AfterburnerMaxCharge = 0.0
+	ship.HasAfterburnerSystem = false
+	ship.AfterburnerDrain = chars.AfterburnerDrain
+	ship.AfterburnerRecharge = chars.AfterburnerRecharge
+	ship.AfterburnerAccelMultiplier = chars.AfterburnerAccelMultiplier
+	ship.AfterburnerMaxSpeedMultiplier = chars.AfterburnerMaxSpeedMultiplier
+
+	// Configure beam weapon
+	ship.BeamRange = beamWeapon.MaxRange
+	ship.BeamDamagePerTick = beamWeapon.DamagePerTick
+	ship.BeamDamageAccumulator = 0.0
+
+	// Testudons use AttackerIDs for AI behavior
+	ship.AttackerIDs = []int{}
+
+	return ship
 }

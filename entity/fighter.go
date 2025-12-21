@@ -92,64 +92,76 @@ type Ship struct {
 	AttackerIDs           []int
 }
 
+// newShipBase creates a base ship with common initialization for all ship classes
+// This is a private helper to reduce duplication across ship constructors
+func newShipBase(id int, factionID int, class ShipClass, x, y float64, sprite *ebiten.Image) *Ship {
+	chars := config.GetShipCharacteristics(class)
+
+	return &Ship{
+		ID:                        id,
+		FactionID:                 factionID,
+		Class:                     class,
+		X:                         x,
+		Y:                         y,
+		VelocityX:                 0,
+		VelocityY:                 0,
+		Rotation:                  0,
+		Health:                    chars.MaxShield,
+		MaxHealth:                 chars.MaxShield,
+		Speed:                     0,
+		MaxSpeed:                  chars.MaxSpeed,
+		Accel:                     chars.Acceleration,
+		CollisionRadius:           chars.CollisionRadius,
+		PlayerControlled:          false,
+		AITargetID:                -1,
+		AIRetargetTimer:           config.AIRetargetInterval,
+		AIAccurateShotProbability: chars.AIAccurateShotProbability,
+		AIRandomShotProbability:   chars.AIRandomShotProbability,
+		KillScore:                 chars.KillScore,
+		Sprite:                    sprite,
+		Alive:                     true,
+		BeamTargetID:              -1,
+		BeamFiringAtID:            -1,
+		// Weapons, afterburner fields, and beam characteristics
+		// are initialized by specific constructors
+	}
+}
+
 // NewFighter creates a new fighter ship
 func NewFighter(id int, factionID int, x, y float64, sprite *ebiten.Image) *Ship {
+	ship := newShipBase(id, factionID, ClassFighter, x, y, sprite)
 	chars := config.GetShipCharacteristics(ClassFighter)
 
-	base := &Ship{
-		ID:               id,
-		FactionID:        factionID,
-		Class:            ClassFighter,
-		X:                x,
-		Y:                y,
-		VelocityX:        0,
-		VelocityY:        0,
-		Rotation:         0,
-		Health:           chars.MaxShield,
-		MaxHealth:        chars.MaxShield,
-		Speed:            0,
-		MaxSpeed:         chars.MaxSpeed,
-		Accel:            chars.Acceleration,
-		CollisionRadius:  chars.CollisionRadius,
-		PlayerControlled: false,
-		Weapons: []Weapon{
-			{
-				WeaponCapacitor:  1.0, // Start fully charged
-				WeaponChargeRate: chars.Weapons[0].CapacitorChargeRate,
-				FiringCone:       chars.Weapons[0].FiringCone,
-				MaxRange:         chars.Weapons[0].MaxRange,
-				SpawnOffset:      chars.Weapons[0].SpawnOffset,
-				Priority:         1,
-				RequiresTarget:   false,
-				Exclusive:        false,
-				RearFacing:       false,
-				ProjectileType:   config.LaserProjectile,
-			},
+	// Configure fighter-specific weapon
+	ship.Weapons = []Weapon{
+		{
+			WeaponCapacitor:  1.0, // Start fully charged
+			WeaponChargeRate: chars.Weapons[0].CapacitorChargeRate,
+			FiringCone:       chars.Weapons[0].FiringCone,
+			MaxRange:         chars.Weapons[0].MaxRange,
+			SpawnOffset:      chars.Weapons[0].SpawnOffset,
+			Priority:         1,
+			RequiresTarget:   false,
+			Exclusive:        false,
+			RearFacing:       false,
+			ProjectileType:   config.LaserProjectile,
 		},
-		AfterburnerCharge:             360.0, // Start fully charged
-		AfterburnerActive:             false,
-		AfterburnerMaxCharge:          360.0,
-		HasAfterburnerSystem:          true, // Fighters have afterburner
-		AfterburnerDrain:              chars.AfterburnerDrain,
-		AfterburnerRecharge:           chars.AfterburnerRecharge,
-		AfterburnerAccelMultiplier:    chars.AfterburnerAccelMultiplier,
-		AfterburnerMaxSpeedMultiplier: chars.AfterburnerMaxSpeedMultiplier,
-		AITargetID:                    -1, // No target initially
-		AIRetargetTimer:               config.AIRetargetInterval,
-		AIAccurateShotProbability:     chars.AIAccurateShotProbability,
-		AIRandomShotProbability:       chars.AIRandomShotProbability,
-		KillScore:                     chars.KillScore,
-		Sprite:                        sprite,
-		Alive:                         true,
-		BeamRange:                     0.0, // Unused by fighters
-		BeamDamagePerTick:             0.0, // Unused by fighters
-		BeamDamageAccumulator:         0.0, // Unused by fighters
-		BeamTargetID:                  -1,  // Unused by fighters
-		BeamFiringAtID:                -1,  // Unused by fighters
-		AttackerIDs:                   nil, // Unused by fighters
 	}
 
-	return base
+	// Configure afterburner (fighters have afterburner)
+	ship.AfterburnerCharge = 360.0 // Start fully charged
+	ship.AfterburnerActive = false
+	ship.AfterburnerMaxCharge = 360.0
+	ship.HasAfterburnerSystem = true
+	ship.AfterburnerDrain = chars.AfterburnerDrain
+	ship.AfterburnerRecharge = chars.AfterburnerRecharge
+	ship.AfterburnerAccelMultiplier = chars.AfterburnerAccelMultiplier
+	ship.AfterburnerMaxSpeedMultiplier = chars.AfterburnerMaxSpeedMultiplier
+
+	// Beam fields unused by fighters (zero values from base)
+	// AttackerIDs unused by fighters (nil from base)
+
+	return ship
 }
 
 // ============================================================================

@@ -81,26 +81,9 @@ func (p *ProfileData) RecordProjectileLife(d time.Duration)  { p.ProjectileLife 
 func (p *ProfileData) RecordCollisions(d time.Duration)      { p.Collisions += d }
 func (p *ProfileData) RecordExplosions(d time.Duration)      { p.Explosions += d }
 
-// Reset clears all timing data
+// Reset clears all timing data by resetting to zero values
 func (p *ProfileData) Reset() {
-	p.PlayerInput = 0
-	p.AIMovement = 0
-	p.WeaponsUpdate = 0
-	p.BeamWeapons = 0
-	p.Movement = 0
-	p.MissileTracking = 0
-	p.ProjectileLife = 0
-	p.Collisions = 0
-	p.Explosions = 0
-	p.AIFiring = 0
-	p.RenderStars = 0
-	p.RenderShips = 0
-	p.RenderBeams = 0
-	p.RenderProjectiles = 0
-	p.RenderExplosions = 0
-	p.RenderMinimap = 0
-	p.TotalUpdate = 0
-	p.TotalDraw = 0
+	*p = ProfileData{}
 }
 
 // StartupProfileData tracks timing for game startup (main() to title screen)
@@ -1047,6 +1030,40 @@ func (g *Game) Update() error {
 	return nil
 }
 
+// renderStarfield draws the star background for the given camera position
+// useWrapping should be true for in-game rendering (handles world wrapping),
+// false for static menu screens
+func (g *Game) renderStarfield(screen *ebiten.Image, cameraX, cameraY float64, useWrapping bool) {
+	// Determine which grid cells are visible
+	minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
+	maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
+	minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
+	maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
+
+	// Draw stars for visible grid cells
+	for gridX := minGridX; gridX <= maxGridX; gridX++ {
+		for gridY := minGridY; gridY <= maxGridY; gridY++ {
+			stars := systems.GenerateStarsForGrid(gridX, gridY)
+			for _, star := range stars {
+				var screenX, screenY float64
+				if useWrapping {
+					// Use wrapped screen position for in-game rendering
+					screenX, screenY = entity.GetWrappedScreenPosition(star.X, star.Y, cameraX, cameraY)
+				} else {
+					// Simple offset for static menu screens
+					screenX = star.X - cameraX
+					screenY = star.Y - cameraY
+				}
+
+				// Only draw if on screen
+				if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
+					vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
+				}
+			}
+		}
+	}
+}
+
 // Draw renders the game screen
 func (g *Game) Draw(screen *ebiten.Image) {
 	// Fill the screen with black
@@ -1055,24 +1072,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	switch g.currentState {
 	case TitleScreen:
 		// Draw stars background (static, camera at origin)
-		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
-		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
-		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
-		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
-
-		for gridX := minGridX; gridX <= maxGridX; gridX++ {
-			for gridY := minGridY; gridY <= maxGridY; gridY++ {
-				stars := systems.GenerateStarsForGrid(gridX, gridY)
-				for _, star := range stars {
-					screenX := star.X - cameraX
-					screenY := star.Y - cameraY
-					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
-						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
-					}
-				}
-			}
-		}
+		g.renderStarfield(screen, 0.0, 0.0, false)
 
 		// Draw title text
 		titleText := "Verdant Thane"
@@ -1097,28 +1097,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		// Draw stars
 		starsStart := time.Now()
-		// Determine which grid cells are visible
-		// Use floor division to handle negative camera coordinates correctly
-		minGridX := int(math.Floor(g.cameraX / float64(config.StarGridSize)))
-		maxGridX := int(math.Floor((g.cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
-		minGridY := int(math.Floor(g.cameraY / float64(config.StarGridSize)))
-		maxGridY := int(math.Floor((g.cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
-
-		// Draw stars for visible grid cells
-		for gridX := minGridX; gridX <= maxGridX; gridX++ {
-			for gridY := minGridY; gridY <= maxGridY; gridY++ {
-				stars := systems.GenerateStarsForGrid(gridX, gridY)
-				for _, star := range stars {
-					// Use wrapped screen position to handle world wrapping correctly
-					screenX, screenY := entity.GetWrappedScreenPosition(star.X, star.Y, g.cameraX, g.cameraY)
-
-					// Only draw if on screen
-					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
-						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
-					}
-				}
-			}
-		}
+		g.renderStarfield(screen, g.cameraX, g.cameraY, true)
 		g.profileData.RenderStars += time.Since(starsStart)
 
 		// Draw ships
@@ -1371,24 +1350,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	case GameOver:
 		// Draw stars background
-		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
-		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
-		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
-		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
-
-		for gridX := minGridX; gridX <= maxGridX; gridX++ {
-			for gridY := minGridY; gridY <= maxGridY; gridY++ {
-				stars := systems.GenerateStarsForGrid(gridX, gridY)
-				for _, star := range stars {
-					screenX := star.X - cameraX
-					screenY := star.Y - cameraY
-					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
-						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
-					}
-				}
-			}
-		}
+		g.renderStarfield(screen, 0.0, 0.0, false)
 
 		// Draw game over screen
 		if g.gameOverScreen != nil {
@@ -1397,24 +1359,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	case Instructions:
 		// Draw stars background
-		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
-		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
-		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
-		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
-
-		for gridX := minGridX; gridX <= maxGridX; gridX++ {
-			for gridY := minGridY; gridY <= maxGridY; gridY++ {
-				stars := systems.GenerateStarsForGrid(gridX, gridY)
-				for _, star := range stars {
-					screenX := star.X - cameraX
-					screenY := star.Y - cameraY
-					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
-						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
-					}
-				}
-			}
-		}
+		g.renderStarfield(screen, 0.0, 0.0, false)
 
 		// Draw instructions dialog and content
 		ui.RenderDialog(screen, g.instructionsDialog, g.hudFont)
@@ -1423,24 +1368,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	case HighScores:
 		// Draw stars background
-		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
-		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
-		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
-		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
-
-		for gridX := minGridX; gridX <= maxGridX; gridX++ {
-			for gridY := minGridY; gridY <= maxGridY; gridY++ {
-				stars := systems.GenerateStarsForGrid(gridX, gridY)
-				for _, star := range stars {
-					screenX := star.X - cameraX
-					screenY := star.Y - cameraY
-					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
-						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
-					}
-				}
-			}
-		}
+		g.renderStarfield(screen, 0.0, 0.0, false)
 
 		// Draw high scores dialog and table
 		ui.RenderDialog(screen, g.highScoresDialog, g.hudFont)
@@ -1449,24 +1377,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	case PreBattle:
 		// Draw stars background
-		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
-		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
-		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
-		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
-
-		for gridX := minGridX; gridX <= maxGridX; gridX++ {
-			for gridY := minGridY; gridY <= maxGridY; gridY++ {
-				stars := systems.GenerateStarsForGrid(gridX, gridY)
-				for _, star := range stars {
-					screenX := star.X - cameraX
-					screenY := star.Y - cameraY
-					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
-						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
-					}
-				}
-			}
-		}
+		g.renderStarfield(screen, 0.0, 0.0, false)
 
 		// Draw pre-battle screen UI
 		if g.preBattleScreen != nil {
@@ -1475,24 +1386,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	case Settings:
 		// Draw stars background
-		cameraX, cameraY := 0.0, 0.0
-		minGridX := int(math.Floor(cameraX / float64(config.StarGridSize)))
-		maxGridX := int(math.Floor((cameraX + float64(config.ScreenWidth)) / float64(config.StarGridSize)))
-		minGridY := int(math.Floor(cameraY / float64(config.StarGridSize)))
-		maxGridY := int(math.Floor((cameraY + float64(config.ScreenHeight)) / float64(config.StarGridSize)))
-
-		for gridX := minGridX; gridX <= maxGridX; gridX++ {
-			for gridY := minGridY; gridY <= maxGridY; gridY++ {
-				stars := systems.GenerateStarsForGrid(gridX, gridY)
-				for _, star := range stars {
-					screenX := star.X - cameraX
-					screenY := star.Y - cameraY
-					if screenX >= 0 && screenX < float64(config.ScreenWidth) && screenY >= 0 && screenY < float64(config.ScreenHeight) {
-						vector.FillRect(screen, float32(screenX), float32(screenY), 1, 1, color.White, false)
-					}
-				}
-			}
-		}
+		g.renderStarfield(screen, 0.0, 0.0, false)
 
 		// Draw settings screen
 		if g.settingsScreen != nil {
